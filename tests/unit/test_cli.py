@@ -195,6 +195,36 @@ class TestListsCommand:
         captured = capsys.readouterr()
         assert "no lists yet" in captured.out
 
+    def test_lists_shows_indented_sublist(self, todos_env, capsys):
+        main(["new-list", "work"])
+        main(["new-list", "work.meetings"])
+        capsys.readouterr()
+
+        main(["lists"])
+
+        captured = capsys.readouterr()
+        lines = captured.out.splitlines()
+        parent_line = next(line for line in lines if line.strip() == "work")
+        child_line = next(line for line in lines if line.strip() == "meetings")
+
+        assert child_line.startswith(" ")
+        assert lines.index(child_line) > lines.index(parent_line)
+
+    def test_lists_unrelated_sibling(self, todos_env, capsys):
+        main(["new-list", "work"])
+        main(["new-list", "work-log"])
+        main(["new-list", "work.meetings"])
+        capsys.readouterr()
+
+        main(["lists"])
+
+        captured = capsys.readouterr()
+        lines = [line.strip() for line in captured.out.splitlines()]
+        parent_index = lines.index("work")
+        child_index = lines.index("meetings")
+
+        assert child_index == parent_index + 1
+
 
 class TestNewListRmList:
     def test_new_list_creates_empty_list(self, todos_env, capsys):
@@ -211,6 +241,14 @@ class TestNewListRmList:
         assert exit_code == 1
         assert "reserved" in captured.err
 
+    def test_new_list_rejects_excessive_depth(self, todos_env, capsys):
+        exit_code = main(["new-list", "work.meetings.boring.extra"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "nested too deep" in captured.err
+
     def test_rm_list_deletes_with_confirmation(
         self, todos_env, monkeypatch, capsys
     ):
@@ -226,6 +264,36 @@ class TestNewListRmList:
 
         assert rm_exit_code == 0
         assert "groceries" not in lists_captured.out
+
+    def test_new_sublist_creates_missing_parent(self, todos_env, capsys):
+        exit_code = main(["new-list", "work.meetings"])
+        capsys.readouterr()
+
+        main(["lists"])
+        lists_captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "work" in lists_captured.out
+        assert "meetings" in lists_captured.out
+
+    def test_rm_list_cascades(self, todos_env, monkeypatch, capsys):
+        prompts = []
+        monkeypatch.setattr(
+            "builtins.input", lambda p: prompts.append(p) or "y"
+        )
+        main(["work", "add", "task"])
+        main(["work.meetings", "add", "sub-task"])
+        capsys.readouterr()
+
+        main(["rm-list", "work"])
+        capsys.readouterr()
+
+        main(["lists"])
+        lists_captured = capsys.readouterr()
+
+        assert "work" not in lists_captured.out
+        assert "meetings" not in lists_captured.out
+        assert "work.meetings" in prompts[0]
 
 
 class TestDefaultListAction:
@@ -256,3 +324,52 @@ class TestDefaultListAction:
         captured = capsys.readouterr()
         assert "a" in captured.out
         assert "b" not in captured.out
+
+    def test_shows_child_section(self, todos_env, capsys):
+        main(["work", "add", "task"])
+        main(["work.meetings", "add", "sub-task"])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "task" in captured.out
+        assert "sub-task" in captured.out
+        assert "work.meetings" in captured.out
+
+    def test_grandchild_not_shown_under_top_ancestor(self, todos_env, capsys):
+        main(["work.meetings.notes", "add", "deep-task"])
+        capsys.readouterr()
+
+        main(["work"])
+        top_captured = capsys.readouterr()
+
+        main(["work.meetings"])
+        mid_captured = capsys.readouterr()
+
+        assert "deep-task" not in top_captured.out
+        assert "deep-task" in mid_captured.out
+
+    def test_tag_filter_applies_to_child_sections(self, todos_env, capsys):
+        main(["work", "add", "a", "-t", "urgent"])
+        main(["work.meetings", "add", "b", "-t", "urgent"])
+        main(["work.meetings", "add", "c", "-t", "later"])
+        capsys.readouterr()
+
+        main(["work", "-t", "urgent"])
+
+        captured = capsys.readouterr()
+        assert "a" in captured.out
+        assert "b" in captured.out
+        assert "c" not in captured.out
+
+    def test_empty_child_section_shown_without_filter(self, todos_env, capsys):
+        main(["new-list", "work.meetings"])
+        capsys.readouterr()
+
+        main(["work"])
+
+        captured = capsys.readouterr()
+        assert "work.meetings" in captured.out
