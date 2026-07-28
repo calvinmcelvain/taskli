@@ -11,6 +11,7 @@ from .exceptions import (
     ListAlreadyExistsError,
     ListNotFoundError,
     ReservedNameError,
+    TooManyAncestorListsError,
 )
 from .models import TodoList
 
@@ -46,6 +47,10 @@ def list_file_path(storage_dir: Path, name: str) -> Path:
     -------
     Path
         Path to the list's JSON file.
+
+    Notes
+    -----
+    Cannot have decendent lists with a depth greater than 2.
     """
 
     _reserved = {".", "..", "con", "prn", "aux", "nul"}
@@ -57,6 +62,12 @@ def list_file_path(storage_dir: Path, name: str) -> Path:
     segments = name.split(".")
     if len(segments) > 1 and any(not segment for segment in segments):
         raise InvalidListNameError(f"'{name}' is not a valid list name.")
+
+    # restrict depth to 2.
+    if len(ancestor_chain(name)) > 2:
+        raise TooManyAncestorListsError(
+            f"'{name}' is nested too deep (max 2 sublist levels)."
+        )
 
     return storage_dir / f"{name}.json"
 

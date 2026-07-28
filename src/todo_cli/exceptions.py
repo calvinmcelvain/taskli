@@ -7,6 +7,7 @@ __all__ = [
     "InvalidListNameError",
     "ItemNotFoundError",
     "ReservedNameError",
+    "TooManyAncestorListsError",
 ]
 
 
@@ -32,3 +33,7 @@ class ItemNotFoundError(Exception):
 
 class ReservedNameError(Exception):
     """Raised when a list name collides with a reserved command word."""
+
+
+class TooManyAncestorListsError(Exception):
+    """Raised when a list name is nested more than 2 levels deep."""
