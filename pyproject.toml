@@ -1,0 +1,149 @@
+[build-system]
+requires = ["hatchling>=1.28.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "todo-cli"
+description = "Simple CLI for tracking todo lists."
+readme = "README.md"
+authors = [
+    {name = "Calvin W. McElvain", email = "mcelvain1@hotmail.com"},
+]
+dynamic = ["version"]
+requires-python = ">=3.10"
+dependencies = [
+    "rich>=13.0",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+todo = "todo_cli.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "black>=24.0",
+    "mypy>=1.8",
+    "isort>=5.13",
+    "ruff>=0.5",
+]
+
+[tool.hatch.version]
+path = "src/todo_cli/__version__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "README.md",
+]
+exclude = [
+    "*.pyc",
+    "__pycache__",
+    ".git",
+    ".pytest_cache",
+    ".coverage",
+    "*.egg-info",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/todo_cli"]
+
+[tool.hatch.envs.dev]
+dev-mode = true
+features = ["dev"]
+
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "-ra",
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/__init__.py",
+    "*/__version__.py",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/gui/main.py",
+    "*/gui/widgets.py",
+    "*/gui/window.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "pass",
+    "@overload",
+]
+show_missing = true
+precision = 2
+
+[tool.black]
+line-length = 79
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.eggs
+  | \.git
+  | \.hatch
+  | \.pytest_cache
+  | __pycache__
+)/
+'''
+
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+src = ["src", "tests"]
+exclude = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+    "_build",
+    "build",
+    "dist",
+    ".hatch-envs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # flake8-bandit (security)
+]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**" = ["S105", "S106"]
+
+[tool.mypy]
+warn_return_any = true
+warn_unused_configs = true
