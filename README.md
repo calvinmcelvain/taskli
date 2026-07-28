@@ -1,7 +1,7 @@
 # todo-cli
 
-[![CI](https://github.com//actions/workflows/ci.yml/badge.svg)](https://github.com//actions/workflows/ci.yml)
-[![Release](https://github.com//actions/workflows/release.yml/badge.svg)](https://github.com//actions/workflows/release.yml)
+[![CI](https://github.com/calvinmcelvain/todo-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinmcelvain/todo-cli/actions/workflows/ci.yml)
+[![Release](https://github.com/calvinmcelvain/todo-cli/actions/workflows/release.yml/badge.svg)](https://github.com/calvinmcelvain/todo-cli/actions/workflows/release.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Type checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue)
 

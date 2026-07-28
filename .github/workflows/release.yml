@@ -87,10 +87,10 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Create annotated tag
+      - name: Create tag
         if: steps.check.outputs.exists == 'false'
         run: |
-          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git tag "v$VERSION"
           git push origin "v$VERSION"
 
       - name: Create GitHub Release
