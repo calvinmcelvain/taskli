@@ -3,19 +3,14 @@ import functools
 import sys
 from collections.abc import Callable
 
-from .exceptions import (
-    CorruptedListFileError,
-    InvalidListNameError,
-    ItemNotFoundError,
-    ListAlreadyExistsError,
-    ListNotFoundError,
-    ReservedNameError,
-)
+from .exceptions import TodoError
 from .models import Priority
-from .render import render_error, render_items, render_list_names
+from .render import render_error, render_grouped_items, render_list_names
 from .storage import (
+    child_list_names,
     create_list,
     delete_list,
+    descendant_list_names,
     list_all_lists,
     load_list,
     load_or_create_list,
@@ -43,20 +38,11 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
-    known_exe = (
-        ListNotFoundError,
-        ListAlreadyExistsError,
-        CorruptedListFileError,
-        InvalidListNameError,
-        ItemNotFoundError,
-        ReservedNameError,
-    )
-
     @functools.wraps(func)
     def wrapper(*args: object, **kwargs: object) -> int:
         try:
             return func(*args, **kwargs)
-        except known_exe as e:
+        except TodoError as e:
             render_error(str(e))
 
             return 1
@@ -168,16 +154,30 @@ def _new_list_cmd(name: str) -> int:
 
 @_handle_errors
 def _rm_list_cmd(name: str) -> int:
-    if not _confirm(f"delete list '{name}' and all its items?"):
+    storage_dir = resolve_storage_dir()
+    descendants = descendant_list_names(name, list_all_lists(storage_dir))
+
+    prompt = f"delete list '{name}' and all its items?"
+    if descendants:
+        prompt = (
+            f"delete list '{name}' and its {len(descendants)} "
+            f"sublist(s) ({', '.join(descendants)}) and all their items?"
+        )
+
+    if not _confirm(prompt):
         print("aborted.")
 
         return 1
 
-    storage_dir = resolve_storage_dir()
+    deleted_descendants = delete_list(storage_dir, name)
 
-    delete_list(storage_dir, name)
-
-    print(f"deleted list '{name}'.")
+    if deleted_descendants:
+        print(
+            f"deleted list '{name}' and {len(deleted_descendants)} "
+            "sublist(s)."
+        )
+    else:
+        print(f"deleted list '{name}'.")
 
     return 0
 
@@ -185,7 +185,9 @@ def _rm_list_cmd(name: str) -> int:
 @_handle_errors
 def _add_cmd(list_name: str, text: str, tags: list[str], priority: str) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_or_create_list(storage_dir, list_name)
+    todo_list = load_or_create_list(
+        storage_dir, list_name, reserved_names=RESERVED_NAMES
+    )
     item = todo_list.add_item(
         text, priority=Priority(priority), tags=list(tags)
     )
@@ -202,7 +204,20 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
     storage_dir = resolve_storage_dir()
     todo_list = load_list(storage_dir, list_name)
 
-    render_items(list_name, todo_list.filtered_items(tag=tag))
+    sections = [(list_name, todo_list.filtered_items(tag=tag))]
+
+    # filter each decendent list by tag if given to parent.
+    all_names = list_all_lists(storage_dir)
+    for child_name in child_list_names(list_name, all_names):
+        child_list = load_list(storage_dir, child_name)
+        child_items = child_list.filtered_items(tag=tag)
+
+        if tag is not None and not child_items:
+            continue
+
+        sections.append((child_name, child_items))
+
+    render_grouped_items(sections)
 
     return 0
 
