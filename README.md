@@ -15,6 +15,16 @@ source .venv/bin/activate      # Git Bash on Windows: source .venv/Scripts/activ
 pip install -e ".[dev]"
 ```
 
+### Global install
+
+For a "global" install (i.e., ability to use `todo` in the terminal across local environments), you will need to use `pipx`:
+
+```bash
+# after doing the above...
+pip install pipx
+pipx install . --force
+```
+
 ## Usage
 
 ```
