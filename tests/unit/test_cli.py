@@ -381,3 +381,50 @@ class TestDefaultListAction:
 
         captured = capsys.readouterr()
         assert "work.meetings" in captured.out
+
+
+class TestImplicitAdd:
+    def test_bare_text_adds_to_inbox(self, todos_env, capsys):
+        exit_code = main(["this is a task"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'inbox'" in captured.out
+
+    def test_list_and_text_adds_to_list(self, todos_env, capsys):
+        exit_code = main(["list1", "task 2"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'list1'" in captured.out
+
+    def test_existing_list_name_still_shows_list(self, todos_env, capsys):
+        main(["work", "add", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "task" in captured.out
+
+    def test_bare_inbox_shows_inbox_even_when_empty(self, todos_env, capsys):
+        exit_code = main(["inbox"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "inbox" in captured.out
+
+    def test_list_and_text_with_flags(self, todos_env, capsys):
+        exit_code = main(["work", "task", "-t", "urgent"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'work'" in captured.out
+
+    def test_bare_text_with_flags_adds_to_inbox(self, todos_env, capsys):
+        exit_code = main(["buy milk", "-p", "high"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'inbox'" in captured.out

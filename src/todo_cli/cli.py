@@ -367,7 +367,15 @@ def main(argv: list[str] | None = None) -> int:
 
     list_name, *rest = normalized
     if not rest or rest[0].startswith("-"):
-        rest = ["list", *rest]
+        storage_dir = resolve_storage_dir()
+        list_names = list_all_lists(storage_dir)
+        if list_name != "inbox" and list_name not in list_names:
+            rest = ["add", list_name, *rest]
+            list_name = "inbox"
+        else:
+            rest = ["list", *rest]
+    elif rest[0] not in LIST_SCOPED_ACTIONS:
+        rest = ["add", *rest]
 
     parser = _build_list_action_parser()
     try:
