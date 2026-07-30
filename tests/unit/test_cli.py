@@ -142,7 +142,9 @@ class TestPrune:
         assert "pruned 0 item" in prune_captured.out
         assert "task" in list_captured.out
 
-    def test_prune_raises_clean_error_for_missing_list(self, todos_env, capsys):
+    def test_prune_raises_clean_error_for_missing_list(
+        self, todos_env, capsys
+    ):
         exit_code = main(["ghost", "prune"])
 
         captured = capsys.readouterr()
