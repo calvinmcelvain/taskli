@@ -32,14 +32,21 @@ todo [LIST] [ACTION ...]
 ```
 
 `LIST` is optional and defaults to `inbox`. `ACTION` is optional too and
-defaults to `list`:
+defaults to `list` or `add`, depending on what's left after `LIST`:
 
 ```bash
-todo add "buy milk"            # == todo inbox add "buy milk"
+todo add "buy milk"             # == todo inbox add "buy milk"
+todo "buy milk"                 # == todo inbox add "buy milk" (add omitted)
 todo work add "finish report" -p high -t urgent
-todo work                      # == todo work list
-todo                           # == todo inbox list
+todo work "buy milk"            # == todo work add "buy milk" (add omitted)
+todo work                       # == todo work list, if 'work' already exists
+todo                            # == todo inbox list
 ```
+
+A bare word with nothing after it (`todo work`) is only treated as a list
+name if that list already exists — `inbox` always counts as existing. A recognized action word still wins in
+second position, though: `todo work "list"` shows `work`'s items, it does
+not add a task named "list".
 
 Lists can be nested into **sublists** by separating names with a `.`, e.g.
 `work.meetings`. See [Sublists](#sublists) below for how nesting, grouped
