@@ -346,7 +346,7 @@ class TestDefaultListAction:
         assert "sub-task" in captured.out
         assert "work.meetings" in captured.out
 
-    def test_grandchild_not_shown_under_top_ancestor(self, todos_env, capsys):
+    def test_grandchild_shown_under_top_ancestor(self, todos_env, capsys):
         main(["work.meetings.notes", "add", "deep-task"])
         capsys.readouterr()
 
@@ -356,7 +356,8 @@ class TestDefaultListAction:
         main(["work.meetings"])
         mid_captured = capsys.readouterr()
 
-        assert "deep-task" not in top_captured.out
+        assert "deep-task" in top_captured.out
+        assert "work.meetings.notes" in top_captured.out
         assert "deep-task" in mid_captured.out
 
     def test_tag_filter_applies_to_child_sections(self, todos_env, capsys):
