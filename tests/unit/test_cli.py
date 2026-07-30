@@ -195,7 +195,7 @@ class TestListsCommand:
         captured = capsys.readouterr()
         assert "no lists yet" in captured.out
 
-    def test_lists_shows_indented_sublist(self, todos_env, capsys):
+    def test_lists_shows_nested_sublist(self, todos_env, capsys):
         main(["new-list", "work"])
         main(["new-list", "work.meetings"])
         capsys.readouterr()
@@ -205,9 +205,12 @@ class TestListsCommand:
         captured = capsys.readouterr()
         lines = captured.out.splitlines()
         parent_line = next(line for line in lines if line.strip() == "work")
-        child_line = next(line for line in lines if line.strip() == "meetings")
+        child_line = next(
+            line
+            for line in lines
+            if line.strip().endswith("meetings") and line.strip() != "meetings"
+        )
 
-        assert child_line.startswith(" ")
         assert lines.index(child_line) > lines.index(parent_line)
 
     def test_lists_unrelated_sibling(self, todos_env, capsys):
@@ -221,7 +224,11 @@ class TestListsCommand:
         captured = capsys.readouterr()
         lines = [line.strip() for line in captured.out.splitlines()]
         parent_index = lines.index("work")
-        child_index = lines.index("meetings")
+        child_index = next(
+            i
+            for i, line in enumerate(lines)
+            if line.endswith("meetings") and line != "meetings"
+        )
 
         assert child_index == parent_index + 1
 

@@ -1,8 +1,9 @@
 from rich.console import Console
 from rich.table import Table
+from rich.tree import Tree
 
 from .models import Priority, TodoItem
-from .storage import child_list_names, parent_list_name
+from .storage import ancestor_chain
 
 __all__ = [
     "render_items",
@@ -85,25 +86,29 @@ def render_list_names(names: list[str]) -> None:
 
         return None
 
-    # find the roots of all names (if multiple decendents) to properly indent.
-    name_set = set(names)
-    roots = sorted(
-        n
-        for n in names
-        if parent_list_name(n) is None or parent_list_name(n) not in name_set
-    )
-
-    def _print_subtree(name: str, depth: int) -> None:
-        label = name.rsplit(".", 1)[-1] if depth > 0 else name
-
-        # indentation linear to the depth.
-        _console.print(f"{'  ' * depth}{label}")
-        for child in child_list_names(name, names):  # RECURSION BITTTTCHHH.
-            _print_subtree(child, depth + 1)
-
     # create a tree for each root of a list.
-    for root in roots:
-        _print_subtree(root, 0)
+    roots: dict[str, Tree] = {}
+    nodes: dict[str, Tree] = {}
+
+    for name in sorted(set(names)):
+        parent = None
+        chain = [*ancestor_chain(name), name]
+        for i in chain:
+            if i in nodes:
+                parent = nodes[i]
+                continue
+
+            if parent is None:
+                node = Tree(i)
+                roots[i] = node
+            else:
+                label = i.rsplit(".", 1)[-1]
+                node = parent.add(label)
+
+            nodes[i] = node
+            parent = node
+
+    _console.print(*list(roots.values()))
 
     return None
 
