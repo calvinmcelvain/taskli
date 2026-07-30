@@ -7,7 +7,6 @@ from .exceptions import TodoError
 from .models import Priority
 from .render import render_error, render_grouped_items, render_list_names
 from .storage import (
-    child_list_names,
     create_list,
     delete_list,
     descendant_list_names,
@@ -208,7 +207,7 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
 
     # filter each decendent list by tag if given to parent.
     all_names = list_all_lists(storage_dir)
-    for child_name in child_list_names(list_name, all_names):
+    for child_name in descendant_list_names(list_name, all_names):
         child_list = load_list(storage_dir, child_name)
         child_items = child_list.filtered_items(tag=tag)
 
