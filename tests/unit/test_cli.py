@@ -1,4 +1,6 @@
 from todo_cli.cli import main
+from todo_cli.models import Color
+from todo_cli.storage import load_list
 
 
 class TestAdd:
@@ -256,6 +258,30 @@ class TestNewListRmList:
         assert exit_code == 1
         assert "nested too deep" in captured.err
 
+    def test_new_list_with_color(self, todos_env, capsys):
+        exit_code = main(["new-list", "groceries", "-c", "coral"])
+
+        assert exit_code == 0
+        assert load_list(todos_env, "groceries").color is Color.CORAL
+
+    def test_new_list_with_color_shown_in_lists(self, todos_env, capsys):
+        main(["new-list", "groceries", "-c", "coral"])
+        capsys.readouterr()
+
+        exit_code = main(["lists"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "groceries" in captured.out
+
+    def test_new_list_rejects_invalid_color(self, todos_env, capsys):
+        exit_code = main(["new-list", "groceries", "-c", "notacolor"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 2
+        assert "invalid choice" in captured.err
+
     def test_rm_list_deletes_with_confirmation(
         self, todos_env, monkeypatch, capsys
     ):
@@ -301,6 +327,61 @@ class TestNewListRmList:
         assert "work" not in lists_captured.out
         assert "meetings" not in lists_captured.out
         assert "work.meetings" in prompts[0]
+
+
+class TestEditListCommand:
+    def test_changes_color(self, todos_env, capsys):
+        main(["new-list", "work"])
+        capsys.readouterr()
+
+        exit_code = main(["edit-list", "work", "-c", "teal"])
+
+        capsys.readouterr()
+
+        assert exit_code == 0
+        assert load_list(todos_env, "work").color is Color.TEAL
+
+    def test_colored_list_items_still_render(self, todos_env, capsys):
+        main(["new-list", "work"])
+        main(["work", "add", "task"])
+        main(["edit-list", "work", "-c", "teal"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "list"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "task" in captured.out
+
+    def test_missing_list_errors(self, todos_env, capsys):
+        exit_code = main(["edit-list", "ghost", "-c", "teal"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "does not exist" in captured.err
+
+    def test_rejects_invalid_color(self, todos_env, capsys):
+        main(["new-list", "work"])
+        capsys.readouterr()
+
+        exit_code = main(["edit-list", "work", "-c", "notacolor"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 2
+        assert "invalid choice" in captured.err
+
+    def test_requires_color_flag(self, todos_env, capsys):
+        main(["new-list", "work"])
+        capsys.readouterr()
+
+        exit_code = main(["edit-list", "work"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 2
+        assert "required" in captured.err
 
 
 class TestDefaultListAction:
