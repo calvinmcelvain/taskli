@@ -4,7 +4,7 @@ import sys
 from collections.abc import Callable
 
 from .exceptions import TodoError
-from .models import Priority
+from .models import Color, Priority
 from .render import render_error, render_grouped_items, render_list_names
 from .storage import (
     create_list,
@@ -21,7 +21,7 @@ LIST_SCOPED_ACTIONS: frozenset[str] = frozenset(
     {"add", "list", "done", "undone", "rm", "edit", "tags", "prune"}
 )
 TOP_LEVEL_COMMANDS: frozenset[str] = frozenset(
-    {"lists", "new-list", "rm-list"}
+    {"lists", "new-list", "rm-list", "edit-list"}
 )
 RESERVED_NAMES: frozenset[str] = LIST_SCOPED_ACTIONS | TOP_LEVEL_COMMANDS
 
@@ -78,10 +78,31 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
     )
     new_list_parser.add_argument("name", help="Name of the list to create.")
 
+    colors_str = ", ".join(c.name.lower() for c in Color) + "."
+    new_list_parser.add_argument(
+        "-c",
+        "--color",
+        choices=[c.name.lower() for c in Color],
+        default=None,
+        help=f"List color. Choices: {colors_str}",
+    )
+
     rm_list_parser = subparsers.add_parser(
         "rm-list", help="Delete a whole list and all its items."
     )
     rm_list_parser.add_argument("name", help="Name of the list to delete.")
+
+    edit_list_parser = subparsers.add_parser(
+        "edit-list", help="Change an existing list's color."
+    )
+    edit_list_parser.add_argument("name", help="Name of the list to edit.")
+    edit_list_parser.add_argument(
+        "-c",
+        "--color",
+        choices=[c.name.lower() for c in Color],
+        required=True,
+        help=f"New list color. Choices: {colors_str}",
+    )
 
     return parser
 
@@ -180,18 +201,43 @@ def _confirm(prompt: str) -> bool:
 def _lists_cmd() -> int:
     storage_dir = resolve_storage_dir()
 
-    render_list_names(list_all_lists(storage_dir))
+    entries: list[tuple[str, Color | None]] = []
+    for name in list_all_lists(storage_dir):
+        try:
+            entries.append((name, load_list(storage_dir, name).color))
+        except TodoError:
+            entries.append((name, None))
+
+    render_list_names(entries)
 
     return 0
 
 
 @_handle_errors
-def _new_list_cmd(name: str) -> int:
+def _new_list_cmd(name: str, color: str | None) -> int:
     storage_dir = resolve_storage_dir()
 
-    create_list(storage_dir, name, reserved_names=RESERVED_NAMES)
+    create_list(
+        storage_dir,
+        name,
+        reserved_names=RESERVED_NAMES,
+        color=Color[color.upper()] if color is not None else None,
+    )
 
     print(f"created list '{name}'.")
+
+    return 0
+
+
+@_handle_errors
+def _edit_list_cmd(name: str, color: str) -> int:
+    storage_dir = resolve_storage_dir()
+    todo_list = load_list(storage_dir, name)
+    todo_list.set_color(Color[color.upper()])
+
+    save_list(storage_dir, todo_list)
+
+    print(f"updated color of '{name}' to '{color}'.")
 
     return 0
 
@@ -248,7 +294,9 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
     storage_dir = resolve_storage_dir()
     todo_list = load_list(storage_dir, list_name)
 
-    sections = [(list_name, todo_list.filtered_items(tag=tag))]
+    sections = [
+        (list_name, todo_list.color, todo_list.filtered_items(tag=tag))
+    ]
 
     # filter each decendent list by tag if given to parent.
     all_names = list_all_lists(storage_dir)
@@ -259,7 +307,7 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
         if tag is not None and not child_items:
             continue
 
-        sections.append((child_name, child_items))
+        sections.append((child_name, child_list.color, child_items))
 
     render_grouped_items(sections)
 
@@ -358,7 +406,9 @@ def _dispatch_top_level(namespace: argparse.Namespace) -> int:
     if namespace.command == "lists":
         return _lists_cmd()
     if namespace.command == "new-list":
-        return _new_list_cmd(namespace.name)
+        return _new_list_cmd(namespace.name, namespace.color)
+    if namespace.command == "edit-list":
+        return _edit_list_cmd(namespace.name, namespace.color)
 
     return _rm_list_cmd(namespace.name)
 

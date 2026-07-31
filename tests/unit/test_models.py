@@ -1,6 +1,19 @@
 import pytest
+from rich.color import Color as RichColor
 
-from todo_cli.models import ItemNotFoundError, Priority, TodoItem, TodoList
+from todo_cli.models import (
+    Color,
+    ItemNotFoundError,
+    Priority,
+    TodoItem,
+    TodoList,
+)
+
+
+class TestColor:
+    @pytest.mark.parametrize("member", list(Color))
+    def test_values_parse_as_rich_colors(self, member):
+        RichColor.parse(member.value)
 
 
 class TestTodoList:
@@ -104,3 +117,29 @@ class TestTodoList:
         result = todo_list.filtered_items()
 
         assert len(result) == 2
+
+    def test_color_defaults(self):
+        todo_list = TodoList(name="work")
+
+        assert todo_list.color == Color.WHITE
+
+    def test_set_color_updates_field(self):
+        todo_list = TodoList(name="work")
+
+        todo_list.set_color(Color.CORAL)
+
+        assert todo_list.color is Color.CORAL
+
+    def test_color_survives_json_round_trip(self):
+        todo_list = TodoList(name="work", color=Color.CORAL)
+
+        restored = TodoList.model_validate_json(todo_list.model_dump_json())
+
+        assert restored.color is Color.CORAL
+
+    def test_missing_color_key_defaults(self):
+        restored = TodoList.model_validate_json(
+            '{"name": "work", "next_id": 1, "items": []}'
+        )
+
+        assert restored.color == Color.WHITE

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from todo_cli.models import TodoList
+from todo_cli.models import Color, TodoList
 from todo_cli.storage import (
     CorruptedListFileError,
     InvalidListNameError,
@@ -102,6 +102,19 @@ class TestListLifecycle:
 
         with pytest.raises(ListAlreadyExistsError):
             create_list(tmp_path, "work", reserved_names=frozenset())
+
+    def test_create_list_without_color_defaults_to_none(self, tmp_path):
+        todo_list = create_list(tmp_path, "work", reserved_names=frozenset())
+
+        assert todo_list.color is None
+
+    def test_create_list_with_color_persists_it(self, tmp_path):
+        todo_list = create_list(
+            tmp_path, "work", reserved_names=frozenset(), color=Color.CORAL
+        )
+
+        assert todo_list.color is Color.CORAL
+        assert load_list(tmp_path, "work").color is Color.CORAL
 
     def test_list_file_path_rejects_trailing_dot(self, tmp_path):
         with pytest.raises(InvalidListNameError):

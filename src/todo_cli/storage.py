@@ -13,7 +13,7 @@ from .exceptions import (
     ReservedNameError,
     TooManyAncestorListsError,
 )
-from .models import TodoList
+from .models import Color, TodoList
 
 
 def resolve_storage_dir() -> Path:
@@ -222,6 +222,7 @@ def create_list(
     name: str,
     *,
     reserved_names: frozenset[str] = frozenset(),
+    color: Color | None = None,
 ) -> TodoList:
     """Create and persist a new, empty list.
 
@@ -233,6 +234,8 @@ def create_list(
         The new list's name.
     reserved_names : frozenset[str], optional
         Names that may not be used for a list, by default none.
+    color : Color | None, optional
+        The list's display color, by default none.
 
     Returns
     -------
@@ -250,7 +253,7 @@ def create_list(
     # have already been created.
     ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
 
-    todo_list = TodoList(name=name)
+    todo_list = TodoList(name=name, color=color)
     save_list(storage_dir, todo_list)
 
     return todo_list

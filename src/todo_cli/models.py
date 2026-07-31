@@ -7,13 +7,32 @@ from pydantic import BaseModel, Field
 
 from .exceptions import ItemNotFoundError
 
-__all__ = ["Priority", "TodoItem", "TodoList"]
+__all__ = ["Color", "Priority", "TodoItem", "TodoList"]
 
 
 class Priority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class Color(StrEnum):
+    WHITE = "#F8FAFC"
+    RED = "#FF4D6D"
+    CORAL = "#FF6B6B"
+    ORANGE = "#FF8A3D"
+    YELLOW = "#FFD60A"
+    LIME = "#A3E635"
+    GREEN = "#22C55E"
+    TEAL = "#14D8B4"
+    CYAN = "#00D9FF"
+    SKY = "#38BDF8"
+    BLUE = "#3B82F6"
+    INDIGO = "#6366F1"
+    VIOLET = "#8B5CF6"
+    PURPLE = "#A855F7"
+    MAGENTA = "#D946EF"
+    PINK = "#FF4FCB"
 
 
 class TodoItem(BaseModel):
@@ -32,8 +51,22 @@ class TodoList(BaseModel):
     """A named collection of todo items."""
 
     name: str
+    color: Color | None = Color.WHITE
     next_id: int = 1
     items: list[TodoItem] = Field(default_factory=list)
+
+    def set_color(self, color: Color) -> None:
+        """Set the list's display color.
+
+        Parameters
+        ----------
+        color : Color
+            The new color.
+        """
+
+        self.color = color
+
+        return None
 
     def reindex(self) -> None:
         """Renumber remaining items sequentially starting at 1."""
