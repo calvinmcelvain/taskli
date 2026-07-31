@@ -169,7 +169,9 @@ class TestListLifecycle:
     def test_delete_list_cascades_to_descendants(self, tmp_path):
         create_list(tmp_path, "work", reserved_names=frozenset())
         create_list(tmp_path, "work.meetings", reserved_names=frozenset())
-        create_list(tmp_path, "work.meetings.notes", reserved_names=frozenset())
+        create_list(
+            tmp_path, "work.meetings.notes", reserved_names=frozenset()
+        )
 
         deleted = delete_list(tmp_path, "work")
 
