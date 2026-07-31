@@ -1,0 +1,24 @@
+name: Documentation
+description: Add or improve project documentation
+title: "docs: <description>"
+labels:
+  - docs
+assignees:
+  - calvinmcelvain
+  - Collin-McElvain
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Documentation Needed
+      description: What documentation should be added or updated?
+      placeholder: README updates, architecture docs, setup guide, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: (Optional) Links, screenshots, related issues, references, etc.

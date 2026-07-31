@@ -1,0 +1,377 @@
+"""List storage functions."""
+
+import os
+from pathlib import Path
+
+from pydantic import ValidationError
+
+from .exceptions import (
+    CorruptedListFileError,
+    InvalidListNameError,
+    ListAlreadyExistsError,
+    ListNotFoundError,
+    ReservedNameError,
+    TooManyAncestorListsError,
+)
+from .models import Color, TodoList
+
+
+def resolve_storage_dir() -> Path:
+    """Return the directory todo lists are stored in, creating it.
+
+    Returns
+    -------
+    Path
+        The storage directory, guaranteed to exist.
+    """
+
+    path = Path(os.environ.get("TASKLI_PATH", Path.home() / ".taskli"))
+    storage_dir = path.expanduser()
+
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    return storage_dir
+
+
+def list_file_path(storage_dir: Path, name: str) -> Path:
+    """Return the JSON file path for a given list name.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name.
+
+    Returns
+    -------
+    Path
+        Path to the list's JSON file.
+
+    Notes
+    -----
+    Cannot have decendent lists with a depth greater than 2.
+    """
+
+    _reserved = {".", "..", "con", "prn", "aux", "nul"}
+    lowered = name.lower()
+    if lowered in _reserved or "/" in lowered or "\\" in lowered:
+        raise InvalidListNameError(f"'{name}' is not a valid list name.")
+
+    # check names of children lists.
+    segments = name.split(".")
+    if len(segments) > 1 and any(not segment for segment in segments):
+        raise InvalidListNameError(f"'{name}' is not a valid list name.")
+
+    # restrict depth to 2.
+    if len(ancestor_chain(name)) > 2:
+        raise TooManyAncestorListsError(
+            f"'{name}' is nested too deep (max 2 sublist levels)."
+        )
+
+    return storage_dir / f"{name}.json"
+
+
+def parent_list_name(name: str) -> str | None:
+    """Return the immediate parent list name, or None if top-level.
+
+    Parameters
+    ----------
+    name : str
+        The list name.
+
+    Returns
+    -------
+    str | None
+        The text before the last '.', or None if `name` has no '.'.
+    """
+
+    if "." not in name:
+        return None
+
+    return name.rsplit(".", 1)[0]
+
+
+def child_list_names(name: str, all_names: list[str]) -> list[str]:
+    """Return the immediate children of `name` from `all_names`.
+
+    Parameters
+    ----------
+    name : str
+        The candidate parent list name.
+    all_names : list[str]
+        The full set of existing list names to search.
+
+    Returns
+    -------
+    list[str]
+        Names in `all_names` whose immediate parent is `name`, sorted.
+    """
+
+    return sorted(n for n in all_names if parent_list_name(n) == name)
+
+
+def descendant_list_names(name: str, all_names: list[str]) -> list[str]:
+    """Return all descendants (any depth) of `name` from `all_names`.
+
+    Parameters
+    ----------
+    name : str
+        The ancestor list name.
+    all_names : list[str]
+        The full set of existing list names to search.
+
+    Returns
+    -------
+    list[str]
+        Names in `all_names` nested under `name`, sorted.
+    """
+
+    prefix = f"{name}."
+
+    return sorted(n for n in all_names if n.startswith(prefix))
+
+
+def ancestor_chain(name: str) -> list[str]:
+    """Return all ancestor names of `name`, nearest-root first.
+
+    Parameters
+    ----------
+    name : str
+        The list name (may or may not exist).
+
+    Returns
+    -------
+    list[str]
+        E.g. for "a.b.c" returns ["a", "a.b"]. Empty if `name` has no
+        '.'.
+    """
+
+    segments = name.split(".")
+
+    return [".".join(segments[:i]) for i in range(1, len(segments))]
+
+
+def ensure_ancestors(
+    storage_dir: Path,
+    name: str,
+    *,
+    reserved_names: frozenset[str] = frozenset(),
+) -> None:
+    """Create any missing ancestor lists in `name`'s dot-chain.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name whose ancestors should exist.
+    reserved_names : frozenset[str], optional
+        Names that may not be used for a list, by default none.
+    """
+
+    for ancestor in ancestor_chain(name):
+        if ancestor in reserved_names:
+            raise ReservedNameError(f"'{ancestor}' is a reserved name.")
+
+        # create child list if not exist.
+        if not list_exists(storage_dir, ancestor):
+            save_list(storage_dir, TodoList(name=ancestor))
+
+    return None
+
+
+def list_exists(storage_dir: Path, name: str) -> bool:
+    """Return whether a list file already exists.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name.
+
+    Returns
+    -------
+    bool
+        True if the list's file exists.
+    """
+
+    return list_file_path(storage_dir, name).exists()
+
+
+def list_all_lists(storage_dir: Path) -> list[str]:
+    """Return the names of all existing lists, sorted.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+
+    Returns
+    -------
+    list[str]
+        Sorted list names.
+    """
+
+    return sorted(path.stem for path in storage_dir.glob("*.json"))
+
+
+def create_list(
+    storage_dir: Path,
+    name: str,
+    *,
+    reserved_names: frozenset[str] = frozenset(),
+    color: Color | None = None,
+) -> TodoList:
+    """Create and persist a new, empty list.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The new list's name.
+    reserved_names : frozenset[str], optional
+        Names that may not be used for a list, by default none.
+    color : Color | None, optional
+        The list's display color, by default none.
+
+    Returns
+    -------
+    TodoList
+        The newly created, empty list.
+    """
+
+    if name in reserved_names:
+        raise ReservedNameError(f"'{name}' is a reserved name.")
+
+    if list_exists(storage_dir, name):
+        raise ListAlreadyExistsError(f"list '{name}' already exists.")
+
+    # if a decendent list (e.g., child list/sublist), ensure all lists before
+    # have already been created.
+    ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
+
+    todo_list = TodoList(name=name, color=color)
+    save_list(storage_dir, todo_list)
+
+    return todo_list
+
+
+def delete_list(storage_dir: Path, name: str) -> list[str]:
+    """Delete a list's file and all of its descendant lists.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name.
+
+    Returns
+    -------
+    list[str]
+        Names of descendant lists that were also deleted.
+    """
+
+    path = list_file_path(storage_dir, name)
+    if not path.exists():
+        raise ListNotFoundError(f"list '{name}' does not exist.")
+
+    # delete all decendents of list, if exist.
+    descendants = descendant_list_names(name, list_all_lists(storage_dir))
+    for descendant in descendants:
+        list_file_path(storage_dir, descendant).unlink()
+
+    path.unlink()
+
+    return descendants
+
+
+def load_list(storage_dir: Path, name: str) -> TodoList:
+    """Load a list from disk, parsing its JSON file.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name.
+
+    Returns
+    -------
+    TodoList
+        The loaded list.
+    """
+
+    path = list_file_path(storage_dir, name)
+    if not path.exists():
+        if name == "inbox":
+            todo_list = TodoList(name=name)
+            save_list(storage_dir, todo_list)
+
+            return todo_list
+
+        raise ListNotFoundError(
+            f"list '{name}' does not exist. Run 'todo lists' to see "
+            "available lists."
+        )
+
+    try:
+        return TodoList.model_validate_json(path.read_text())
+    except ValidationError as e:
+        raise CorruptedListFileError(
+            f"list file '{path}' is corrupted and could not be read."
+        ) from e
+
+
+def load_or_create_list(
+    storage_dir: Path,
+    name: str,
+    *,
+    reserved_names: frozenset[str] = frozenset(),
+) -> TodoList:
+    """Load a list, creating it empty if it doesn't exist yet.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name.
+    reserved_names : frozenset[str], optional
+        Names that may not be used for a list, by default none.
+
+    Returns
+    -------
+    TodoList
+        The loaded or newly created list.
+    """
+
+    if list_exists(storage_dir, name):
+        return load_list(storage_dir, name)
+
+    ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
+
+    todo_list = TodoList(name=name)
+    save_list(storage_dir, todo_list)
+
+    return todo_list
+
+
+def save_list(storage_dir: Path, todo_list: TodoList) -> None:
+    """Persist a list to its JSON file.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    todo_list : TodoList
+        The list to save.
+    """
+
+    path = list_file_path(storage_dir, todo_list.name)
+    path.write_text(todo_list.model_dump_json(indent=2))
+
+    return None
