@@ -1,0 +1,24 @@
+name: Tests
+description: Add or improve automated/manual testing
+title: "test: <description>"
+labels:
+  - test
+assignees:
+  - calvinmcelvain
+  - Collin-McElvain
+
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Test Scope
+      description: What should be tested?
+      placeholder: Specific system, mechanic, function, or workflow
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: (Optional) Frameworks, tooling, blockers, related bugs, etc.
