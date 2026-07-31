@@ -55,8 +55,16 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
         description="A simple, elegant CLI for tracking todo lists.",
         epilog=(
             "List-scoped actions (run as `todo [LIST] ACTION ...`; LIST "
-            "defaults to 'inbox'): add, list, done, undone, rm, edit, "
-            "tags, prune.\n\n"
+            "defaults to 'inbox'):\n"
+            "  add      Add a new item to LIST.\n"
+            "  list     Show items in LIST (default action).\n"
+            "  done     Mark an item as done.\n"
+            "  undone   Mark an item as not done.\n"
+            "  rm       Remove an item from LIST.\n"
+            "  edit     Edit an item's text, priority, or tags.\n"
+            "  tags     Show all distinct tags used in LIST.\n"
+            "  prune    Remove all done items from LIST.\n\n"
+            "Run `todo LIST ACTION -h` for an action's full options.\n\n"
             'Example: todo work add "finish report" -p high -t urgent'
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -68,12 +76,12 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
     new_list_parser = subparsers.add_parser(
         "new-list", help="Create a new, empty list."
     )
-    new_list_parser.add_argument("name")
+    new_list_parser.add_argument("name", help="Name of the list to create.")
 
     rm_list_parser = subparsers.add_parser(
         "rm-list", help="Delete a whole list and all its items."
     )
-    rm_list_parser.add_argument("name")
+    rm_list_parser.add_argument("name", help="Name of the list to delete.")
 
     return parser
 
@@ -82,45 +90,82 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="todo LIST")
     subparsers = parser.add_subparsers(dest="action", required=True)
 
-    add_parser = subparsers.add_parser("add")
-    add_parser.add_argument("text")
+    add_parser = subparsers.add_parser("add", help="Add a new item to LIST.")
+    add_parser.add_argument("text", help="Item text.")
     add_parser.add_argument(
-        "-t", "--tag", dest="tags", action="append", default=[]
+        "-t",
+        "--tag",
+        dest="tags",
+        action="append",
+        default=[],
+        help="Tag to attach to the item. Repeatable.",
     )
     add_parser.add_argument(
         "-p",
         "--priority",
         choices=[p.value for p in Priority],
         default=Priority.MEDIUM.value,
+        help="Item priority (default: medium).",
     )
 
-    list_parser = subparsers.add_parser("list")
-    list_parser.add_argument("-t", "--tag", dest="tag", default=None)
+    list_parser = subparsers.add_parser(
+        "list", help="Show items in LIST (default action)."
+    )
+    list_parser.add_argument(
+        "-t",
+        "--tag",
+        dest="tag",
+        default=None,
+        help="Only show items with this tag.",
+    )
 
-    done_parser = subparsers.add_parser("done")
-    done_parser.add_argument("item_id", type=int)
+    done_parser = subparsers.add_parser("done", help="Mark an item as done.")
+    done_parser.add_argument(
+        "item_id", type=int, help="Id of the item to mark done."
+    )
 
-    undone_parser = subparsers.add_parser("undone")
-    undone_parser.add_argument("item_id", type=int)
+    undone_parser = subparsers.add_parser(
+        "undone", help="Mark an item as not done."
+    )
+    undone_parser.add_argument(
+        "item_id", type=int, help="Id of the item to mark not done."
+    )
 
-    rm_parser = subparsers.add_parser("rm")
-    rm_parser.add_argument("item_id", type=int)
+    rm_parser = subparsers.add_parser("rm", help="Remove an item from LIST.")
+    rm_parser.add_argument(
+        "item_id", type=int, help="Id of the item to remove."
+    )
 
-    edit_parser = subparsers.add_parser("edit")
-    edit_parser.add_argument("item_id", type=int)
-    edit_parser.add_argument("--text", dest="text", default=None)
+    edit_parser = subparsers.add_parser(
+        "edit", help="Edit an item's text, priority, or tags."
+    )
+    edit_parser.add_argument(
+        "item_id", type=int, help="Id of the item to edit."
+    )
+    edit_parser.add_argument(
+        "--text",
+        dest="text",
+        default=None,
+        help="Replace the item's text.",
+    )
     edit_parser.add_argument(
         "-p",
         "--priority",
         choices=[p.value for p in Priority],
         default=None,
+        help="Replace the item's priority.",
     )
     edit_parser.add_argument(
-        "-t", "--tag", dest="tags", action="append", default=[]
+        "-t",
+        "--tag",
+        dest="tags",
+        action="append",
+        default=[],
+        help="Replace the item's tags. Repeatable.",
     )
 
-    subparsers.add_parser("tags")
-    subparsers.add_parser("prune")
+    subparsers.add_parser("tags", help="Show all distinct tags used in LIST.")
+    subparsers.add_parser("prune", help="Remove all done items from LIST.")
 
     return parser
 
