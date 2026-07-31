@@ -1,6 +1,6 @@
-from todo_cli.cli import main
-from todo_cli.models import Color, Priority
-from todo_cli.storage import load_list
+from taskli.cli import main
+from taskli.models import Color, Priority
+from taskli.storage import load_list
 
 
 class TestAdd:

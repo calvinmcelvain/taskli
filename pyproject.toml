@@ -3,7 +3,7 @@ requires = ["hatchling>=1.28.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "todo-cli"
+name = "taskli"
 description = "Simple CLI for tracking todo lists."
 readme = "README.md"
 authors = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-todo = "todo_cli.cli:main"
+todo = "taskli.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -29,7 +29,7 @@ dev = [
 ]
 
 [tool.hatch.version]
-path = "src/todo_cli/__version__.py"
+path = "src/taskli/__version__.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -47,7 +47,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/todo_cli"]
+packages = ["src/taskli"]
 
 [tool.hatch.envs.dev]
 dev-mode = true

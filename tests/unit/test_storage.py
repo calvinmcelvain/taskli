@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from todo_cli.models import Color, TodoList
-from todo_cli.storage import (
+from taskli.models import Color, TodoList
+from taskli.storage import (
     CorruptedListFileError,
     InvalidListNameError,
     ListAlreadyExistsError,
