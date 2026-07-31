@@ -1,3 +1,5 @@
+"""Command-line interface and argument routing."""
+
 import argparse
 import functools
 import sys
@@ -17,23 +19,9 @@ from .storage import (
     save_list,
 )
 
-LIST_SCOPED_ACTIONS: frozenset[str] = frozenset(
-    {"add", "list", "done", "undone", "rm", "edit", "tags", "prune"}
-)
 TOP_LEVEL_COMMANDS: frozenset[str] = frozenset(
     {"lists", "new-list", "rm-list", "edit-list"}
 )
-RESERVED_NAMES: frozenset[str] = LIST_SCOPED_ACTIONS | TOP_LEVEL_COMMANDS
-
-
-def _normalize_argv(argv: list[str]) -> list[str]:
-    if not argv or argv[0].startswith("-"):
-        return argv
-
-    if argv[0] in LIST_SCOPED_ACTIONS:
-        return ["inbox", *argv]
-
-    return argv
 
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
@@ -50,25 +38,7 @@ def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
 
 
 def _build_top_level_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="todo",
-        description="A simple, elegant CLI for tracking todo lists.",
-        epilog=(
-            "List-scoped actions (run as `todo [LIST] ACTION ...`; LIST "
-            "defaults to 'inbox'):\n"
-            "  add      Add a new item to LIST.\n"
-            "  list     Show items in LIST (default action).\n"
-            "  done     Mark an item as done.\n"
-            "  undone   Mark an item as not done.\n"
-            "  rm       Remove an item from LIST.\n"
-            "  edit     Edit an item's text, priority, or tags.\n"
-            "  tags     Show all distinct tags used in LIST.\n"
-            "  prune    Remove all done items from LIST.\n\n"
-            "Run `todo LIST ACTION -h` for an action's full options.\n\n"
-            'Example: todo work add "finish report" -p high -t urgent'
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("lists", help="Show all list names.")
@@ -108,87 +78,160 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
 
 
 def _build_list_action_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="todo LIST")
-    subparsers = parser.add_subparsers(dest="action", required=True)
+    parser = argparse.ArgumentParser(
+        prog="todo",
+        description=(
+            "Manage items in a list. LIST defaults to 'inbox' when " "omitted."
+        ),
+        epilog=(
+            "Top-level commands run as `todo COMMAND ...`:\n"
+            "  lists              Show all list names.\n"
+            "  new-list NAME      Create a new, empty list.\n"
+            "  rm-list NAME       Delete a whole list and all its "
+            "items.\n"
+            "  edit-list NAME     Change an existing list's color.\n\n"
+            "Run `todo COMMAND --help` for a command's full options.\n\n"
+            "Example: todo new-list groceries -c teal"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "list_name",
+        nargs="?",
+        default="inbox",
+        metavar="LIST",
+        help="Name of the list to act on (default: inbox).",
+    )
 
-    add_parser = subparsers.add_parser("add", help="Add a new item to LIST.")
-    add_parser.add_argument("text", help="Item text.")
-    add_parser.add_argument(
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument(
+        "-a",
+        "--add",
+        dest="add",
+        nargs="+",
+        action="append",
+        metavar="TEXT",
+        help="Add an item to LIST. Repeatable for multiple items.",
+    )
+    action.add_argument(
+        "-l",
+        "--list",
+        dest="show",
+        action="store_true",
+        help="Show items in LIST (default action).",
+    )
+    action.add_argument(
+        "-d",
+        "--done",
+        dest="done",
+        type=int,
+        metavar="ID",
+        help="Mark an item as done.",
+    )
+    action.add_argument(
+        "-u",
+        "--undone",
+        dest="undone",
+        type=int,
+        metavar="ID",
+        help="Mark an item as not done.",
+    )
+    action.add_argument(
+        "-r",
+        "--rm",
+        dest="rm",
+        type=int,
+        metavar="ID",
+        help="Remove an item from LIST.",
+    )
+    action.add_argument(
+        "-e",
+        "--edit",
+        dest="edit",
+        type=int,
+        metavar="ID",
+        help="Edit an item's text, priority, or tags.",
+    )
+    action.add_argument(
+        "--tags",
+        dest="tags_action",
+        action="store_true",
+        help="Show all distinct tags used in LIST.",
+    )
+    action.add_argument(
+        "--prune",
+        dest="prune",
+        action="store_true",
+        help="Remove all done items from LIST.",
+    )
+
+    parser.add_argument(
+        "-p",
+        "--priority",
+        choices=[p.value for p in Priority],
+        default=None,
+        help="Item priority for -a/-e (default: medium on add).",
+    )
+    parser.add_argument(
         "-t",
         "--tag",
         dest="tags",
         action="append",
         default=[],
-        help="Tag to attach to the item. Repeatable.",
+        metavar="TAG",
+        help="Tag to set on -a/-e. Repeatable.",
     )
-    add_parser.add_argument(
-        "-p",
-        "--priority",
-        choices=[p.value for p in Priority],
-        default=Priority.MEDIUM.value,
-        help="Item priority (default: medium).",
-    )
-
-    list_parser = subparsers.add_parser(
-        "list", help="Show items in LIST (default action)."
-    )
-    list_parser.add_argument(
-        "-t",
-        "--tag",
-        dest="tag",
+    parser.add_argument(
+        "-f",
+        "--filter-tag",
+        dest="filter_tag",
         default=None,
-        help="Only show items with this tag.",
+        metavar="TAG",
+        help="Only show items with this tag (default view only).",
     )
-
-    done_parser = subparsers.add_parser("done", help="Mark an item as done.")
-    done_parser.add_argument(
-        "item_id", type=int, help="Id of the item to mark done."
-    )
-
-    undone_parser = subparsers.add_parser(
-        "undone", help="Mark an item as not done."
-    )
-    undone_parser.add_argument(
-        "item_id", type=int, help="Id of the item to mark not done."
-    )
-
-    rm_parser = subparsers.add_parser("rm", help="Remove an item from LIST.")
-    rm_parser.add_argument(
-        "item_id", type=int, help="Id of the item to remove."
-    )
-
-    edit_parser = subparsers.add_parser(
-        "edit", help="Edit an item's text, priority, or tags."
-    )
-    edit_parser.add_argument(
-        "item_id", type=int, help="Id of the item to edit."
-    )
-    edit_parser.add_argument(
+    parser.add_argument(
         "--text",
         dest="text",
         default=None,
-        help="Replace the item's text.",
+        help="Replace an item's text (-e only).",
     )
-    edit_parser.add_argument(
-        "-p",
-        "--priority",
-        choices=[p.value for p in Priority],
-        default=None,
-        help="Replace the item's priority.",
-    )
-    edit_parser.add_argument(
-        "-t",
-        "--tag",
-        dest="tags",
-        action="append",
-        default=[],
-        help="Replace the item's tags. Repeatable.",
-    )
-
-    subparsers.add_parser("tags", help="Show all distinct tags used in LIST.")
-    subparsers.add_parser("prune", help="Remove all done items from LIST.")
 
     return parser
+
+
+def _resolve_action(namespace: argparse.Namespace) -> str:
+    if namespace.add is not None:
+        return "add"
+    if namespace.done is not None:
+        return "done"
+    if namespace.undone is not None:
+        return "undone"
+    if namespace.rm is not None:
+        return "rm"
+    if namespace.edit is not None:
+        return "edit"
+    if namespace.tags_action:
+        return "tags"
+    if namespace.prune:
+        return "prune"
+
+    return "view"
+
+
+def _validate_list_action_flags(
+    namespace: argparse.Namespace,
+    action: str,
+    parser: argparse.ArgumentParser,
+) -> None:
+    add_or_edit = action in {"add", "edit"}
+    if namespace.tags and not add_or_edit:
+        parser.error("-t/--tag is only valid with -a/--add or -e/--edit.")
+    if namespace.priority is not None and not add_or_edit:
+        parser.error("-p/--priority is only valid with -a/--add or -e/--edit.")
+    if namespace.filter_tag is not None and action != "view":
+        parser.error("-f/--filter-tag is only valid with the default view.")
+    if namespace.text is not None and action != "edit":
+        parser.error("--text is only valid with -e/--edit.")
 
 
 def _confirm(prompt: str) -> bool:
@@ -220,7 +263,7 @@ def _new_list_cmd(name: str, color: str | None) -> int:
     create_list(
         storage_dir,
         name,
-        reserved_names=RESERVED_NAMES,
+        reserved_names=TOP_LEVEL_COMMANDS,
         color=Color[color.upper()] if color is not None else None,
     )
 
@@ -273,18 +316,21 @@ def _rm_list_cmd(name: str) -> int:
 
 
 @_handle_errors
-def _add_cmd(list_name: str, text: str, tags: list[str], priority: str) -> int:
+def _add_cmd(
+    list_name: str, texts: list[str], tags: list[str], priority: str
+) -> int:
     storage_dir = resolve_storage_dir()
     todo_list = load_or_create_list(
-        storage_dir, list_name, reserved_names=RESERVED_NAMES
+        storage_dir, list_name, reserved_names=TOP_LEVEL_COMMANDS
     )
-    item = todo_list.add_item(
-        text, priority=Priority(priority), tags=list(tags)
-    )
+
+    for text in texts:
+        item = todo_list.add_item(
+            text, priority=Priority(priority), tags=list(tags)
+        )
+        print(f"added #{item.id} to '{list_name}'.")
 
     save_list(storage_dir, todo_list)
-
-    print(f"added #{item.id} to '{list_name}'.")
 
     return 0
 
@@ -413,72 +459,56 @@ def _dispatch_top_level(namespace: argparse.Namespace) -> int:
     return _rm_list_cmd(namespace.name)
 
 
-def _dispatch_list_action(
-    list_name: str, namespace: argparse.Namespace
-) -> int:
-    action = namespace.action
+def _dispatch_list_action(namespace: argparse.Namespace, action: str) -> int:
+    list_name: str = namespace.list_name
     if action == "add":
-        return _add_cmd(
-            list_name, namespace.text, namespace.tags, namespace.priority
-        )
-    if action == "list":
-        return _list_cmd(list_name, namespace.tag)
+        texts = [" ".join(words) for words in namespace.add]
+        priority = namespace.priority or Priority.MEDIUM.value
+
+        return _add_cmd(list_name, texts, namespace.tags, priority)
     if action == "done":
-        return _done_cmd(list_name, namespace.item_id)
+        return _done_cmd(list_name, namespace.done)
     if action == "undone":
-        return _undone_cmd(list_name, namespace.item_id)
+        return _undone_cmd(list_name, namespace.undone)
     if action == "rm":
-        return _rm_cmd(list_name, namespace.item_id)
+        return _rm_cmd(list_name, namespace.rm)
     if action == "edit":
         return _edit_cmd(
             list_name,
-            namespace.item_id,
+            namespace.edit,
             namespace.text,
             namespace.priority,
             namespace.tags,
         )
     if action == "tags":
         return _tags_cmd(list_name)
+    if action == "prune":
+        return _prune_cmd(list_name)
 
-    return _prune_cmd(list_name)
+    return _list_cmd(list_name, namespace.filter_tag)
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
 
-    raw_argv = sys.argv[1:] if argv is None else argv
-    if not raw_argv:
-        raw_argv = ["inbox"]
-
-    normalized = _normalize_argv(raw_argv)
-
-    if normalized[0].startswith("-") or normalized[0] in TOP_LEVEL_COMMANDS:
+    if raw_argv and raw_argv[0] in TOP_LEVEL_COMMANDS:
         parser = _build_top_level_parser()
         try:
-            namespace = parser.parse_args(normalized)
+            namespace = parser.parse_args(raw_argv)
         except SystemExit as e:
             return e.code if isinstance(e.code, int) else 1
 
         return _dispatch_top_level(namespace)
 
-    list_name, *rest = normalized
-    if not rest or rest[0].startswith("-"):
-        storage_dir = resolve_storage_dir()
-        list_names = list_all_lists(storage_dir)
-        if list_name != "inbox" and list_name not in list_names:
-            rest = ["add", list_name, *rest]
-            list_name = "inbox"
-        else:
-            rest = ["list", *rest]
-    elif rest[0] not in LIST_SCOPED_ACTIONS:
-        rest = ["add", *rest]
-
     parser = _build_list_action_parser()
     try:
-        namespace = parser.parse_args(rest)
+        namespace = parser.parse_args(raw_argv)
+        action = _resolve_action(namespace)
+        _validate_list_action_flags(namespace, action, parser)
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 1
 
-    return _dispatch_list_action(list_name, namespace)
+    return _dispatch_list_action(namespace, action)
 
 
 if __name__ == "__main__":
