@@ -338,6 +338,48 @@ class TestListsCommand:
         assert child_index == parent_index + 1
 
 
+class TestAllCommand:
+    def test_shows_every_list_items(self, todos_env, capsys):
+        main(["work", "-a", "finish report"])
+        main(["groceries", "-a", "buy milk"])
+        capsys.readouterr()
+
+        main(["all"])
+
+        captured = capsys.readouterr()
+        assert "work" in captured.out
+        assert "finish report" in captured.out
+        assert "groceries" in captured.out
+        assert "buy milk" in captured.out
+
+    def test_shows_message_when_empty(self, todos_env, capsys):
+        main(["all"])
+
+        captured = capsys.readouterr()
+        assert "no lists yet" in captured.out
+
+    def test_shows_sublist_under_parent(self, todos_env, capsys):
+        main(["work", "-a", "finish report"])
+        main(["work.meetings", "-a", "sync with design"])
+        capsys.readouterr()
+
+        main(["all"])
+
+        captured = capsys.readouterr()
+        lines = captured.out.splitlines()
+        parent_index = next(
+            i for i, line in enumerate(lines) if line.strip() == "work"
+        )
+        child_index = next(
+            i
+            for i, line in enumerate(lines)
+            if line.strip().endswith("meetings") and line.strip() != "meetings"
+        )
+
+        assert child_index > parent_index
+        assert "sync with design" in captured.out
+
+
 class TestNewListRmList:
     def test_new_list_creates_empty_list(self, todos_env, capsys):
         exit_code = main(["new-list", "groceries"])
