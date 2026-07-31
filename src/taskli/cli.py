@@ -6,8 +6,13 @@ import sys
 from collections.abc import Callable
 
 from .exceptions import TodoError
-from .models import Color, Priority
-from .render import render_error, render_grouped_items, render_list_names
+from .models import Color, Priority, TodoList
+from .render import (
+    render_error,
+    render_grouped_items,
+    render_items,
+    render_list_names,
+)
 from .storage import (
     create_list,
     delete_list,
@@ -240,6 +245,10 @@ def _confirm(prompt: str) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
+def _print_list(list_name: str, todo_list: TodoList) -> None:
+    render_items(list_name, todo_list.items, todo_list.color)
+
+
 @_handle_errors
 def _lists_cmd() -> int:
     storage_dir = resolve_storage_dir()
@@ -260,7 +269,7 @@ def _lists_cmd() -> int:
 def _new_list_cmd(name: str, color: str | None) -> int:
     storage_dir = resolve_storage_dir()
 
-    create_list(
+    todo_list = create_list(
         storage_dir,
         name,
         reserved_names=TOP_LEVEL_COMMANDS,
@@ -268,6 +277,7 @@ def _new_list_cmd(name: str, color: str | None) -> int:
     )
 
     print(f"created list '{name}'.")
+    _print_list(name, todo_list)
 
     return 0
 
@@ -281,6 +291,7 @@ def _edit_list_cmd(name: str, color: str) -> int:
     save_list(storage_dir, todo_list)
 
     print(f"updated color of '{name}' to '{color}'.")
+    _print_list(name, todo_list)
 
     return 0
 
@@ -304,6 +315,7 @@ def _rm_list_cmd(name: str) -> int:
 
     deleted_descendants = delete_list(storage_dir, name)
 
+    # no list left to print back after deletion.
     if deleted_descendants:
         print(
             f"deleted list '{name}' and {len(deleted_descendants)} "
@@ -331,6 +343,7 @@ def _add_cmd(
         print(f"added #{item.id} to '{list_name}'.")
 
     save_list(storage_dir, todo_list)
+    _print_list(list_name, todo_list)
 
     return 0
 
@@ -369,6 +382,7 @@ def _done_cmd(list_name: str, item_id: int) -> int:
     save_list(storage_dir, todo_list)
 
     print(f"marked #{item_id} done in '{list_name}'.")
+    _print_list(list_name, todo_list)
 
     return 0
 
@@ -382,6 +396,7 @@ def _undone_cmd(list_name: str, item_id: int) -> int:
     save_list(storage_dir, todo_list)
 
     print(f"marked #{item_id} not done in '{list_name}'.")
+    _print_list(list_name, todo_list)
 
     return 0
 
@@ -395,6 +410,7 @@ def _rm_cmd(list_name: str, item_id: int) -> int:
     save_list(storage_dir, todo_list)
 
     print(f"removed #{item_id} from '{list_name}'.")
+    _print_list(list_name, todo_list)
 
     return 0
 
@@ -408,6 +424,7 @@ def _prune_cmd(list_name: str) -> int:
     save_list(storage_dir, todo_list)
 
     print(f"pruned {len(removed)} item(s) from '{list_name}'.")
+    _print_list(list_name, todo_list)
 
     return 0
 
@@ -432,6 +449,7 @@ def _edit_cmd(
     save_list(storage_dir, todo_list)
 
     print(f"updated #{item_id} in '{list_name}'.")
+    _print_list(list_name, todo_list)
 
     return 0
 
