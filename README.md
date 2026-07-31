@@ -133,7 +133,8 @@ todo -d 1                  # == todo inbox -d 1
 Lists other than `inbox` don't need to be created up front — `-a/--add`
 auto-creates the target list (and any missing parent, for a nested name) the
 first time you use it. Use `new-list` only when you want to set a color at
-creation time or create an empty list ahead of use.
+creation time or create an empty list ahead of use. Use `todo all` to print
+every list's items in one shot, instead of viewing each list one at a time.
 
 ### Nested lists
 
@@ -239,8 +240,8 @@ bare word, so it can never collide with a list name:
 
 Because the action is always a flag, list names can no longer collide
 with what used to be reserved action words — `todo add -a "buy milk"`
-now targets a list literally named `add`. Only the 4 top-level
-commands below (`lists`, `new-list`, `rm-list`, `edit-list`) stay
+now targets a list literally named `add`. Only the 5 top-level
+commands below (`lists`, `all`, `new-list`, `rm-list`, `edit-list`) stay
 reserved bare words, since they're parsed before `LIST` is ever
 considered.
 
@@ -263,12 +264,13 @@ starts empty.
 | `--tags` | List distinct tags used in a list | `todo work --tags` |
 | `--prune` | Remove all done items from a list | `todo work --prune` |
 | `lists` | Show every list, nested as a tree | `todo lists` |
+| `all` | Show every list's items | `todo all` |
 | `new-list NAME` | Create an empty list | `todo new-list groceries -c teal` |
 | `edit-list NAME` | Change a list's color | `todo edit-list work -c coral` |
 | `rm-list NAME` | Delete a list and its sublists | `todo rm-list groceries` |
 
-All 8 list-scoped flags (everything except `lists`/`new-list`/`rm-list`/
-`edit-list`) run against `LIST`, which defaults to `inbox` — see
+All 8 list-scoped flags (everything except `lists`/`all`/`new-list`/
+`rm-list`/`edit-list`) run against `LIST`, which defaults to `inbox` — see
 [Routing grammar](#routing-grammar).
 
 ## Workflows
@@ -466,8 +468,8 @@ $ todo work -t urgent
 └────┴──────┴───────────────┴──────────┴────────┘
 ```
 
-Reserved words that can't be used as a list name: `lists`, `new-list`,
-`rm-list`, `edit-list`.
+Reserved words that can't be used as a list name: `lists`, `all`,
+`new-list`, `rm-list`, `edit-list`.
 
 **Deleting a list cascades to its sublists.** `todo rm-list` lists any
 sublists in the confirmation prompt and removes all of them together:
