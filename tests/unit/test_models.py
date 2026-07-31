@@ -1,7 +1,7 @@
 import pytest
 from rich.color import Color as RichColor
 
-from todo_cli.models import (
+from taskli.models import (
     Color,
     ItemNotFoundError,
     Priority,
