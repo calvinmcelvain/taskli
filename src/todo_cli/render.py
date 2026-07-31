@@ -1,4 +1,4 @@
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
@@ -22,18 +22,21 @@ PRIORITY_COLORS = {
 }
 
 
-def render_items(list_name: str, items: list[TodoItem]) -> None:
-    """Print a table of todo items for a list.
+def _items_table(items: list[TodoItem]) -> Table:
+    """Build a table of todo items.
 
     Parameters
     ----------
-    list_name : str
-        The list's name, shown in the table title.
     items : list[TodoItem]
         The items to display.
+
+    Returns
+    -------
+    Table
+        The rendered table.
     """
 
-    table = Table(title=f"[bold]{list_name}[/bold]")
+    table = Table()
     table.add_column("ID", justify="right")
     table.add_column("Done")
     table.add_column("Text")
@@ -51,23 +54,55 @@ def render_items(list_name: str, items: list[TodoItem]) -> None:
             ", ".join(item.tags),
         )
 
+    return table
+
+
+def render_items(list_name: str, items: list[TodoItem]) -> None:
+    """Print a table of todo items for a list.
+
+    Parameters
+    ----------
+    list_name : str
+        The list's name, shown in the table title.
+    items : list[TodoItem]
+        The items to display.
+    """
+
+    table = _items_table(items)
+    table.title = f"[bold]{list_name}[/bold]"
     _console.print(table)
 
     return None
 
 
 def render_grouped_items(sections: list[tuple[str, list[TodoItem]]]) -> None:
-    """Print one table per (list_name, items) section, in order.
+    """Print item tables nested in a parent-indented tree.
 
     Parameters
     ----------
     sections : list[tuple[str, list[TodoItem]]]
         Ordered (list_name, items) pairs — the first entry is the
-        primary list, subsequent entries are child-list sections.
+        primary list, subsequent entries are descendant-list sections,
+        each preceded by every one of its own ancestors.
     """
 
-    for name, items in sections:
-        render_items(name, items)
+    if not sections:
+        return None
+
+    root_name, root_items = sections[0]
+    root_node = Tree(
+        Group(f"[bold]{root_name}[/bold]", _items_table(root_items))
+    )
+    nodes: dict[str, Tree] = {root_name: root_node}
+
+    for name, items in sections[1:]:
+        parent_name = name.rsplit(".", 1)[0]
+        parent = nodes.get(parent_name, root_node)
+        label = name.rsplit(".", 1)[-1]
+        node = parent.add(Group(f"[bold]{label}[/bold]", _items_table(items)))
+        nodes[name] = node
+
+    _console.print(root_node)
 
     return None
 
