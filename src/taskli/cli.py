@@ -4,9 +4,10 @@ import argparse
 import functools
 import sys
 from collections.abc import Callable
+from pathlib import Path
 
 from .exceptions import TodoError
-from .models import Color, Priority, TodoList
+from .models import Color, Priority, TodoItem, TodoList
 from .render import (
     render_error,
     render_grouped_items,
@@ -25,7 +26,7 @@ from .storage import (
 )
 
 TOP_LEVEL_COMMANDS: frozenset[str] = frozenset(
-    {"lists", "new-list", "rm-list", "edit-list"}
+    {"lists", "new-list", "rm-list", "edit-list", "all"}
 )
 
 
@@ -47,6 +48,7 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("lists", help="Show all list names.")
+    subparsers.add_parser("all", help="Show every list's items.")
 
     new_list_parser = subparsers.add_parser(
         "new-list", help="Create a new, empty list."
@@ -91,6 +93,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         epilog=(
             "Top-level commands run as `todo COMMAND ...`:\n"
             "  lists              Show all list names.\n"
+            "  all                Show every list's items.\n"
             "  new-list NAME      Create a new, empty list.\n"
             "  rm-list NAME       Delete a whole list and all its "
             "items.\n"
@@ -348,9 +351,12 @@ def _add_cmd(
     return 0
 
 
-@_handle_errors
-def _list_cmd(list_name: str, tag: str | None) -> int:
-    storage_dir = resolve_storage_dir()
+def _grouped_sections(
+    storage_dir: Path,
+    list_name: str,
+    all_names: list[str],
+    tag: str | None,
+) -> list[tuple[str, Color | None, list[TodoItem]]]:
     todo_list = load_list(storage_dir, list_name)
 
     sections = [
@@ -358,7 +364,6 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
     ]
 
     # filter each decendent list by tag if given to parent.
-    all_names = list_all_lists(storage_dir)
     for child_name in descendant_list_names(list_name, all_names):
         child_list = load_list(storage_dir, child_name)
         child_items = child_list.filtered_items(tag=tag)
@@ -368,7 +373,36 @@ def _list_cmd(list_name: str, tag: str | None) -> int:
 
         sections.append((child_name, child_list.color, child_items))
 
-    render_grouped_items(sections)
+    return sections
+
+
+@_handle_errors
+def _list_cmd(list_name: str, tag: str | None) -> int:
+    storage_dir = resolve_storage_dir()
+    all_names = list_all_lists(storage_dir)
+
+    render_grouped_items(
+        _grouped_sections(storage_dir, list_name, all_names, tag)
+    )
+
+    return 0
+
+
+@_handle_errors
+def _all_cmd() -> int:
+    storage_dir = resolve_storage_dir()
+    all_names = list_all_lists(storage_dir)
+
+    if not all_names:
+        render_list_names([])
+
+        return 0
+
+    roots = [name for name in all_names if "." not in name]
+    for root in roots:
+        render_grouped_items(
+            _grouped_sections(storage_dir, root, all_names, None)
+        )
 
     return 0
 
@@ -469,6 +503,8 @@ def _tags_cmd(list_name: str) -> int:
 def _dispatch_top_level(namespace: argparse.Namespace) -> int:
     if namespace.command == "lists":
         return _lists_cmd()
+    if namespace.command == "all":
+        return _all_cmd()
     if namespace.command == "new-list":
         return _new_list_cmd(namespace.name, namespace.color)
     if namespace.command == "edit-list":
