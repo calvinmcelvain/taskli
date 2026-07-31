@@ -1,0 +1,31 @@
+name: Refactor
+description: Improve internal structure, readability, or maintainability
+title: "refactor: <description>"
+labels:
+  - refactor
+assignees:
+  - calvinmcelvain
+  - Collin-McElvain
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current Problem
+      description: What is awkward, duplicated, hard to maintain, etc.?
+      placeholder: Describe the technical debt or design issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Refactor
+      description: What should change structurally?
+      placeholder: File structure, abstraction changes, simplification, etc.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: (Optional) Related systems, risks, dependencies, etc.
