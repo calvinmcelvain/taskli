@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "src/todo_cli/__version__.py"
+      - "src/taskli/__version__.py"
 
 concurrency:
   group: release
@@ -38,7 +38,7 @@ jobs:
           import re
           from pathlib import Path
 
-          text = Path("src/todo_cli/__version__.py").read_text()
+          text = Path("src/taskli/__version__.py").read_text()
           match = re.search(r'__version__ = "(.*)"', text)
 
           if not match:
