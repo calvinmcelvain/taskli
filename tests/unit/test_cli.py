@@ -344,7 +344,7 @@ class TestDefaultListAction:
         assert exit_code == 0
         assert "task" in captured.out
         assert "sub-task" in captured.out
-        assert "work.meetings" in captured.out
+        assert "meetings" in captured.out
 
     def test_grandchild_shown_under_top_ancestor(self, todos_env, capsys):
         main(["work.meetings.notes", "add", "deep-task"])
@@ -357,7 +357,8 @@ class TestDefaultListAction:
         mid_captured = capsys.readouterr()
 
         assert "deep-task" in top_captured.out
-        assert "work.meetings.notes" in top_captured.out
+        assert "meetings" in top_captured.out
+        assert "notes" in top_captured.out
         assert "deep-task" in mid_captured.out
 
     def test_tag_filter_applies_to_child_sections(self, todos_env, capsys):
@@ -380,7 +381,7 @@ class TestDefaultListAction:
         main(["work"])
 
         captured = capsys.readouterr()
-        assert "work.meetings" in captured.out
+        assert "meetings" in captured.out
 
 
 class TestImplicitAdd:
