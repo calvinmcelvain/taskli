@@ -2,7 +2,7 @@ from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
-from .models import Priority, TodoItem
+from .models import Color, Priority, TodoItem
 from .storage import ancestor_chain
 
 __all__ = [
@@ -22,7 +22,31 @@ PRIORITY_COLORS = {
 }
 
 
-def _items_table(items: list[TodoItem]) -> Table:
+def _add_bold(name: str, color: Color | str | None) -> str:
+    """Wrap a name in bold markup, adding a list color if set."""
+
+    if color is None:
+        return f"[bold]{name}[/bold]"
+
+    if isinstance(color, str):
+        return f"[bold {color}]{name}[/bold {color}]"
+
+    return f"[bold {color.value}]{name}[/bold {color.value}]"
+
+
+def _add_color(name: str, color: Color | str | None) -> str:
+    """Wrap a name in color markup if a color is set, else leave it plain."""
+
+    if color is None:
+        return name
+
+    if isinstance(color, str):
+        return f"[{color}]{name}[/{color}]"
+
+    return f"[{color.value}]{name}[/{color.value}]"
+
+
+def _items_table(items: list[TodoItem], color: Color | None = None) -> Table:
     """Build a table of todo items.
 
     Parameters
@@ -37,27 +61,29 @@ def _items_table(items: list[TodoItem]) -> Table:
     """
 
     table = Table()
-    table.add_column("ID", justify="right")
-    table.add_column("Done")
-    table.add_column("Text")
-    table.add_column("Priority")
-    table.add_column("Tags")
+    table.add_column(_add_color("ID", color), justify="right")
+    table.add_column(_add_color("Done", color))
+    table.add_column(_add_color("Text", color))
+    table.add_column(_add_color("Priority", color))
+    table.add_column(_add_color("Tags", color))
 
     for item in items:
-        color = PRIORITY_COLORS[item.priority]
+        priority_color = PRIORITY_COLORS[item.priority]
         text = f"[dim]{item.text}[/dim]" if item.done else item.text
         table.add_row(
             str(item.id),
             "x" if item.done else " ",
             text,
-            f"[{color}]{item.priority.value}[/{color}]",
+            _add_color(item.priority.value, priority_color),
             ", ".join(item.tags),
         )
 
     return table
 
 
-def render_items(list_name: str, items: list[TodoItem]) -> None:
+def render_items(
+    list_name: str, items: list[TodoItem], color: Color | None = None
+) -> None:
     """Print a table of todo items for a list.
 
     Parameters
@@ -66,40 +92,49 @@ def render_items(list_name: str, items: list[TodoItem]) -> None:
         The list's name, shown in the table title.
     items : list[TodoItem]
         The items to display.
+    color : Color | None, optional
+        The list's display color, by default none.
     """
 
-    table = _items_table(items)
-    table.title = f"[bold]{list_name}[/bold]"
+    table = _items_table(items, color)
+    table.title = _add_bold(list_name, color)
     _console.print(table)
 
     return None
 
 
-def render_grouped_items(sections: list[tuple[str, list[TodoItem]]]) -> None:
+def render_grouped_items(
+    sections: list[tuple[str, Color | None, list[TodoItem]]],
+) -> None:
     """Print item tables nested in a parent-indented tree.
 
     Parameters
     ----------
-    sections : list[tuple[str, list[TodoItem]]]
-        Ordered (list_name, items) pairs — the first entry is the
-        primary list, subsequent entries are descendant-list sections,
-        each preceded by every one of its own ancestors.
+    sections : list[tuple[str, Color | None, list[TodoItem]]]
+        Ordered (list_name, color, items) triples — the first entry is
+        the primary list, subsequent entries are descendant-list
+        sections, each preceded by every one of its own ancestors.
     """
 
     if not sections:
         return None
 
-    root_name, root_items = sections[0]
+    root_name, root_color, root_items = sections[0]
     root_node = Tree(
-        Group(f"[bold]{root_name}[/bold]", _items_table(root_items))
+        Group(
+            _add_bold(root_name, root_color),
+            _items_table(root_items, root_color),
+        )
     )
     nodes: dict[str, Tree] = {root_name: root_node}
 
-    for name, items in sections[1:]:
+    for name, color, items in sections[1:]:
         parent_name = name.rsplit(".", 1)[0]
         parent = nodes.get(parent_name, root_node)
         label = name.rsplit(".", 1)[-1]
-        node = parent.add(Group(f"[bold]{label}[/bold]", _items_table(items)))
+        node = parent.add(
+            Group(_add_bold(label, color), _items_table(items, color))
+        )
         nodes[name] = node
 
     _console.print(root_node)
@@ -107,25 +142,28 @@ def render_grouped_items(sections: list[tuple[str, list[TodoItem]]]) -> None:
     return None
 
 
-def render_list_names(names: list[str]) -> None:
+def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
     """Print list names as a parent-indented tree.
 
     Parameters
     ----------
-    names : list[str]
-        All existing list names (flat), in any order.
+    entries : list[tuple[str, Color | None]]
+        (list_name, color) pairs for all existing lists (flat), in
+        any order.
     """
 
-    if not names:
+    if not entries:
         _console.print("[dim]no lists yet.[/dim]")
 
         return None
+
+    colors = dict(entries)
 
     # create a tree for each root of a list.
     roots: dict[str, Tree] = {}
     nodes: dict[str, Tree] = {}
 
-    for name in sorted(set(names)):
+    for name in sorted(colors):
         parent = None
         chain = [*ancestor_chain(name), name]
         for i in chain:
@@ -134,11 +172,11 @@ def render_list_names(names: list[str]) -> None:
                 continue
 
             if parent is None:
-                node = Tree(i)
+                node = Tree(_add_color(i, colors.get(i)))
                 roots[i] = node
             else:
                 label = i.rsplit(".", 1)[-1]
-                node = parent.add(label)
+                node = parent.add(_add_color(label, colors.get(i)))
 
             nodes[i] = node
             parent = node
