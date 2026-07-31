@@ -1,0 +1,41 @@
+name: Bug
+description: Report a bug or unintended behavior
+title: "fix: <description>"
+labels:
+  - fix
+assignees:
+  - calvinmcelvain
+  - Collin-McElvain
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What is happening?
+      placeholder: Describe the bug clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Start game
+        2. Open menu
+        3. Enemy freezes
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: (Optional) What should happen instead?
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: (Optional) Logs, screenshots, theories, related systems, etc.
