@@ -9,12 +9,24 @@ readme = "README.md"
 authors = [
     {name = "Calvin W. McElvain", email = "mcelvain1@hotmail.com"},
 ]
+license = {text = "MIT"}
 dynamic = ["version"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "rich>=13.0",
     "pydantic>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/calvinmcelvain/taskli"
+Repository = "https://github.com/calvinmcelvain/taskli"
 
 [project.scripts]
 task = "taskli.cli:main"
@@ -49,11 +61,6 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/taskli"]
-
-[tool.hatch.envs.dev]
-dev-mode = true
-features = ["dev"]
-
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -103,6 +110,10 @@ extend-exclude = '''
   | __pycache__
 )/
 '''
+
+[tool.isort]
+profile = "black"
+line_length = 79
 
 [tool.ruff]
 line-length = 79
