@@ -23,13 +23,13 @@ jobs:
           - name: Format
             command: |
               black --check --line-length 79 .
-              isort --check-only --profile black --line-length 79 .
+              isort --check-only .
 
           - name: Type Check
             command: mypy src tests
 
           - name: Test
-            command: pytest -q --cov=taskli --cov-report=term-missing
+            command: pytest -q --cov=taskli --cov-report=term-missing --cov-fail-under=95
 
     steps:
       - name: Checkout repository
