@@ -29,7 +29,7 @@ jobs:
             command: mypy src tests
 
           - name: Test
-            command: pytest -q
+            command: pytest -q --cov=taskli --cov-report=term-missing
 
     steps:
       - name: Checkout repository
