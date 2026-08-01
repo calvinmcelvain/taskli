@@ -6,7 +6,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from .exceptions import TodoError
+from .exceptions import TaskliError
 from .models import Color, Priority, TaskliItem, TaskliList
 from .render import (
     render_error,
@@ -35,7 +35,7 @@ def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     def wrapper(*args: object, **kwargs: object) -> int:
         try:
             return func(*args, **kwargs)
-        except TodoError as e:
+        except TaskliError as e:
             render_error(str(e))
 
             return 1
@@ -260,7 +260,7 @@ def _lists_cmd() -> int:
     for name in list_all_lists(storage_dir):
         try:
             entries.append((name, load_list(storage_dir, name).color))
-        except TodoError:
+        except TaskliError:
             entries.append((name, None))
 
     render_list_names(entries)
