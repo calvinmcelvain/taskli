@@ -4,7 +4,7 @@ from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
-from .models import Color, Priority, TaskliItem
+from .models import Color, TaskliItem
 from .storage import ancestor_chain
 
 __all__ = [
@@ -16,12 +16,6 @@ __all__ = [
 
 _console = Console()
 _err_console = Console(stderr=True)
-
-PRIORITY_COLORS = {
-    Priority.LOW: "green",
-    Priority.MEDIUM: "yellow",
-    Priority.HIGH: "red",
-}
 
 
 def _add_bold(name: str, color: Color | str | None) -> str:
@@ -70,13 +64,12 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
     table.add_column(_add_color("Tags", color))
 
     for item in items:
-        priority_color = PRIORITY_COLORS[item.priority]
         text = f"[dim]{item.text}[/dim]" if item.done else item.text
         table.add_row(
             str(item.id),
             "x" if item.done else " ",
             text,
-            _add_color(item.priority.value, priority_color),
+            _add_color(item.priority.label, item.priority.color),
             ", ".join(item.tags),
         )
 
