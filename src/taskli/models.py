@@ -1,7 +1,7 @@
 """List, tag, task, & priority models."""
 
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -10,10 +10,26 @@ from .exceptions import ItemNotFoundError
 __all__ = ["Color", "Priority", "TaskliItem", "TaskliList"]
 
 
-class Priority(StrEnum):
+class Priority(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+    def __init__(self, label: str):
+        self.label = label
+
+    @property
+    def index(self) -> int:
+        _index = {"low": 1, "medium": 2, "high": 3}
+        return _index[self.label]
+
+    @property
+    def color(self) -> str:
+        _colors = {"low": "green", "medium": "yellow", "high": "red"}
+        return _colors[self.label]
+
+    def __str__(self) -> str:
+        return self.label
 
 
 class Color(StrEnum):

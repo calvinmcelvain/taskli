@@ -476,7 +476,7 @@ def _edit_cmd(
     task_list.edit_item(
         item_id,
         text=text,
-        priority=Priority(priority) if priority is not None else None,
+        priority=Priority(priority) if priority else None,
         tags=list(tags) if tags else None,
     )
 
