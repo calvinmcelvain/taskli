@@ -42,14 +42,17 @@ class TestResolveStorageDir:
 
 
 class TestListHierarchyHelpers:
-    def test_parent_list_name_top_level(self):
-        assert parent_list_name("work") is None
-
-    def test_parent_list_name_nested(self):
-        assert parent_list_name("work.meetings") == "work"
-
-    def test_parent_list_name_deeply_nested(self):
-        assert parent_list_name("work.meetings.notes") == "work.meetings"
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("work", None),
+            ("work.meetings", "work"),
+            ("work.meetings.notes", "work.meetings"),
+        ],
+        ids=["top-level", "nested", "deeply-nested"],
+    )
+    def test_parent_list_name(self, name, expected):
+        assert parent_list_name(name) == expected
 
     def test_child_list_names_excludes_grandchildren(self):
         names = [
@@ -116,17 +119,14 @@ class TestListLifecycle:
         assert task_list.color is Color.CORAL
         assert load_list(tmp_path, "work").color is Color.CORAL
 
-    def test_list_file_path_rejects_trailing_dot(self, tmp_path):
+    @pytest.mark.parametrize(
+        "name",
+        ["work.", ".meetings", "work..meetings"],
+        ids=["trailing-dot", "leading-dot", "consecutive-dots"],
+    )
+    def test_list_file_path_rejects_malformed_name(self, tmp_path, name):
         with pytest.raises(InvalidListNameError):
-            list_file_path(tmp_path, "work.")
-
-    def test_list_file_path_rejects_leading_dot(self, tmp_path):
-        with pytest.raises(InvalidListNameError):
-            list_file_path(tmp_path, ".meetings")
-
-    def test_list_file_path_rejects_consecutive_dots(self, tmp_path):
-        with pytest.raises(InvalidListNameError):
-            list_file_path(tmp_path, "work..meetings")
+            list_file_path(tmp_path, name)
 
     def test_list_file_path_allows_two_ancestor_levels(self, tmp_path):
         list_file_path(tmp_path, "work.meetings.boring")
