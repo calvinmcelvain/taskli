@@ -6,8 +6,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from .exceptions import TodoError
-from .models import Color, Priority, TodoItem, TodoList
+from .exceptions import TaskliError
+from .models import Color, Priority, TaskliItem, TaskliList
 from .render import (
     render_error,
     render_grouped_items,
@@ -35,7 +35,7 @@ def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     def wrapper(*args: object, **kwargs: object) -> int:
         try:
             return func(*args, **kwargs)
-        except TodoError as e:
+        except TaskliError as e:
             render_error(str(e))
 
             return 1
@@ -86,20 +86,20 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
 
 def _build_list_action_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="todo",
+        prog="task",
         description=(
             "Manage items in a list. LIST defaults to 'inbox' when " "omitted."
         ),
         epilog=(
-            "Top-level commands run as `todo COMMAND ...`:\n"
+            "Top-level commands run as `task COMMAND ...`:\n"
             "  lists              Show all list names.\n"
             "  all                Show every list's items.\n"
             "  new-list NAME      Create a new, empty list.\n"
             "  rm-list NAME       Delete a whole list and all its "
             "items.\n"
             "  edit-list NAME     Change an existing list's color.\n\n"
-            "Run `todo COMMAND --help` for a command's full options.\n\n"
-            "Example: todo new-list groceries -c teal"
+            "Run `task COMMAND --help` for a command's full options.\n\n"
+            "Example: task new-list groceries -c teal"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -248,8 +248,8 @@ def _confirm(prompt: str) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
-def _print_list(list_name: str, todo_list: TodoList) -> None:
-    render_items(list_name, todo_list.items, todo_list.color)
+def _print_list(list_name: str, task_list: TaskliList) -> None:
+    render_items(list_name, task_list.items, task_list.color)
 
 
 @_handle_errors
@@ -260,7 +260,7 @@ def _lists_cmd() -> int:
     for name in list_all_lists(storage_dir):
         try:
             entries.append((name, load_list(storage_dir, name).color))
-        except TodoError:
+        except TaskliError:
             entries.append((name, None))
 
     render_list_names(entries)
@@ -272,7 +272,7 @@ def _lists_cmd() -> int:
 def _new_list_cmd(name: str, color: str | None) -> int:
     storage_dir = resolve_storage_dir()
 
-    todo_list = create_list(
+    task_list = create_list(
         storage_dir,
         name,
         reserved_names=TOP_LEVEL_COMMANDS,
@@ -280,7 +280,7 @@ def _new_list_cmd(name: str, color: str | None) -> int:
     )
 
     print(f"created list '{name}'.")
-    _print_list(name, todo_list)
+    _print_list(name, task_list)
 
     return 0
 
@@ -288,13 +288,13 @@ def _new_list_cmd(name: str, color: str | None) -> int:
 @_handle_errors
 def _edit_list_cmd(name: str, color: str) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, name)
-    todo_list.set_color(Color[color.upper()])
+    task_list = load_list(storage_dir, name)
+    task_list.set_color(Color[color.upper()])
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"updated color of '{name}' to '{color}'.")
-    _print_list(name, todo_list)
+    _print_list(name, task_list)
 
     return 0
 
@@ -335,18 +335,18 @@ def _add_cmd(
     list_name: str, texts: list[str], tags: list[str], priority: str
 ) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_or_create_list(
+    task_list = load_or_create_list(
         storage_dir, list_name, reserved_names=TOP_LEVEL_COMMANDS
     )
 
     for text in texts:
-        item = todo_list.add_item(
+        item = task_list.add_item(
             text, priority=Priority(priority), tags=list(tags)
         )
         print(f"added #{item.id} to '{list_name}'.")
 
-    save_list(storage_dir, todo_list)
-    _print_list(list_name, todo_list)
+    save_list(storage_dir, task_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -356,11 +356,11 @@ def _grouped_sections(
     list_name: str,
     all_names: list[str],
     tag: str | None,
-) -> list[tuple[str, Color | None, list[TodoItem]]]:
-    todo_list = load_list(storage_dir, list_name)
+) -> list[tuple[str, Color | None, list[TaskliItem]]]:
+    task_list = load_list(storage_dir, list_name)
 
     sections = [
-        (list_name, todo_list.color, todo_list.filtered_items(tag=tag))
+        (list_name, task_list.color, task_list.filtered_items(tag=tag))
     ]
 
     # filter each decendent list by tag if given to parent.
@@ -410,13 +410,13 @@ def _all_cmd() -> int:
 @_handle_errors
 def _done_cmd(list_name: str, item_id: int) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
-    todo_list.mark_done(item_id)
+    task_list = load_list(storage_dir, list_name)
+    task_list.mark_done(item_id)
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"marked #{item_id} done in '{list_name}'.")
-    _print_list(list_name, todo_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -424,13 +424,13 @@ def _done_cmd(list_name: str, item_id: int) -> int:
 @_handle_errors
 def _undone_cmd(list_name: str, item_id: int) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
-    todo_list.mark_undone(item_id)
+    task_list = load_list(storage_dir, list_name)
+    task_list.mark_undone(item_id)
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"marked #{item_id} not done in '{list_name}'.")
-    _print_list(list_name, todo_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -438,13 +438,13 @@ def _undone_cmd(list_name: str, item_id: int) -> int:
 @_handle_errors
 def _rm_cmd(list_name: str, item_id: int) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
-    todo_list.remove_item(item_id)
+    task_list = load_list(storage_dir, list_name)
+    task_list.remove_item(item_id)
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"removed #{item_id} from '{list_name}'.")
-    _print_list(list_name, todo_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -452,13 +452,13 @@ def _rm_cmd(list_name: str, item_id: int) -> int:
 @_handle_errors
 def _prune_cmd(list_name: str) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
-    removed = todo_list.remove_done_items()
+    task_list = load_list(storage_dir, list_name)
+    removed = task_list.remove_done_items()
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"pruned {len(removed)} item(s) from '{list_name}'.")
-    _print_list(list_name, todo_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -472,18 +472,18 @@ def _edit_cmd(
     tags: list[str],
 ) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
-    todo_list.edit_item(
+    task_list = load_list(storage_dir, list_name)
+    task_list.edit_item(
         item_id,
         text=text,
         priority=Priority(priority) if priority is not None else None,
         tags=list(tags) if tags else None,
     )
 
-    save_list(storage_dir, todo_list)
+    save_list(storage_dir, task_list)
 
     print(f"updated #{item_id} in '{list_name}'.")
-    _print_list(list_name, todo_list)
+    _print_list(list_name, task_list)
 
     return 0
 
@@ -491,9 +491,9 @@ def _edit_cmd(
 @_handle_errors
 def _tags_cmd(list_name: str) -> int:
     storage_dir = resolve_storage_dir()
-    todo_list = load_list(storage_dir, list_name)
+    task_list = load_list(storage_dir, list_name)
 
-    tags = sorted({t for item in todo_list.items for t in item.tags})
+    tags = sorted({t for item in task_list.items for t in item.tags})
     for tag in tags:
         print(tag)
 

@@ -46,7 +46,7 @@ jobs:
           source .venv/bin/activate
 
           pip install dist/*.whl
-          todo --help
+          task --help
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

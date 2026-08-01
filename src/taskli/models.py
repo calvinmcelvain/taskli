@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from .exceptions import ItemNotFoundError
 
-__all__ = ["Color", "Priority", "TodoItem", "TodoList"]
+__all__ = ["Color", "Priority", "TaskliItem", "TaskliList"]
 
 
 class Priority(StrEnum):
@@ -35,8 +35,8 @@ class Color(StrEnum):
     PINK = "#FF4FCB"
 
 
-class TodoItem(BaseModel):
-    """Single todo entry within a list."""
+class TaskliItem(BaseModel):
+    """Single task entry within a list."""
 
     id: int
     text: str
@@ -47,13 +47,13 @@ class TodoItem(BaseModel):
     completed_at: datetime | None = None
 
 
-class TodoList(BaseModel):
-    """A named collection of todo items."""
+class TaskliList(BaseModel):
+    """A named collection of tasks."""
 
     name: str
     color: Color | None = Color.WHITE
     next_id: int = 1
-    items: list[TodoItem] = Field(default_factory=list)
+    items: list[TaskliItem] = Field(default_factory=list)
 
     def set_color(self, color: Color) -> None:
         """Set the list's display color.
@@ -84,7 +84,7 @@ class TodoList(BaseModel):
         *,
         priority: Priority = Priority.MEDIUM,
         tags: list[str] | None = None,
-    ) -> TodoItem:
+    ) -> TaskliItem:
         """Create and append a new item, returning it.
 
         Parameters
@@ -98,11 +98,11 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        TodoItem
+        TaskliItem
             The newly created item.
         """
 
-        item = TodoItem(
+        item = TaskliItem(
             id=self.next_id,
             text=text,
             priority=priority,
@@ -114,7 +114,7 @@ class TodoList(BaseModel):
 
         return item
 
-    def get_item(self, item_id: int) -> TodoItem:
+    def get_item(self, item_id: int) -> TaskliItem:
         """Return the item with the given id.
 
         Parameters
@@ -124,7 +124,7 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        TodoItem
+        TaskliItem
             The matching item.
         """
 
@@ -135,7 +135,7 @@ class TodoList(BaseModel):
                 f"no item with id {item_id} in list '{self.name}'."
             ) from e
 
-    def mark_done(self, item_id: int) -> TodoItem:
+    def mark_done(self, item_id: int) -> TaskliItem:
         """Mark an item done and set its completion timestamp.
 
         Parameters
@@ -145,7 +145,7 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        TodoItem
+        TaskliItem
             The updated item.
         """
 
@@ -155,7 +155,7 @@ class TodoList(BaseModel):
 
         return item
 
-    def mark_undone(self, item_id: int) -> TodoItem:
+    def mark_undone(self, item_id: int) -> TaskliItem:
         """Mark an item not done and clear its completion timestamp.
 
         Parameters
@@ -165,7 +165,7 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        TodoItem
+        TaskliItem
             The updated item.
         """
 
@@ -188,12 +188,12 @@ class TodoList(BaseModel):
         self.items.remove(item)
         self.reindex()
 
-    def remove_done_items(self) -> list[TodoItem]:
+    def remove_done_items(self) -> list[TaskliItem]:
         """Remove all done items from the list.
 
         Returns
         -------
-        list[TodoItem]
+        list[TaskliItem]
             The items that were removed.
         """
 
@@ -210,7 +210,7 @@ class TodoList(BaseModel):
         text: str | None = None,
         priority: Priority | None = None,
         tags: list[str] | None = None,
-    ) -> TodoItem:
+    ) -> TaskliItem:
         """Update the given fields of an existing item.
 
         Parameters
@@ -226,7 +226,7 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        TodoItem
+        TaskliItem
             The updated item.
         """
 
@@ -240,7 +240,7 @@ class TodoList(BaseModel):
 
         return item
 
-    def filtered_items(self, *, tag: str | None = None) -> list[TodoItem]:
+    def filtered_items(self, *, tag: str | None = None) -> list[TaskliItem]:
         """Return items, optionally filtered by tag (case-insensitive).
 
         Parameters
@@ -250,7 +250,7 @@ class TodoList(BaseModel):
 
         Returns
         -------
-        list[TodoItem]
+        list[TaskliItem]
             The matching items.
         """
 

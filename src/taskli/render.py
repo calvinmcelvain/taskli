@@ -1,8 +1,10 @@
+"""CLI Taskli rendering function."""
+
 from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
-from .models import Color, Priority, TodoItem
+from .models import Color, Priority, TaskliItem
 from .storage import ancestor_chain
 
 __all__ = [
@@ -46,12 +48,12 @@ def _add_color(name: str, color: Color | str | None) -> str:
     return f"[{color.value}]{name}[/{color.value}]"
 
 
-def _items_table(items: list[TodoItem], color: Color | None = None) -> Table:
-    """Build a table of todo items.
+def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
+    """Build a table of tasks.
 
     Parameters
     ----------
-    items : list[TodoItem]
+    items : list[TaskliItem]
         The items to display.
 
     Returns
@@ -82,15 +84,15 @@ def _items_table(items: list[TodoItem], color: Color | None = None) -> Table:
 
 
 def render_items(
-    list_name: str, items: list[TodoItem], color: Color | None = None
+    list_name: str, items: list[TaskliItem], color: Color | None = None
 ) -> None:
-    """Print a table of todo items for a list.
+    """Print a table of tasks for a list.
 
     Parameters
     ----------
     list_name : str
         The list's name, shown in the table title.
-    items : list[TodoItem]
+    items : list[TaskliItem]
         The items to display.
     color : Color | None, optional
         The list's display color, by default none.
@@ -104,13 +106,13 @@ def render_items(
 
 
 def render_grouped_items(
-    sections: list[tuple[str, Color | None, list[TodoItem]]],
+    sections: list[tuple[str, Color | None, list[TaskliItem]]],
 ) -> None:
     """Print item tables nested in a parent-indented tree.
 
     Parameters
     ----------
-    sections : list[tuple[str, Color | None, list[TodoItem]]]
+    sections : list[tuple[str, Color | None, list[TaskliItem]]]
         Ordered (list_name, color, items) triples — the first entry is
         the primary list, subsequent entries are descendant-list
         sections, each preceded by every one of its own ancestors.

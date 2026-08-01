@@ -1,7 +1,7 @@
-"""todo-cli exceptions."""
+"""Taskli exceptions."""
 
 __all__ = [
-    "TodoError",
+    "TaskliError",
     "ListNotFoundError",
     "ListAlreadyExistsError",
     "CorruptedListFileError",
@@ -12,33 +12,33 @@ __all__ = [
 ]
 
 
-class TodoError(Exception):
-    """Base for todo-cli errors."""
+class TaskliError(Exception):
+    """Base for taskli errors."""
 
 
-class ListNotFoundError(TodoError):
+class ListNotFoundError(TaskliError):
     """Raised when a requested list file does not exist."""
 
 
-class ListAlreadyExistsError(TodoError):
+class ListAlreadyExistsError(TaskliError):
     """Raised when creating a list whose name is already in use."""
 
 
-class CorruptedListFileError(TodoError):
+class CorruptedListFileError(TaskliError):
     """Raised when a list file exists but cannot be parsed."""
 
 
-class InvalidListNameError(TodoError):
+class InvalidListNameError(TaskliError):
     """Raised when a list name can't safely map to a file."""
 
 
-class ItemNotFoundError(TodoError):
-    """Raised when a todo item id does not exist in a list."""
+class ItemNotFoundError(TaskliError):
+    """Raised when a task item id does not exist in a list."""
 
 
-class ReservedNameError(TodoError):
+class ReservedNameError(TaskliError):
     """Raised when a list name collides with a reserved command word."""
 
 
-class TooManyAncestorListsError(TodoError):
+class TooManyAncestorListsError(TaskliError):
     """Raised when a list name is nested more than 2 levels deep."""

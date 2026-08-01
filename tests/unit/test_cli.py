@@ -45,11 +45,11 @@ class TestAdd:
         )
         capsys.readouterr()
 
-        todo_list = load_list(taskli_env, "inbox")
+        task_list = load_list(taskli_env, "inbox")
 
-        assert len(todo_list.items) == 2
-        assert all(item.priority == Priority.HIGH for item in todo_list.items)
-        assert all(item.tags == ["urgent"] for item in todo_list.items)
+        assert len(task_list.items) == 2
+        assert all(item.priority == Priority.HIGH for item in task_list.items)
+        assert all(item.tags == ["urgent"] for item in task_list.items)
 
     def test_unquoted_bare_text_errors_unrecognized(self, taskli_env, capsys):
         exit_code = main(["buy", "milk"])

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-todo = "taskli.cli:main"
+task = "taskli.cli:main"
 
 [project.optional-dependencies]
 dev = [

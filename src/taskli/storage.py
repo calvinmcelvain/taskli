@@ -13,11 +13,11 @@ from .exceptions import (
     ReservedNameError,
     TooManyAncestorListsError,
 )
-from .models import Color, TodoList
+from .models import Color, TaskliList
 
 
 def resolve_storage_dir() -> Path:
-    """Return the directory todo lists are stored in, creating it.
+    """Return the directory task lists are stored in, creating it.
 
     Returns
     -------
@@ -176,7 +176,7 @@ def ensure_ancestors(
 
         # create child list if not exist.
         if not list_exists(storage_dir, ancestor):
-            save_list(storage_dir, TodoList(name=ancestor))
+            save_list(storage_dir, TaskliList(name=ancestor))
 
     return None
 
@@ -223,7 +223,7 @@ def create_list(
     *,
     reserved_names: frozenset[str] = frozenset(),
     color: Color | None = None,
-) -> TodoList:
+) -> TaskliList:
     """Create and persist a new, empty list.
 
     Parameters
@@ -239,7 +239,7 @@ def create_list(
 
     Returns
     -------
-    TodoList
+    TaskliList
         The newly created, empty list.
     """
 
@@ -253,10 +253,10 @@ def create_list(
     # have already been created.
     ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
 
-    todo_list = TodoList(name=name, color=color)
-    save_list(storage_dir, todo_list)
+    task_list = TaskliList(name=name, color=color)
+    save_list(storage_dir, task_list)
 
-    return todo_list
+    return task_list
 
 
 def delete_list(storage_dir: Path, name: str) -> list[str]:
@@ -289,7 +289,7 @@ def delete_list(storage_dir: Path, name: str) -> list[str]:
     return descendants
 
 
-def load_list(storage_dir: Path, name: str) -> TodoList:
+def load_list(storage_dir: Path, name: str) -> TaskliList:
     """Load a list from disk, parsing its JSON file.
 
     Parameters
@@ -301,25 +301,25 @@ def load_list(storage_dir: Path, name: str) -> TodoList:
 
     Returns
     -------
-    TodoList
+    TaskliList
         The loaded list.
     """
 
     path = list_file_path(storage_dir, name)
     if not path.exists():
         if name == "inbox":
-            todo_list = TodoList(name=name)
-            save_list(storage_dir, todo_list)
+            task_list = TaskliList(name=name)
+            save_list(storage_dir, task_list)
 
-            return todo_list
+            return task_list
 
         raise ListNotFoundError(
-            f"list '{name}' does not exist. Run 'todo lists' to see "
+            f"list '{name}' does not exist. Run 'task lists' to see "
             "available lists."
         )
 
     try:
-        return TodoList.model_validate_json(path.read_text())
+        return TaskliList.model_validate_json(path.read_text())
     except ValidationError as e:
         raise CorruptedListFileError(
             f"list file '{path}' is corrupted and could not be read."
@@ -331,7 +331,7 @@ def load_or_create_list(
     name: str,
     *,
     reserved_names: frozenset[str] = frozenset(),
-) -> TodoList:
+) -> TaskliList:
     """Load a list, creating it empty if it doesn't exist yet.
 
     Parameters
@@ -345,7 +345,7 @@ def load_or_create_list(
 
     Returns
     -------
-    TodoList
+    TaskliList
         The loaded or newly created list.
     """
 
@@ -354,24 +354,24 @@ def load_or_create_list(
 
     ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
 
-    todo_list = TodoList(name=name)
-    save_list(storage_dir, todo_list)
+    task_list = TaskliList(name=name)
+    save_list(storage_dir, task_list)
 
-    return todo_list
+    return task_list
 
 
-def save_list(storage_dir: Path, todo_list: TodoList) -> None:
+def save_list(storage_dir: Path, task_list: TaskliList) -> None:
     """Persist a list to its JSON file.
 
     Parameters
     ----------
     storage_dir : Path
         The storage directory.
-    todo_list : TodoList
+    task_list : TaskliList
         The list to save.
     """
 
-    path = list_file_path(storage_dir, todo_list.name)
-    path.write_text(todo_list.model_dump_json(indent=2))
+    path = list_file_path(storage_dir, task_list.name)
+    path.write_text(task_list.model_dump_json(indent=2))
 
     return None
