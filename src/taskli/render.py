@@ -18,28 +18,22 @@ _console = Console()
 _err_console = Console(stderr=True)
 
 
-def _add_bold(name: str, color: Color | str | None) -> str:
+def _add_bold(name: str, color: str | None) -> str:
     """Wrap a name in bold markup, adding a list color if set."""
 
     if color is None:
         return f"[bold]{name}[/bold]"
 
-    if isinstance(color, str):
-        return f"[bold {color}]{name}[/bold {color}]"
-
-    return f"[bold {color.value}]{name}[/bold {color.value}]"
+    return f"[bold {color}]{name}[/bold {color}]"
 
 
-def _add_color(name: str, color: Color | str | None) -> str:
+def _add_color(name: str, color: str | None) -> str:
     """Wrap a name in color markup if a color is set, else leave it plain."""
 
     if color is None:
         return name
 
-    if isinstance(color, str):
-        return f"[{color}]{name}[/{color}]"
-
-    return f"[{color.value}]{name}[/{color.value}]"
+    return f"[{color}]{name}[/{color}]"
 
 
 def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
