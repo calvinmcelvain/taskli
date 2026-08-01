@@ -17,7 +17,7 @@ from .models import Color, TaskliList
 
 
 def resolve_storage_dir() -> Path:
-    """Return the directory todo lists are stored in, creating it.
+    """Return the directory task lists are stored in, creating it.
 
     Returns
     -------
@@ -253,10 +253,10 @@ def create_list(
     # have already been created.
     ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
 
-    todo_list = TaskliList(name=name, color=color)
-    save_list(storage_dir, todo_list)
+    task_list = TaskliList(name=name, color=color)
+    save_list(storage_dir, task_list)
 
-    return todo_list
+    return task_list
 
 
 def delete_list(storage_dir: Path, name: str) -> list[str]:
@@ -308,13 +308,13 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
     path = list_file_path(storage_dir, name)
     if not path.exists():
         if name == "inbox":
-            todo_list = TaskliList(name=name)
-            save_list(storage_dir, todo_list)
+            task_list = TaskliList(name=name)
+            save_list(storage_dir, task_list)
 
-            return todo_list
+            return task_list
 
         raise ListNotFoundError(
-            f"list '{name}' does not exist. Run 'todo lists' to see "
+            f"list '{name}' does not exist. Run 'task lists' to see "
             "available lists."
         )
 
@@ -354,24 +354,24 @@ def load_or_create_list(
 
     ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
 
-    todo_list = TaskliList(name=name)
-    save_list(storage_dir, todo_list)
+    task_list = TaskliList(name=name)
+    save_list(storage_dir, task_list)
 
-    return todo_list
+    return task_list
 
 
-def save_list(storage_dir: Path, todo_list: TaskliList) -> None:
+def save_list(storage_dir: Path, task_list: TaskliList) -> None:
     """Persist a list to its JSON file.
 
     Parameters
     ----------
     storage_dir : Path
         The storage directory.
-    todo_list : TaskliList
+    task_list : TaskliList
         The list to save.
     """
 
-    path = list_file_path(storage_dir, todo_list.name)
-    path.write_text(todo_list.model_dump_json(indent=2))
+    path = list_file_path(storage_dir, task_list.name)
+    path.write_text(task_list.model_dump_json(indent=2))
 
     return None

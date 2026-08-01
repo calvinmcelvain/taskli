@@ -49,7 +49,7 @@ def _add_color(name: str, color: Color | str | None) -> str:
 
 
 def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
-    """Build a table of todo items.
+    """Build a table of tasks.
 
     Parameters
     ----------
@@ -86,7 +86,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
 def render_items(
     list_name: str, items: list[TaskliItem], color: Color | None = None
 ) -> None:
-    """Print a table of todo items for a list.
+    """Print a table of tasks for a list.
 
     Parameters
     ----------

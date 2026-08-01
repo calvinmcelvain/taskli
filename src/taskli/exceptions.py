@@ -33,7 +33,7 @@ class InvalidListNameError(TaskliError):
 
 
 class ItemNotFoundError(TaskliError):
-    """Raised when a todo item id does not exist in a list."""
+    """Raised when a task item id does not exist in a list."""
 
 
 class ReservedNameError(TaskliError):
