@@ -1,4 +1,4 @@
-"""todo-cli exceptions."""
+"""Taskli exceptions."""
 
 __all__ = [
     "TaskliError",

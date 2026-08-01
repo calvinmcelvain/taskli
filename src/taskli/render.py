@@ -1,3 +1,5 @@
+"""CLI Taskli rendering function."""
+
 from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
