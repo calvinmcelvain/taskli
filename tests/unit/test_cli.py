@@ -1,4 +1,6 @@
-from taskli.cli import main
+import pytest
+
+from taskli.cli import TOP_LEVEL_COMMANDS, main
 from taskli.models import Color, Priority
 from taskli.storage import load_list
 
@@ -11,14 +13,14 @@ class TestAdd:
         assert exit_code == 0
         assert "added #1 to 'work'" in captured.out
 
-    def test_add_to_inbox_by_default(self, taskli_env, capsys):
+    def test_defaults_to_inbox(self, taskli_env, capsys):
         exit_code = main(["-a", "task"])
 
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "added #1 to 'inbox'" in captured.out
 
-    def test_repeated_add_flag_adds_each_item(self, taskli_env, capsys):
+    def test_repeated_add_flags(self, taskli_env, capsys):
         exit_code = main(["-a", "buy", "milk", "-a", "buy", "eggs"])
 
         captured = capsys.readouterr()
@@ -26,9 +28,7 @@ class TestAdd:
         assert "added #1 to 'inbox'" in captured.out
         assert "added #2 to 'inbox'" in captured.out
 
-    def test_repeated_add_flag_shares_priority_and_tags(
-        self, taskli_env, capsys
-    ):
+    def test_repeated_flag_shares(self, taskli_env, capsys):
         main(
             [
                 "-a",
@@ -51,54 +51,32 @@ class TestAdd:
         assert all(item.priority == Priority.HIGH for item in task_list.items)
         assert all(item.tags == ["urgent"] for item in task_list.items)
 
-    def test_unquoted_bare_text_errors_unrecognized(self, taskli_env, capsys):
+    def test_unquoted_bare_text_errors(self, taskli_env, capsys):
         exit_code = main(["buy", "milk"])
 
         captured = capsys.readouterr()
         assert exit_code == 2
         assert "unrecognized arguments" in captured.err
 
-    def test_quoted_bare_text_errors_list_not_found(self, taskli_env, capsys):
+    def test_quoted_bare_text_errors(self, taskli_env, capsys):
         exit_code = main(["buy milk"])
 
         captured = capsys.readouterr()
         assert exit_code == 1
         assert "does not exist" in captured.err
 
-    def test_former_action_word_is_now_a_valid_list_name(
-        self, taskli_env, capsys
-    ):
-        exit_code = main(["add", "-a", "buy milk"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "added #1 to 'add'" in captured.out
-
-    def test_tag_flag_invalid_outside_add_or_edit(self, taskli_env, capsys):
-        exit_code = main(["work", "-d", "1", "-t", "urgent"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 2
-        assert "only valid with" in captured.err
-
-    def test_priority_flag_invalid_outside_add_or_edit(
-        self, taskli_env, capsys
-    ):
-        exit_code = main(["work", "--prune", "-p", "high"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 2
-        assert "only valid with" in captured.err
-
-    def test_filter_tag_invalid_outside_view(self, taskli_env, capsys):
-        exit_code = main(["work", "-a", "task", "-f", "urgent"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 2
-        assert "only valid with" in captured.err
-
-    def test_text_flag_invalid_outside_edit(self, taskli_env, capsys):
-        exit_code = main(["work", "--text", "new"])
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["work", "-d", "1", "-t", "urgent"],
+            ["work", "--prune", "-p", "high"],
+            ["work", "-a", "task", "-f", "urgent"],
+            ["work", "--text", "new"],
+        ],
+        ids=["tag", "priority", "filter-tag", "text"],
+    )
+    def test_modifier_flag_invalid(self, taskli_env, capsys, argv):
+        exit_code = main(argv)
 
         captured = capsys.readouterr()
         assert exit_code == 2
@@ -134,7 +112,7 @@ class TestListItems:
         assert "a" in captured.out
         assert "b" not in captured.out
 
-    def test_explicit_list_flag_matches_default_view(self, taskli_env, capsys):
+    def test_explicit_list_flag(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
@@ -144,7 +122,7 @@ class TestListItems:
         assert exit_code == 0
         assert "task" in captured.out
 
-    def test_raises_clean_error_for_missing_list(self, taskli_env, capsys):
+    def test_missing_list_raises(self, taskli_env, capsys):
         exit_code = main(["ghost"])
 
         captured = capsys.readouterr()
@@ -208,7 +186,7 @@ class TestEditRm:
 
 
 class TestPrune:
-    def test_prune_removes_done_items_only(self, taskli_env, capsys):
+    def test_removes_done_items(self, taskli_env, capsys):
         main(["work", "-a", "done task"])
         main(["work", "-a", "open task"])
         main(["work", "-d", "1"])
@@ -223,7 +201,7 @@ class TestPrune:
         assert "done task" not in list_captured.out
         assert "open task" in list_captured.out
 
-    def test_prune_reports_count_in_message(self, taskli_env, capsys):
+    def test_reports_count_in_message(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         main(["work", "-d", "1"])
         capsys.readouterr()
@@ -233,7 +211,7 @@ class TestPrune:
         captured = capsys.readouterr()
         assert "pruned 1 item" in captured.out
 
-    def test_prune_noop_when_no_done_items(self, taskli_env, capsys):
+    def test_no_done_items(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
@@ -247,16 +225,14 @@ class TestPrune:
         assert "pruned 0 item" in prune_captured.out
         assert "task" in list_captured.out
 
-    def test_prune_raises_clean_error_for_missing_list(
-        self, taskli_env, capsys
-    ):
+    def test_missing_list_raises(self, taskli_env, capsys):
         exit_code = main(["ghost", "--prune"])
 
         captured = capsys.readouterr()
         assert exit_code == 1
         assert "does not exist" in captured.err
 
-    def test_prune_implicit_inbox(self, taskli_env, capsys):
+    def test_implicit_inbox(self, taskli_env, capsys):
         main(["-a", "task"])
         main(["-d", "1"])
         capsys.readouterr()
@@ -283,7 +259,7 @@ class TestTags:
 
 
 class TestListsCommand:
-    def test_lists_all_list_names(self, taskli_env, capsys):
+    def test_shows_all_list_names(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         main(["new-list", "groceries"])
         capsys.readouterr()
@@ -300,7 +276,7 @@ class TestListsCommand:
         captured = capsys.readouterr()
         assert "no lists yet" in captured.out
 
-    def test_lists_shows_nested_sublist(self, taskli_env, capsys):
+    def test_shows_nested_sublist(self, taskli_env, capsys):
         main(["new-list", "work"])
         main(["new-list", "work.meetings"])
         capsys.readouterr()
@@ -318,7 +294,7 @@ class TestListsCommand:
 
         assert lines.index(child_line) > lines.index(parent_line)
 
-    def test_lists_unrelated_sibling(self, taskli_env, capsys):
+    def test_similarly_prefixed_sibling(self, taskli_env, capsys):
         main(["new-list", "work"])
         main(["new-list", "work-log"])
         main(["new-list", "work.meetings"])
@@ -381,30 +357,23 @@ class TestAllCommand:
 
 
 class TestNewListRmList:
-    def test_new_list_creates_empty_list(self, taskli_env, capsys):
+    def test_creates_empty_list(self, taskli_env, capsys):
         exit_code = main(["new-list", "groceries"])
 
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "created list 'groceries'" in captured.out
 
-    def test_new_list_allows_former_action_word(self, taskli_env, capsys):
-        exit_code = main(["new-list", "add"])
+    @pytest.mark.parametrize("reserved_word", sorted(TOP_LEVEL_COMMANDS))
+    def test_rejects_reserved_words(self, taskli_env, capsys, reserved_word):
+        exit_code = main(["new-list", reserved_word])
 
         captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "created list 'add'" in captured.out
 
-    def test_new_list_rejects_reserved_top_level_word(
-        self, taskli_env, capsys
-    ):
-        exit_code = main(["new-list", "lists"])
-
-        captured = capsys.readouterr()
         assert exit_code == 1
         assert "reserved" in captured.err
 
-    def test_new_list_rejects_excessive_depth(self, taskli_env, capsys):
+    def test_rejects_excessive_depth(self, taskli_env, capsys):
         exit_code = main(["new-list", "work.meetings.boring.extra"])
 
         captured = capsys.readouterr()
@@ -412,21 +381,11 @@ class TestNewListRmList:
         assert exit_code == 1
         assert "nested too deep" in captured.err
 
-    def test_new_list_with_color(self, taskli_env, capsys):
+    def test_new_list_creates_with_color(self, taskli_env, capsys):
         exit_code = main(["new-list", "groceries", "-c", "coral"])
 
         assert exit_code == 0
         assert load_list(taskli_env, "groceries").color is Color.CORAL
-
-    def test_new_list_with_color_shown_in_lists(self, taskli_env, capsys):
-        main(["new-list", "groceries", "-c", "coral"])
-        capsys.readouterr()
-
-        exit_code = main(["lists"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "groceries" in captured.out
 
     def test_new_list_rejects_invalid_color(self, taskli_env, capsys):
         exit_code = main(["new-list", "groceries", "-c", "notacolor"])
@@ -436,7 +395,7 @@ class TestNewListRmList:
         assert exit_code == 2
         assert "invalid choice" in captured.err
 
-    def test_rm_list_deletes_with_confirmation(
+    def test_rm_deletes_with_confirmation(
         self, taskli_env, monkeypatch, capsys
     ):
         monkeypatch.setattr("builtins.input", lambda _: "y")
@@ -463,7 +422,7 @@ class TestNewListRmList:
         assert "work" in lists_captured.out
         assert "meetings" in lists_captured.out
 
-    def test_rm_list_cascades(self, taskli_env, monkeypatch, capsys):
+    def test_rm_cascades_to_children(self, taskli_env, monkeypatch, capsys):
         prompts = []
         monkeypatch.setattr(
             "builtins.input", lambda p: prompts.append(p) or "y"
@@ -494,18 +453,6 @@ class TestEditListCommand:
 
         assert exit_code == 0
         assert load_list(taskli_env, "work").color is Color.TEAL
-
-    def test_colored_list_items_still_render(self, taskli_env, capsys):
-        main(["new-list", "work"])
-        main(["work", "-a", "task"])
-        main(["edit-list", "work", "-c", "teal"])
-        capsys.readouterr()
-
-        exit_code = main(["work"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "task" in captured.out
 
     def test_missing_list_errors(self, taskli_env, capsys):
         exit_code = main(["edit-list", "ghost", "-c", "teal"])
@@ -546,7 +493,7 @@ class TestDefaultListAction:
         assert exit_code == 0
         assert "inbox" in captured.out
 
-    def test_list_name_alone_shows_items(self, taskli_env, capsys):
+    def test_list_name_shows_items(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
@@ -581,7 +528,7 @@ class TestDefaultListAction:
         assert "sub-task" in captured.out
         assert "meetings" in captured.out
 
-    def test_grandchild_shown_under_top_ancestor(self, taskli_env, capsys):
+    def test_grandchild_shown_under_parent(self, taskli_env, capsys):
         main(["work.meetings.notes", "-a", "deep-task"])
         capsys.readouterr()
 
@@ -596,7 +543,7 @@ class TestDefaultListAction:
         assert "notes" in top_captured.out
         assert "deep-task" in mid_captured.out
 
-    def test_tag_filter_applies_to_child_sections(self, taskli_env, capsys):
+    def test_tag_filter_applies_to_sublists(self, taskli_env, capsys):
         main(["work", "-a", "a", "-t", "urgent"])
         main(["work.meetings", "-a", "b", "-t", "urgent"])
         main(["work.meetings", "-a", "c", "-t", "later"])

@@ -37,7 +37,7 @@ class TestTaskliList:
         assert item.tags == []
         assert item.done is False
 
-    def test_get_item_raises_for_missing_id(self):
+    def test_get_item_missing_id_raises(self):
         todo_list = TaskliList(name="work")
 
         with pytest.raises(ItemNotFoundError):
@@ -70,7 +70,7 @@ class TestTaskliList:
 
         assert todo_list.items == []
 
-    def test_remove_done_items_removes_done_only(self):
+    def test_remove_done_items_keeps_open_items(self):
         todo_list = TaskliList(name="work")
         done_item = todo_list.add_item("done task")
         not_done_item = todo_list.add_item("open task")
