@@ -84,7 +84,7 @@ jobs:
           source .venv/bin/activate
 
           pip install dist/*.whl
-          todo --help
+          task --help
 
       - name: Upload build artifacts
         if: steps.check.outputs.exists == 'false'
