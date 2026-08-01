@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from taskli.models import Color, TodoList
+from taskli.models import Color, TaskliList
 from taskli.storage import (
     CorruptedListFileError,
     InvalidListNameError,
@@ -33,7 +33,7 @@ class TestResolveStorageDir:
         assert result == taskli_env
 
     def test_defaults_to_home_dotfolder(self, monkeypatch, tmp_path):
-        monkeypatch.delenv("TODOS_PATH", raising=False)
+        monkeypatch.delenv("TASKLI_PATH", raising=False)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
         result = resolve_storage_dir()
@@ -88,9 +88,9 @@ class TestListHierarchyHelpers:
 
 class TestListLifecycle:
     def test_create_list_persists_empty_list(self, tmp_path):
-        todo_list = create_list(tmp_path, "work", reserved_names=frozenset())
+        task_list = create_list(tmp_path, "work", reserved_names=frozenset())
 
-        assert isinstance(todo_list, TodoList)
+        assert isinstance(task_list, TaskliList)
         assert list_exists(tmp_path, "work")
 
     def test_create_list_rejects_reserved_name(self, tmp_path):
@@ -104,16 +104,16 @@ class TestListLifecycle:
             create_list(tmp_path, "work", reserved_names=frozenset())
 
     def test_create_list_without_color_defaults_to_none(self, tmp_path):
-        todo_list = create_list(tmp_path, "work", reserved_names=frozenset())
+        task_list = create_list(tmp_path, "work", reserved_names=frozenset())
 
-        assert todo_list.color is None
+        assert task_list.color is None
 
     def test_create_list_with_color_persists_it(self, tmp_path):
-        todo_list = create_list(
+        task_list = create_list(
             tmp_path, "work", reserved_names=frozenset(), color=Color.CORAL
         )
 
-        assert todo_list.color is Color.CORAL
+        assert task_list.color is Color.CORAL
         assert load_list(tmp_path, "work").color is Color.CORAL
 
     def test_list_file_path_rejects_trailing_dot(self, tmp_path):
@@ -197,9 +197,9 @@ class TestListLifecycle:
 
 class TestLoadList:
     def test_auto_creates_default_list(self, tmp_path):
-        todo_list = load_list(tmp_path, "inbox")
+        task_list = load_list(tmp_path, "inbox")
 
-        assert todo_list.name == "inbox"
+        assert task_list.name == "inbox"
         assert list_exists(tmp_path, "inbox")
 
     def test_raises_for_missing_non_default_list(self, tmp_path):
@@ -207,9 +207,9 @@ class TestLoadList:
             load_list(tmp_path, "work")
 
     def test_round_trips_saved_items(self, tmp_path):
-        todo_list = create_list(tmp_path, "work", reserved_names=frozenset())
-        todo_list.add_item("task")
-        save_list(tmp_path, todo_list)
+        task_list = create_list(tmp_path, "work", reserved_names=frozenset())
+        task_list.add_item("task")
+        save_list(tmp_path, task_list)
 
         reloaded = load_list(tmp_path, "work")
 
@@ -225,9 +225,9 @@ class TestLoadList:
 
 class TestLoadOrCreateList:
     def test_creates_when_missing(self, tmp_path):
-        todo_list = load_or_create_list(tmp_path, "work")
+        task_list = load_or_create_list(tmp_path, "work")
 
-        assert todo_list.name == "work"
+        assert task_list.name == "work"
         assert list_exists(tmp_path, "work")
 
     def test_loads_existing(self, tmp_path):
@@ -240,8 +240,8 @@ class TestLoadOrCreateList:
         assert len(loaded.items) == 1
 
     def test_creates_missing_parent_chain(self, tmp_path):
-        todo_list = load_or_create_list(tmp_path, "work.meetings")
+        task_list = load_or_create_list(tmp_path, "work.meetings")
 
-        assert todo_list.name == "work.meetings"
+        assert task_list.name == "work.meetings"
         assert list_exists(tmp_path, "work")
         assert list_exists(tmp_path, "work.meetings")

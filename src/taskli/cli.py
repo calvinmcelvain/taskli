@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .exceptions import TodoError
-from .models import Color, Priority, TodoItem, TodoList
+from .models import Color, Priority, TaskliItem, TaskliList
 from .render import (
     render_error,
     render_grouped_items,
@@ -248,7 +248,7 @@ def _confirm(prompt: str) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
-def _print_list(list_name: str, todo_list: TodoList) -> None:
+def _print_list(list_name: str, todo_list: TaskliList) -> None:
     render_items(list_name, todo_list.items, todo_list.color)
 
 
@@ -356,7 +356,7 @@ def _grouped_sections(
     list_name: str,
     all_names: list[str],
     tag: str | None,
-) -> list[tuple[str, Color | None, list[TodoItem]]]:
+) -> list[tuple[str, Color | None, list[TaskliItem]]]:
     todo_list = load_list(storage_dir, list_name)
 
     sections = [
