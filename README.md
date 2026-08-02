@@ -36,13 +36,12 @@ work
 
 - [Why Taskli](#why-Taskli)
 - [Installation](#installation)
-- [Core concepts](#core-concepts)
+- [Usage](#usage)
+- [Commands overview](#commands-overview)
 - [Routing grammar](#routing-grammar)
-- [Command overview](#command-overview)
 - [Workflows](#workflows)
-- [Full command reference](#full-command-reference)
-- [Data storage](#data-storage)
-- [Development](#development)
+- [Sublists](#sublists)
+- [Configuration](#configuration)
 
 ## Why Taskli
 
@@ -240,10 +239,10 @@ bare word, so it can never collide with a list name:
 
 Because the action is always a flag, list names can no longer collide
 with what used to be reserved action words — `task add -a "buy milk"`
-now targets a list literally named `add`. Only the 5 top-level
-commands below (`lists`, `all`, `new-list`, `rm-list`, `edit-list`) stay
-reserved bare words, since they're parsed before `LIST` is ever
-considered.
+now targets a list literally named `add`. Only the 6 top-level
+commands below (`lists`, `all`, `new-list`, `rm-list`, `edit-list`,
+`config`) stay reserved bare words, since they're parsed before `LIST`
+is ever considered.
 
 > [!IMPORTANT]
 > Item IDs are positions within a list, not permanent identifiers — `-r`
@@ -268,10 +267,11 @@ starts empty.
 | `new-list NAME` | Create an empty list | `task new-list groceries -c teal` |
 | `edit-list NAME` | Change a list's color | `task edit-list work -c coral` |
 | `rm-list NAME` | Delete a list and its sublists | `task rm-list groceries` |
+| `config [KEY] [VALUE]` | View or edit config settings | `task config default_priority high` |
 
 All 8 list-scoped flags (everything except `lists`/`all`/`new-list`/
-`rm-list`/`edit-list`) run against `LIST`, which defaults to `inbox` — see
-[Routing grammar](#routing-grammar).
+`rm-list`/`edit-list`/`config`) run against `LIST`, which defaults to
+`inbox` — see [Routing grammar](#routing-grammar).
 
 ## Workflows
 
@@ -469,7 +469,7 @@ $ task work -t urgent
 ```
 
 Reserved words that can't be used as a list name: `lists`, `all`,
-`new-list`, `rm-list`, `edit-list`.
+`new-list`, `rm-list`, `edit-list`, `config`.
 
 **Deleting a list cascades to its sublists.** `task rm-list` lists any
 sublists in the confirmation prompt and removes all of them together:
@@ -485,3 +485,56 @@ no lists yet.
 
 `inbox` is created automatically the first time it's read. Any other list
 is created automatically the first time you `-a/--add` to it.
+
+</details>
+
+## Configuration
+
+Taskli keeps a single settings file at `$TASKLI_PATH/.taskli.json`
+(next to your list files, `~/.taskli/.taskli.json` by default). Edit it
+by hand, or through `task config`:
+
+```
+$ task config
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Key               ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ auto_prune        │ False      │
+│ sublist_delimiter │ .          │
+│ default_list      │ inbox      │
+│ default_sort      │ created_at │
+│ default_priority  │ medium     │
+│ default_color     │ #F8FAFC    │
+└───────────────────┴────────────┘
+
+$ task config default_priority
+medium
+
+$ task config default_priority high
+set 'default_priority' to 'high'.
+```
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `auto_prune` | `true`/`false` | `false` | Reserved for future auto-pruning of done items. |
+| `sublist_delimiter` | string | `.` | Reserved; the delimiter used in nested list names. |
+| `default_list` | string | `inbox` | Reserved; the list used when none is given. |
+| `default_sort` | `tags`/`priority`/`created_at` | `created_at` | Reserved; default sort key for list output. |
+| `default_priority` | `low`/`medium`/`high` | `medium` | Reserved; priority used for new items when `-p` is omitted. |
+| `default_color` | color name (see [Colors](#colors)) | `white` | Reserved; default color for new lists. |
+
+An unknown key or an invalid value for a key is an error (exit 1):
+
+```
+$ task config nope
+error: 'nope' is not a config key.
+
+$ task config auto_prune sortof
+error: 'sortof' is not a valid value for 'auto_prune'.
+```
+
+As of this change, these settings are stored and directly editable via
+`task config`, but none of them are yet consumed by other commands
+(e.g. `-a` still always defaults to `medium` priority regardless of
+`default_priority`). Wiring them into behavior is tracked as separate
+follow-up work.
