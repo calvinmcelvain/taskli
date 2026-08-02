@@ -4,13 +4,14 @@ from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
-from .models import Color, TaskliItem
+from .models import Color, Config, TaskliItem
 from .storage import ancestor_chain
 
 __all__ = [
     "render_items",
     "render_grouped_items",
     "render_list_names",
+    "render_config",
     "render_error",
 ]
 
@@ -171,6 +172,28 @@ def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
             parent = node
 
     _console.print(*list(roots.values()))
+
+    return None
+
+
+def render_config(config: Config) -> None:
+    """Print a table of all config keys and their current values.
+
+    Parameters
+    ----------
+    config : Config
+        The config to display.
+    """
+
+    table = Table()
+    table.add_column("Key")
+    table.add_column("Value")
+
+    keys = config.model_dump().keys()
+    for key in keys:
+        table.add_row(key, str(config.get_value(key)))
+
+    _console.print(table)
 
     return None
 
