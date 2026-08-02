@@ -2,7 +2,7 @@ import pytest
 
 from taskli.cli import TOP_LEVEL_COMMANDS, main
 from taskli.models import Color, Priority
-from taskli.storage import load_list
+from taskli.storage import load_config, load_list
 
 
 class TestAdd:
@@ -483,6 +483,66 @@ class TestEditListCommand:
 
         assert exit_code == 2
         assert "required" in captured.err
+
+
+class TestConfigCommand:
+    def test_no_args_lists_all_keys(self, taskli_env, capsys):
+        exit_code = main(["config"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "auto_prune" in captured.out
+        assert "default_color" in captured.out
+
+    def test_key_only_prints_current_value(self, taskli_env, capsys):
+        exit_code = main(["config", "default_list"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert captured.out.strip() == "inbox"
+
+    def test_key_and_value_sets_and_persists(self, taskli_env, capsys):
+        exit_code = main(["config", "auto_prune", "true"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "set 'auto_prune' to 'true'" in captured.out
+        assert load_config(taskli_env).auto_prune is True
+
+    def test_sets_default_color(self, taskli_env, capsys):
+        exit_code = main(["config", "default_color", "teal"])
+
+        capsys.readouterr()
+
+        assert exit_code == 0
+        assert load_config(taskli_env).default_color == Color.TEAL
+
+    def test_unknown_key_errors(self, taskli_env, capsys):
+        exit_code = main(["config", "nope", "x"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "not a config key" in captured.err
+
+    def test_invalid_value_errors(self, taskli_env, capsys):
+        exit_code = main(["config", "auto_prune", "sortof"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "not a valid value for 'auto_prune'" in captured.err
+
+    def test_config_is_reserved_list_name(self, taskli_env, capsys):
+        exit_code = main(["new-list", "config"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "reserved" in captured.err
 
 
 class TestDefaultListAction:

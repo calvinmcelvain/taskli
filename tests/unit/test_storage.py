@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from taskli.models import Color, TaskliList
+from taskli.models import Color, Config, TaskliList
 from taskli.storage import (
+    CorruptedConfigFileError,
     CorruptedListFileError,
     InvalidListNameError,
     ListAlreadyExistsError,
@@ -12,16 +13,19 @@ from taskli.storage import (
     TooManyAncestorListsError,
     ancestor_chain,
     child_list_names,
+    config_file_path,
     create_list,
     delete_list,
     descendant_list_names,
     list_all_lists,
     list_exists,
     list_file_path,
+    load_config,
     load_list,
     load_or_create_list,
     parent_list_name,
     resolve_storage_dir,
+    save_config,
     save_list,
 )
 
@@ -39,6 +43,38 @@ class TestResolveStorageDir:
         result = resolve_storage_dir()
 
         assert result == tmp_path / ".taskli"
+
+
+class TestConfigLifecycle:
+    def test_config_file_path_is_dotfile(self, tmp_path):
+        assert config_file_path(tmp_path) == tmp_path / ".taskli.json"
+
+    def test_config_file_excluded_from_list_all_lists(self, tmp_path):
+        save_config(tmp_path, Config())
+        create_list(tmp_path, "work", reserved_names=frozenset())
+
+        assert list_all_lists(tmp_path) == ["work"]
+
+    def test_load_config_creates_defaults_when_missing(self, tmp_path):
+        config = load_config(tmp_path)
+
+        assert isinstance(config, Config)
+        assert config_file_path(tmp_path).exists()
+
+    def test_load_config_round_trips(self, tmp_path):
+        config = load_config(tmp_path)
+        config.set_value("auto_prune", "true")
+        save_config(tmp_path, config)
+
+        reloaded = load_config(tmp_path)
+
+        assert reloaded.auto_prune is True
+
+    def test_load_config_raises_for_corrupted_file(self, tmp_path):
+        config_file_path(tmp_path).write_text("not valid json")
+
+        with pytest.raises(CorruptedConfigFileError):
+            load_config(tmp_path)
 
 
 class TestListHierarchyHelpers:

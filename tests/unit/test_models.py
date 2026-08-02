@@ -1,9 +1,14 @@
 import pytest
 from rich.color import Color as RichColor
 
-from taskli.exceptions import ItemNotFoundError
+from taskli.exceptions import (
+    InvalidConfigValueError,
+    ItemNotFoundError,
+    UnknownConfigKeyError,
+)
 from taskli.models import (
     Color,
+    Config,
     Priority,
     TaskliItem,
     TaskliList,
@@ -14,6 +19,83 @@ class TestColor:
     @pytest.mark.parametrize("member", list(Color))
     def test_values_parse_as_rich_colors(self, member):
         RichColor.parse(member.value)
+
+
+class TestConfig:
+    def test_get_value(self):
+        config = Config()
+
+        assert config.get_value("default_list") == "inbox"
+
+    def test_get_value_unknown_key_raises(self):
+        config = Config()
+
+        with pytest.raises(UnknownConfigKeyError):
+            config.get_value("nope")
+
+    def test_set_value_bool(self):
+        config = Config()
+
+        config.set_value("auto_prune", "true")
+
+        assert config.auto_prune is True
+
+    def test_set_value_rejects_bad_bool(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("auto_prune", "sortof")
+
+    def test_set_value_sort_by(self):
+        config = Config()
+
+        config.set_value("default_sort", "priority")
+
+        assert config.default_sort == "priority"
+
+    def test_set_value_rejects_bad_sort_by(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_sort", "size")
+
+    def test_set_value_priority(self):
+        config = Config()
+
+        config.set_value("default_priority", "high")
+
+        assert config.default_priority == Priority.HIGH
+
+    def test_set_value_rejects_bad_priority(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_priority", "urgent")
+
+    def test_set_value_color(self):
+        config = Config()
+
+        config.set_value("default_color", "teal")
+
+        assert config.default_color == Color.TEAL
+
+    def test_set_value_rejects_bad_color(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_color", "notacolor")
+
+    def test_set_value_rejects_empty_string(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_list", "")
+
+    def test_set_value_unknown_key_raises(self):
+        config = Config()
+
+        with pytest.raises(UnknownConfigKeyError):
+            config.set_value("nope", "x")
 
 
 class TestTaskliList:
@@ -142,3 +224,15 @@ class TestTaskliList:
         )
 
         assert restored.color == Color.WHITE
+
+    def test_sort_by_tags_orders_by_joined_sorted_tags(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("first", tags=["z", "a"])
+        todo_list.add_item("second", tags=["m"])
+
+        todo_list.sort_by("tags")
+
+        assert [item.text for item in todo_list.items] == [
+            "first",
+            "second",
+        ]
