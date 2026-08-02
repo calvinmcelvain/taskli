@@ -1,9 +1,9 @@
 import pytest
 from rich.color import Color as RichColor
 
+from taskli.exceptions import ItemNotFoundError
 from taskli.models import (
     Color,
-    ItemNotFoundError,
     Priority,
     TaskliItem,
     TaskliList,
