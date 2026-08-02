@@ -9,6 +9,7 @@ from pathlib import Path
 from .exceptions import TaskliError
 from .models import Color, Priority, TaskliItem, TaskliList
 from .render import (
+    render_config,
     render_error,
     render_grouped_items,
     render_items,
@@ -19,14 +20,16 @@ from .storage import (
     delete_list,
     descendant_list_names,
     list_all_lists,
+    load_config,
     load_list,
     load_or_create_list,
     resolve_storage_dir,
+    save_config,
     save_list,
 )
 
 TOP_LEVEL_COMMANDS: frozenset[str] = frozenset(
-    {"lists", "new-list", "rm-list", "edit-list", "all"}
+    {"lists", "new-list", "rm-list", "edit-list", "all", "config"}
 )
 
 
@@ -81,6 +84,22 @@ def _build_top_level_parser() -> argparse.ArgumentParser:
         help=f"New list color. Choices: {colors_str}",
     )
 
+    config_parser = subparsers.add_parser(
+        "config", help="View or edit config settings."
+    )
+    config_parser.add_argument(
+        "key",
+        nargs="?",
+        default=None,
+        help="Config key to view or set (e.g. default_color).",
+    )
+    config_parser.add_argument(
+        "value",
+        nargs="?",
+        default=None,
+        help="New value for KEY. Omit to print KEY's current value.",
+    )
+
     return parser
 
 
@@ -97,7 +116,8 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
             "  new-list NAME      Create a new, empty list.\n"
             "  rm-list NAME       Delete a whole list and all its "
             "items.\n"
-            "  edit-list NAME     Change an existing list's color.\n\n"
+            "  edit-list NAME     Change an existing list's color.\n"
+            "  config [KEY] [VALUE]  View or edit config settings.\n\n"
             "Run `task COMMAND --help` for a command's full options.\n\n"
             "Example: task new-list groceries -c teal"
         ),
@@ -295,6 +315,29 @@ def _edit_list_cmd(name: str, color: str) -> int:
 
     print(f"updated color of '{name}' to '{color}'.")
     _print_list(name, task_list)
+
+    return 0
+
+
+@_handle_errors
+def _config_cmd(key: str | None, value: str | None) -> int:
+    storage_dir = resolve_storage_dir()
+    config = load_config(storage_dir)
+
+    if key is None:
+        render_config(config)
+
+        return 0
+
+    if value is None:
+        print(config.get_value(key))
+
+        return 0
+
+    config.set_value(key, value)
+    save_config(storage_dir, config)
+
+    print(f"set '{key}' to '{value}'.")
 
     return 0
 
@@ -509,6 +552,8 @@ def _dispatch_top_level(namespace: argparse.Namespace) -> int:
         return _new_list_cmd(namespace.name, namespace.color)
     if namespace.command == "edit-list":
         return _edit_list_cmd(namespace.name, namespace.color)
+    if namespace.command == "config":
+        return _config_cmd(namespace.key, namespace.value)
 
     return _rm_list_cmd(namespace.name)
 
