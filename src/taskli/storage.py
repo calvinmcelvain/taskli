@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .exceptions import (
+    CorruptedConfigFileError,
     CorruptedListFileError,
     InvalidListNameError,
     ListAlreadyExistsError,
@@ -13,7 +14,7 @@ from .exceptions import (
     ReservedNameError,
     TooManyAncestorListsError,
 )
-from .models import Color, TaskliList
+from .models import Color, Config, TaskliList
 
 
 def resolve_storage_dir() -> Path:
@@ -31,6 +32,69 @@ def resolve_storage_dir() -> Path:
     storage_dir.mkdir(parents=True, exist_ok=True)
 
     return storage_dir
+
+
+def config_file_path(storage_dir: Path) -> Path:
+    """Return the config file path within the storage directory.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+
+    Returns
+    -------
+    Path
+        Path to the config file, `.taskli.json`.
+    """
+
+    return storage_dir / ".taskli.json"
+
+
+def load_config(storage_dir: Path) -> Config:
+    """Load the config from disk, creating it with defaults if missing.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+
+    Returns
+    -------
+    Config
+        The loaded, or newly created and saved, config.
+    """
+
+    path = config_file_path(storage_dir)
+    if not path.exists():
+        config = Config()
+        save_config(storage_dir, config)
+
+        return config
+
+    try:
+        return Config.model_validate_json(path.read_text())
+    except ValidationError as e:
+        raise CorruptedConfigFileError(
+            f"config file '{path}' is corrupted and could not be read."
+        ) from e
+
+
+def save_config(storage_dir: Path, config: Config) -> None:
+    """Persist the config to its JSON file.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    config : Config
+        The config to save.
+    """
+
+    path = config_file_path(storage_dir)
+    path.write_text(config.model_dump_json(indent=2))
+
+    return None
 
 
 def list_file_path(storage_dir: Path, name: str) -> Path:
@@ -214,7 +278,11 @@ def list_all_lists(storage_dir: Path) -> list[str]:
         Sorted list names.
     """
 
-    return sorted(path.stem for path in storage_dir.glob("*.json"))
+    config_path = config_file_path(storage_dir)
+
+    return sorted(
+        path.stem for path in storage_dir.glob("*.json") if path != config_path
+    )
 
 
 def create_list(
