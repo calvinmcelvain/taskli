@@ -27,7 +27,6 @@ class TaskliList(BaseModel):
 
     name: str
     color: Color | None = Color.WHITE
-    next_id: int = 1
     items: list[TaskliItem] = Field(default_factory=list)
 
     def set_color(self, color: Color) -> None:
@@ -48,8 +47,6 @@ class TaskliList(BaseModel):
 
         for new_id, item in enumerate(self.items, start=1):
             item.id = new_id
-
-        self.next_id = len(self.items) + 1
 
         return None
 
@@ -77,15 +74,15 @@ class TaskliList(BaseModel):
             The newly created item.
         """
 
+        idx = len(self.items) + 1
         item = TaskliItem(
-            id=self.next_id,
+            id=idx,
             text=text,
             priority=priority,
             tags=tags or [],
             created_at=datetime.now(),
         )
         self.items.append(item)
-        self.next_id += 1
 
         return item
 

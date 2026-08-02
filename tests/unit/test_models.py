@@ -25,7 +25,6 @@ class TestTaskliList:
 
         assert first.id == 1
         assert second.id == 2
-        assert todo_list.next_id == 3
 
     def test_add_item_defaults(self):
         todo_list = TaskliList(name="work")
@@ -139,7 +138,7 @@ class TestTaskliList:
 
     def test_missing_color_key_defaults(self):
         restored = TaskliList.model_validate_json(
-            '{"name": "work", "next_id": 1, "items": []}'
+            '{"name": "work", "items": []}'
         )
 
         assert restored.color == Color.WHITE
