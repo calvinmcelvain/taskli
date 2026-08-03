@@ -13,10 +13,11 @@ from pydantic import (
 from ..exceptions import InvalidConfigValueError, UnknownConfigKeyError
 from .attributes import Color, Priority
 
-__all__ = ["Config", "SortBy"]
+__all__ = ["Config", "SortBy", "Delimters"]
 
 
 type SortBy = Literal["tags", "priority", "created_at"]
+type Delimters = Literal[".", "/", "-", "|"]
 
 
 class Config(BaseModel):
@@ -25,7 +26,7 @@ class Config(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     auto_prune: bool = False
-    sublist_delimiter: str = Field(default=".", min_length=1)
+    sublist_delimiter: Delimters = "."
     default_list: str = Field(default="inbox", min_length=1)
     default_sort: SortBy = "created_at"
     default_priority: Priority = Priority.MEDIUM
