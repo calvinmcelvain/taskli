@@ -102,7 +102,8 @@ def render_list_tree(
     Parameters
     ----------
     lists : list[TaskliList]
-        Ordered TaskliList objects, where subsequent items are decendent lists.
+        Ordered TaskliList objects, where subsequent items are descendant
+        lists.
     delimiter : str, optional
         Display delimiter for the root section's name, by default ".".
     """
@@ -110,18 +111,18 @@ def render_list_tree(
     if not lists:
         return None
 
-    root = lists[0]
-    root_node = Tree(
+    head = lists[0]
+    head_node = Tree(
         Group(
-            _add_bold(root.display_name(delimiter), root.color),
-            _items_table(root.items, root.color),
+            _add_bold(head.display_name(delimiter), head.color),
+            _items_table(head.items, head.color),
         )
     )
-    nodes: dict[str, Tree] = {root.name: root_node}
+    nodes: dict[str, Tree] = {head.name: head_node}
 
     for sublist in lists[1:]:
         parent_name = sublist.name.rsplit(".", 1)[0]
-        parent = nodes.get(parent_name, root_node)
+        parent = nodes.get(parent_name, head_node)
         label = sublist.name.rsplit(".", 1)[-1]
         node = parent.add(
             Group(
@@ -131,7 +132,7 @@ def render_list_tree(
         )
         nodes[sublist.name] = node
 
-    _console.print(root_node)
+    _console.print(head_node)
 
     return None
 
