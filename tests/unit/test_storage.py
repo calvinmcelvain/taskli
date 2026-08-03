@@ -258,6 +258,16 @@ class TestLoadList:
         with pytest.raises(CorruptedListFileError):
             load_list(tmp_path, "broken")
 
+    def test_auto_creates_configured_default_list(self, tmp_path):
+        config = load_config(tmp_path)
+        config.default_list = "work"
+        save_config(tmp_path, config)
+
+        task_list = load_list(tmp_path, "work")
+
+        assert isinstance(task_list, TaskliList)
+        assert task_list.name == "work"
+
 
 class TestLoadOrCreateList:
     def test_creates_when_missing(self, tmp_path):

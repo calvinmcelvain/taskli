@@ -1,3 +1,5 @@
+from typing import get_args
+
 import pytest
 from rich.color import Color as RichColor
 
@@ -9,6 +11,7 @@ from taskli.exceptions import (
 from taskli.models import (
     Color,
     Config,
+    Delimters,
     Priority,
     TaskliItem,
     TaskliList,
@@ -85,6 +88,23 @@ class TestConfig:
         with pytest.raises(InvalidConfigValueError):
             config.set_value("default_color", "notacolor")
 
+    @pytest.mark.parametrize(
+        "delimiter",
+        list(get_args(Delimters.__value__)),
+        ids=["dot", "slash", "dash", "pipe"],
+    )
+    def test_sets_allowed_delimiters(self, delimiter):
+        config = Config()
+        config.set_value("sublist_delimiter", delimiter)
+
+        assert config.sublist_delimiter == delimiter
+
+    def test_rejects_disallowed_delimiter(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("sublist_delimiter", ":")
+
     def test_set_value_rejects_empty_string(self):
         config = Config()
 
@@ -151,22 +171,22 @@ class TestTaskliList:
 
         assert todo_list.items == []
 
-    def test_remove_done_items_keeps_open_items(self):
+    def test_prune_keeps_open_items(self):
         todo_list = TaskliList(name="work")
         done_item = todo_list.add_item("done task")
         not_done_item = todo_list.add_item("open task")
         todo_list.mark_done(done_item.id)
 
-        removed = todo_list.remove_done_items()
+        removed = todo_list.prune()
 
         assert removed == [done_item]
         assert todo_list.items == [not_done_item]
 
-    def test_remove_done_items_noop_when_none_done(self):
+    def test_prune_noop_when_none_done(self):
         todo_list = TaskliList(name="work")
         item = todo_list.add_item("task")
 
-        removed = todo_list.remove_done_items()
+        removed = todo_list.prune()
 
         assert removed == []
         assert todo_list.items == [item]
@@ -225,6 +245,16 @@ class TestTaskliList:
 
         assert restored.color == Color.WHITE
 
+    def test_display_name_defaults_to_stored_name(self):
+        todo_list = TaskliList(name="work")
+
+        assert todo_list.display_name() == "work"
+
+    def test_display_name_substitutes_delimiter_for_dots(self):
+        todo_list = TaskliList(name="work.meetings")
+
+        assert todo_list.display_name("/") == "work/meetings"
+
     def test_sort_by_tags_orders_by_joined_sorted_tags(self):
         todo_list = TaskliList(name="work")
         todo_list.add_item("first", tags=["z", "a"])
@@ -236,3 +266,13 @@ class TestTaskliList:
             "first",
             "second",
         ]
+
+    def test_sort_by_priority_orders_low_to_high(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("c", priority=Priority.HIGH)
+        todo_list.add_item("a", priority=Priority.LOW)
+        todo_list.add_item("b", priority=Priority.MEDIUM)
+
+        todo_list.sort_by("priority")
+
+        assert [item.text for item in todo_list.items] == ["a", "b", "c"]
