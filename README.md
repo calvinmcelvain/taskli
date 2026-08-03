@@ -36,13 +36,12 @@ work
 
 - [Why Taskli](#why-Taskli)
 - [Installation](#installation)
-- [Core concepts](#core-concepts)
+- [Usage](#usage)
+- [Commands overview](#commands-overview)
 - [Routing grammar](#routing-grammar)
-- [Command overview](#command-overview)
 - [Workflows](#workflows)
-- [Full command reference](#full-command-reference)
-- [Data storage](#data-storage)
-- [Development](#development)
+- [Sublists](#sublists)
+- [Configuration](#configuration)
 
 ## Why Taskli
 
@@ -240,10 +239,10 @@ bare word, so it can never collide with a list name:
 
 Because the action is always a flag, list names can no longer collide
 with what used to be reserved action words — `task add -a "buy milk"`
-now targets a list literally named `add`. Only the 5 top-level
-commands below (`lists`, `all`, `new-list`, `rm-list`, `edit-list`) stay
-reserved bare words, since they're parsed before `LIST` is ever
-considered.
+now targets a list literally named `add`. Only the 6 top-level
+commands below (`lists`, `all`, `new-list`, `rm-list`, `edit-list`,
+`config`) stay reserved bare words, since they're parsed before `LIST`
+is ever considered.
 
 > [!IMPORTANT]
 > Item IDs are positions within a list, not permanent identifiers — `-r`
@@ -268,10 +267,11 @@ starts empty.
 | `new-list NAME` | Create an empty list | `task new-list groceries -c teal` |
 | `edit-list NAME` | Change a list's color | `task edit-list work -c coral` |
 | `rm-list NAME` | Delete a list and its sublists | `task rm-list groceries` |
+| `config [KEY] [VALUE]` | View or edit config settings | `task config default_priority high` |
 
 All 8 list-scoped flags (everything except `lists`/`all`/`new-list`/
-`rm-list`/`edit-list`) run against `LIST`, which defaults to `inbox` — see
-[Routing grammar](#routing-grammar).
+`rm-list`/`edit-list`/`config`) run against `LIST`, which defaults to
+`inbox` — see [Routing grammar](#routing-grammar).
 
 ## Workflows
 
@@ -469,7 +469,7 @@ $ task work -t urgent
 ```
 
 Reserved words that can't be used as a list name: `lists`, `all`,
-`new-list`, `rm-list`, `edit-list`.
+`new-list`, `rm-list`, `edit-list`, `config`.
 
 **Deleting a list cascades to its sublists.** `task rm-list` lists any
 sublists in the confirmation prompt and removes all of them together:
@@ -483,5 +483,53 @@ $ task lists
 no lists yet.
 ```
 
-`inbox` is created automatically the first time it's read. Any other list
-is created automatically the first time you `-a/--add` to it.
+The configured `default_list` (`inbox` by default) is created
+automatically the first time it's read. Any other list is created
+automatically the first time you `-a/--add` to it.
+
+</details>
+
+## Configuration
+
+Taskli keeps a single settings file at `$TASKLI_PATH/.taskli.json`
+(next to your list files, `~/.taskli/.taskli.json` by default). Edit it
+by hand, or through `task config`:
+
+```
+$ task config
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Key               ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ auto_prune        │ False      │
+│ sublist_delimiter │ .          │
+│ default_list      │ inbox      │
+│ default_sort      │ created_at │
+│ default_priority  │ medium     │
+│ default_color     │ #F8FAFC    │
+└───────────────────┴────────────┘
+
+$ task config default_priority
+medium
+
+$ task config default_priority high
+set 'default_priority' to 'high'.
+```
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `auto_prune` | `true`/`false` | `false` | Automatically removes done items whenever a list is viewed (`task LIST`/`task all`), same effect as `--prune`. |
+| `sublist_delimiter` | one of `.`, `/`, `-`, `\|` | `.` | The delimiter used when typing or displaying nested list names. Storage always uses `.` internally, so lists created under one delimiter are unaffected by later changing it, but existing nested list names containing the old delimiter character may stop resolving as sublists until renamed. Like `.` today, the configured character can't appear literally inside a single segment's name — it always denotes a nesting boundary (e.g. with `-`, `my-list` is parsed as sublist `list` under `my`). |
+| `default_list` | string | `inbox` | The list used when `LIST` is omitted, and the list auto-created on first read. |
+| `default_sort` | `tags`/`priority`/`created_at` | `created_at` | Sort key applied to items shown by `task LIST`/`task all`. |
+| `default_priority` | `low`/`medium`/`high` | `medium` | Priority used for new items added via `-a` when `-p` is omitted. |
+| `default_color` | color name (see [Colors](#colors)) | `white` | Default color for lists created via `new-list` when `-c` is omitted. |
+
+An unknown key or an invalid value for a key is an error (exit 1):
+
+```
+$ task config nope
+error: 'nope' is not a config key.
+
+$ task config auto_prune sortof
+error: 'sortof' is not a valid value for 'auto_prune'.
+```

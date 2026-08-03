@@ -9,6 +9,9 @@ __all__ = [
     "ItemNotFoundError",
     "ReservedNameError",
     "TooManyAncestorListsError",
+    "UnknownConfigKeyError",
+    "InvalidConfigValueError",
+    "CorruptedConfigFileError",
 ]
 
 
@@ -42,3 +45,15 @@ class ReservedNameError(TaskliError):
 
 class TooManyAncestorListsError(TaskliError):
     """Raised when a list name is nested more than 2 levels deep."""
+
+
+class UnknownConfigKeyError(TaskliError):
+    """Raised when a config key does not exist."""
+
+
+class InvalidConfigValueError(TaskliError):
+    """Raised when a config value fails validation."""
+
+
+class CorruptedConfigFileError(TaskliError):
+    """Raised when the config file exists but cannot be parsed."""

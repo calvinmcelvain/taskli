@@ -1,9 +1,17 @@
+from typing import get_args
+
 import pytest
 from rich.color import Color as RichColor
 
+from taskli.exceptions import (
+    InvalidConfigValueError,
+    ItemNotFoundError,
+    UnknownConfigKeyError,
+)
 from taskli.models import (
     Color,
-    ItemNotFoundError,
+    Config,
+    Delimters,
     Priority,
     TaskliItem,
     TaskliList,
@@ -16,6 +24,100 @@ class TestColor:
         RichColor.parse(member.value)
 
 
+class TestConfig:
+    def test_get_value(self):
+        config = Config()
+
+        assert config.get_value("default_list") == "inbox"
+
+    def test_get_value_unknown_key_raises(self):
+        config = Config()
+
+        with pytest.raises(UnknownConfigKeyError):
+            config.get_value("nope")
+
+    def test_set_value_bool(self):
+        config = Config()
+
+        config.set_value("auto_prune", "true")
+
+        assert config.auto_prune is True
+
+    def test_set_value_rejects_bad_bool(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("auto_prune", "sortof")
+
+    def test_set_value_sort_by(self):
+        config = Config()
+
+        config.set_value("default_sort", "priority")
+
+        assert config.default_sort == "priority"
+
+    def test_set_value_rejects_bad_sort_by(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_sort", "size")
+
+    def test_set_value_priority(self):
+        config = Config()
+
+        config.set_value("default_priority", "high")
+
+        assert config.default_priority == Priority.HIGH
+
+    def test_set_value_rejects_bad_priority(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_priority", "urgent")
+
+    def test_set_value_color(self):
+        config = Config()
+
+        config.set_value("default_color", "teal")
+
+        assert config.default_color == Color.TEAL
+
+    def test_set_value_rejects_bad_color(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_color", "notacolor")
+
+    @pytest.mark.parametrize(
+        "delimiter",
+        list(get_args(Delimters.__value__)),
+        ids=["dot", "slash", "dash", "pipe"],
+    )
+    def test_sets_allowed_delimiters(self, delimiter):
+        config = Config()
+        config.set_value("sublist_delimiter", delimiter)
+
+        assert config.sublist_delimiter == delimiter
+
+    def test_rejects_disallowed_delimiter(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("sublist_delimiter", ":")
+
+    def test_set_value_rejects_empty_string(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("default_list", "")
+
+    def test_set_value_unknown_key_raises(self):
+        config = Config()
+
+        with pytest.raises(UnknownConfigKeyError):
+            config.set_value("nope", "x")
+
+
 class TestTaskliList:
     def test_add_item_assigns_sequential_ids(self):
         todo_list = TaskliList(name="work")
@@ -25,7 +127,6 @@ class TestTaskliList:
 
         assert first.id == 1
         assert second.id == 2
-        assert todo_list.next_id == 3
 
     def test_add_item_defaults(self):
         todo_list = TaskliList(name="work")
@@ -70,22 +171,22 @@ class TestTaskliList:
 
         assert todo_list.items == []
 
-    def test_remove_done_items_keeps_open_items(self):
+    def test_prune_keeps_open_items(self):
         todo_list = TaskliList(name="work")
         done_item = todo_list.add_item("done task")
         not_done_item = todo_list.add_item("open task")
         todo_list.mark_done(done_item.id)
 
-        removed = todo_list.remove_done_items()
+        removed = todo_list.prune()
 
         assert removed == [done_item]
         assert todo_list.items == [not_done_item]
 
-    def test_remove_done_items_noop_when_none_done(self):
+    def test_prune_noop_when_none_done(self):
         todo_list = TaskliList(name="work")
         item = todo_list.add_item("task")
 
-        removed = todo_list.remove_done_items()
+        removed = todo_list.prune()
 
         assert removed == []
         assert todo_list.items == [item]
@@ -139,7 +240,39 @@ class TestTaskliList:
 
     def test_missing_color_key_defaults(self):
         restored = TaskliList.model_validate_json(
-            '{"name": "work", "next_id": 1, "items": []}'
+            '{"name": "work", "items": []}'
         )
 
         assert restored.color == Color.WHITE
+
+    def test_display_name_defaults_to_stored_name(self):
+        todo_list = TaskliList(name="work")
+
+        assert todo_list.display_name() == "work"
+
+    def test_display_name_substitutes_delimiter_for_dots(self):
+        todo_list = TaskliList(name="work.meetings")
+
+        assert todo_list.display_name("/") == "work/meetings"
+
+    def test_sort_by_tags_orders_by_joined_sorted_tags(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("first", tags=["z", "a"])
+        todo_list.add_item("second", tags=["m"])
+
+        todo_list.sort_by("tags")
+
+        assert [item.text for item in todo_list.items] == [
+            "first",
+            "second",
+        ]
+
+    def test_sort_by_priority_orders_low_to_high(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("c", priority=Priority.HIGH)
+        todo_list.add_item("a", priority=Priority.LOW)
+        todo_list.add_item("b", priority=Priority.MEDIUM)
+
+        todo_list.sort_by("priority")
+
+        assert [item.text for item in todo_list.items] == ["a", "b", "c"]

@@ -2,7 +2,7 @@ import pytest
 
 from taskli.cli import TOP_LEVEL_COMMANDS, main
 from taskli.models import Color, Priority
-from taskli.storage import load_list
+from taskli.storage import load_config, load_list
 
 
 class TestAdd:
@@ -89,6 +89,16 @@ class TestAdd:
         assert exit_code == 2
         assert "not allowed with argument" in captured.err
 
+    def test_uses_configured_default_priority(self, taskli_env, capsys):
+        main(["config", "default_priority", "high"])
+        capsys.readouterr()
+
+        main(["-a", "task"])
+        capsys.readouterr()
+
+        task_list = load_list(taskli_env, "inbox")
+        assert task_list.items[0].priority == Priority.HIGH
+
 
 class TestListItems:
     def test_shows_added_items(self, taskli_env, capsys):
@@ -121,6 +131,33 @@ class TestListItems:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "task" in captured.out
+
+    def test_sorts_by_configured_default_sort(self, taskli_env, capsys):
+        main(["-a", "z-task", "-p", "high"])
+        main(["-a", "a-task", "-p", "low"])
+        capsys.readouterr()
+
+        main(["config", "default_sort", "priority"])
+        capsys.readouterr()
+
+        main(["-l"])
+
+        captured = capsys.readouterr()
+        assert captured.out.index("a-task") < captured.out.index("z-task")
+
+    def test_auto_prunes_done_items_on_view(self, taskli_env, capsys):
+        main(["-a", "task"])
+        main(["-d", "1"])
+        capsys.readouterr()
+
+        main(["config", "auto_prune", "true"])
+        capsys.readouterr()
+
+        main(["-l"])
+        capsys.readouterr()
+
+        task_list = load_list(taskli_env, "inbox")
+        assert task_list.items == []
 
     def test_missing_list_raises(self, taskli_env, capsys):
         exit_code = main(["ghost"])
@@ -387,6 +424,16 @@ class TestNewListRmList:
         assert exit_code == 0
         assert load_list(taskli_env, "groceries").color is Color.CORAL
 
+    def test_uses_configured_default_color(self, taskli_env, capsys):
+        main(["config", "default_color", "teal"])
+        capsys.readouterr()
+
+        main(["new-list", "groceries"])
+        capsys.readouterr()
+
+        task_list = load_list(taskli_env, "groceries")
+        assert task_list.color == Color.TEAL
+
     def test_new_list_rejects_invalid_color(self, taskli_env, capsys):
         exit_code = main(["new-list", "groceries", "-c", "notacolor"])
 
@@ -485,6 +532,66 @@ class TestEditListCommand:
         assert "required" in captured.err
 
 
+class TestConfigCommand:
+    def test_no_args_lists_all_keys(self, taskli_env, capsys):
+        exit_code = main(["config"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "auto_prune" in captured.out
+        assert "default_color" in captured.out
+
+    def test_key_only_prints_current_value(self, taskli_env, capsys):
+        exit_code = main(["config", "default_list"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert captured.out.strip() == "inbox"
+
+    def test_key_and_value_sets_and_persists(self, taskli_env, capsys):
+        exit_code = main(["config", "auto_prune", "true"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "set 'auto_prune' to 'true'" in captured.out
+        assert load_config(taskli_env).auto_prune is True
+
+    def test_sets_default_color(self, taskli_env, capsys):
+        exit_code = main(["config", "default_color", "teal"])
+
+        capsys.readouterr()
+
+        assert exit_code == 0
+        assert load_config(taskli_env).default_color == Color.TEAL
+
+    def test_unknown_key_errors(self, taskli_env, capsys):
+        exit_code = main(["config", "nope", "x"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "not a config key" in captured.err
+
+    def test_invalid_value_errors(self, taskli_env, capsys):
+        exit_code = main(["config", "auto_prune", "sortof"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "not a valid value for 'auto_prune'" in captured.err
+
+    def test_config_is_reserved_list_name(self, taskli_env, capsys):
+        exit_code = main(["new-list", "config"])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "reserved" in captured.err
+
+
 class TestDefaultListAction:
     def test_bare_invocation_shows_inbox(self, taskli_env, capsys):
         exit_code = main([])
@@ -492,6 +599,18 @@ class TestDefaultListAction:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert "inbox" in captured.out
+
+    def test_bare_invocation_uses_configured_default_list(
+        self, taskli_env, capsys
+    ):
+        main(["config", "default_list", "work"])
+        capsys.readouterr()
+
+        exit_code = main(["-a", "task"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'work'" in captured.out
 
     def test_list_name_shows_items(self, taskli_env, capsys):
         main(["work", "-a", "task"])
@@ -513,6 +632,50 @@ class TestDefaultListAction:
         captured = capsys.readouterr()
         assert "a" in captured.out
         assert "b" not in captured.out
+
+
+class TestSublistDelimiter:
+    def test_accepts_configured_delimiter_for_nested_name(
+        self, taskli_env, capsys
+    ):
+        main(["config", "sublist_delimiter", "/"])
+        capsys.readouterr()
+
+        exit_code = main(["new-list", "work/meetings"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "created list 'work/meetings'" in captured.out
+        assert load_list(taskli_env, "work.meetings").name == "work.meetings"
+
+    def test_lists_shows_tree_structure_regardless_of_delimiter(
+        self, taskli_env, capsys
+    ):
+        main(["config", "sublist_delimiter", "/"])
+        main(["new-list", "work/meetings"])
+        capsys.readouterr()
+
+        exit_code = main(["lists"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "work" in captured.out
+        assert "meetings" in captured.out
+        assert "work/meetings" not in captured.out
+
+    def test_renders_nested_list_view_title_with_configured_delimiter(
+        self, taskli_env, capsys
+    ):
+        main(["config", "sublist_delimiter", "/"])
+        main(["work/meetings", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work/meetings", "-l"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "work/meetings" in captured.out
+        assert "work.meetings" not in captured.out
 
     def test_shows_child_section(self, taskli_env, capsys):
         main(["work", "-a", "task"])

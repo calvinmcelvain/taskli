@@ -4,13 +4,14 @@ from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
-from .models import Color, TaskliItem
+from .models import Color, Config, TaskliItem, TaskliList
 from .storage import ancestor_chain
 
 __all__ = [
     "render_items",
-    "render_grouped_items",
+    "render_list_tree",
     "render_list_names",
+    "render_config",
     "render_error",
 ]
 
@@ -18,22 +19,22 @@ _console = Console()
 _err_console = Console(stderr=True)
 
 
-def _add_bold(name: str, color: str | None) -> str:
+def _add_bold(name: str, color: str | Color | None) -> str:
     """Wrap a name in bold markup, adding a list color if set."""
 
     if color is None:
         return f"[bold]{name}[/bold]"
 
-    return f"[bold {color}]{name}[/bold {color}]"
+    return f"[bold {str(color)}]{name}[/bold {str(color)}]"
 
 
-def _add_color(name: str, color: str | None) -> str:
+def _add_color(name: str, color: str | Color | None) -> str:
     """Wrap a name in color markup if a color is set, else leave it plain."""
 
     if color is None:
         return name
 
-    return f"[{color}]{name}[/{color}]"
+    return f"[{str(color)}]{name}[/{str(color)}]"
 
 
 def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
@@ -92,39 +93,43 @@ def render_items(
     return None
 
 
-def render_grouped_items(
-    sections: list[tuple[str, Color | None, list[TaskliItem]]],
+def render_list_tree(
+    lists: list[TaskliList],
+    delimiter: str = ".",
 ) -> None:
     """Print item tables nested in a parent-indented tree.
 
     Parameters
     ----------
-    sections : list[tuple[str, Color | None, list[TaskliItem]]]
-        Ordered (list_name, color, items) triples — the first entry is
-        the primary list, subsequent entries are descendant-list
-        sections, each preceded by every one of its own ancestors.
+    lists : list[TaskliList]
+        Ordered TaskliList objects, where subsequent items are decendent lists.
+    delimiter : str, optional
+        Display delimiter for the root section's name, by default ".".
     """
 
-    if not sections:
+    if not lists:
         return None
 
-    root_name, root_color, root_items = sections[0]
+    root = lists[0]
     root_node = Tree(
         Group(
-            _add_bold(root_name, root_color),
-            _items_table(root_items, root_color),
+            _add_bold(root.display_name(delimiter), root.color),
+            _items_table(root.items, root.color),
         )
     )
-    nodes: dict[str, Tree] = {root_name: root_node}
+    nodes: dict[str, Tree] = {root.name: root_node}
 
-    for name, color, items in sections[1:]:
-        parent_name = name.rsplit(".", 1)[0]
+    for sublist in lists[1:]:
+        parent_name = sublist.name.rsplit(".", 1)[0]
         parent = nodes.get(parent_name, root_node)
-        label = name.rsplit(".", 1)[-1]
+        label = sublist.name.rsplit(".", 1)[-1]
         node = parent.add(
-            Group(_add_bold(label, color), _items_table(items, color))
+            Group(
+                _add_bold(label, sublist.color),
+                _items_table(sublist.items, sublist.color),
+            )
         )
-        nodes[name] = node
+        nodes[sublist.name] = node
 
     _console.print(root_node)
 
@@ -171,6 +176,28 @@ def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
             parent = node
 
     _console.print(*list(roots.values()))
+
+    return None
+
+
+def render_config(config: Config) -> None:
+    """Print a table of all config keys and their current values.
+
+    Parameters
+    ----------
+    config : Config
+        The config to display.
+    """
+
+    table = Table()
+    table.add_column("Key")
+    table.add_column("Value")
+
+    keys = config.model_dump().keys()
+    for key in keys:
+        table.add_row(key, str(config.get_value(key)))
+
+    _console.print(table)
 
     return None
 

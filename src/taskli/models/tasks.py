@@ -1,54 +1,14 @@
-"""List, tag, task, & priority models."""
+"""Tasks & task list models."""
 
 from datetime import datetime
-from enum import Enum, StrEnum
 
 from pydantic import BaseModel, Field
 
-from .exceptions import ItemNotFoundError
+from ..exceptions import ItemNotFoundError
+from .attributes import Color, Priority
+from .config import SortBy
 
-__all__ = ["Color", "Priority", "TaskliItem", "TaskliList"]
-
-
-class Priority(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-    def __init__(self, label: str):
-        self.label = label
-
-    @property
-    def index(self) -> int:
-        _index = {"low": 1, "medium": 2, "high": 3}
-        return _index[self.label]
-
-    @property
-    def color(self) -> str:
-        _colors = {"low": "green", "medium": "yellow", "high": "red"}
-        return _colors[self.label]
-
-    def __str__(self) -> str:
-        return self.label
-
-
-class Color(StrEnum):
-    WHITE = "#F8FAFC"
-    RED = "#FF4D6D"
-    CORAL = "#FF6B6B"
-    ORANGE = "#FF8A3D"
-    YELLOW = "#FFD60A"
-    LIME = "#A3E635"
-    GREEN = "#22C55E"
-    TEAL = "#14D8B4"
-    CYAN = "#00D9FF"
-    SKY = "#38BDF8"
-    BLUE = "#3B82F6"
-    INDIGO = "#6366F1"
-    VIOLET = "#8B5CF6"
-    PURPLE = "#A855F7"
-    MAGENTA = "#D946EF"
-    PINK = "#FF4FCB"
+__all__ = ["TaskliItem", "TaskliList"]
 
 
 class TaskliItem(BaseModel):
@@ -68,8 +28,48 @@ class TaskliList(BaseModel):
 
     name: str
     color: Color | None = Color.WHITE
-    next_id: int = 1
     items: list[TaskliItem] = Field(default_factory=list)
+
+    def display_name(self, delimiter: str = ".") -> str:
+        """Render the name with sublist segments joined by ``delimiter``.
+
+        Parameters
+        ----------
+        delimiter : str, optional
+            Delimiter to substitute for the storage-form ".", by default
+            ".".
+
+        Returns
+        -------
+        str
+            The name in display form.
+        """
+
+        return self.name.replace(".", delimiter)
+
+    def sort_by(self, sort: SortBy) -> None:
+        """Sort ``items`` list by attributes.
+
+        Parameters
+        ----------
+        sort : SortBy
+            The attribute to sort by.
+        """
+
+        if sort == "tags":
+            self.items = sorted(
+                self.items, key=lambda item: ",".join(sorted(item.tags))
+            )
+        elif sort == "priority":
+            self.items = sorted(
+                self.items, key=lambda item: item.priority.index
+            )
+        else:
+            self.items = sorted(
+                self.items, key=lambda item: getattr(item, sort)
+            )
+
+        return None
 
     def set_color(self, color: Color) -> None:
         """Set the list's display color.
@@ -89,8 +89,6 @@ class TaskliList(BaseModel):
 
         for new_id, item in enumerate(self.items, start=1):
             item.id = new_id
-
-        self.next_id = len(self.items) + 1
 
         return None
 
@@ -118,15 +116,15 @@ class TaskliList(BaseModel):
             The newly created item.
         """
 
+        idx = len(self.items) + 1
         item = TaskliItem(
-            id=self.next_id,
+            id=idx,
             text=text,
             priority=priority,
             tags=tags or [],
             created_at=datetime.now(),
         )
         self.items.append(item)
-        self.next_id += 1
 
         return item
 
@@ -204,7 +202,7 @@ class TaskliList(BaseModel):
         self.items.remove(item)
         self.reindex()
 
-    def remove_done_items(self) -> list[TaskliItem]:
+    def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
 
         Returns
