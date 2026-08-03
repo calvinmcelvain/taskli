@@ -11,7 +11,6 @@ from .exceptions import (
     InvalidListNameError,
     ListAlreadyExistsError,
     ListNotFoundError,
-    ReservedNameError,
     TooManyAncestorListsError,
 )
 from .models import Color, Config, TaskliList
@@ -114,7 +113,7 @@ def list_file_path(storage_dir: Path, name: str) -> Path:
 
     Notes
     -----
-    Cannot have decendent lists with a depth greater than 2.
+    Cannot have descendant lists with a depth greater than 2.
     """
 
     _reserved = {".", "..", "con", "prn", "aux", "nul"}
@@ -122,7 +121,7 @@ def list_file_path(storage_dir: Path, name: str) -> Path:
     if lowered in _reserved or "/" in lowered or "\\" in lowered:
         raise InvalidListNameError(f"'{name}' is not a valid list name.")
 
-    # check names of children lists.
+    # reject empty segments in a nested name.
     segments = name.split(".")
     if len(segments) > 1 and any(not segment for segment in segments):
         raise InvalidListNameError(f"'{name}' is not a valid list name.")
@@ -216,12 +215,7 @@ def ancestor_chain(name: str) -> list[str]:
     return [".".join(segments[:i]) for i in range(1, len(segments))]
 
 
-def ensure_ancestors(
-    storage_dir: Path,
-    name: str,
-    *,
-    reserved_names: frozenset[str] = frozenset(),
-) -> None:
+def ensure_ancestors(storage_dir: Path, name: str) -> None:
     """Create any missing ancestor lists in `name`'s dot-chain.
 
     Parameters
@@ -230,15 +224,9 @@ def ensure_ancestors(
         The storage directory.
     name : str
         The list name whose ancestors should exist.
-    reserved_names : frozenset[str], optional
-        Names that may not be used for a list, by default none.
     """
 
     for ancestor in ancestor_chain(name):
-        if ancestor in reserved_names:
-            raise ReservedNameError(f"'{ancestor}' is a reserved name.")
-
-        # create child list if not exist.
         if not list_exists(storage_dir, ancestor):
             save_list(storage_dir, TaskliList(name=ancestor))
 
@@ -289,7 +277,6 @@ def create_list(
     storage_dir: Path,
     name: str,
     *,
-    reserved_names: frozenset[str] = frozenset(),
     color: Color | None = None,
 ) -> TaskliList:
     """Create and persist a new, empty list.
@@ -300,8 +287,6 @@ def create_list(
         The storage directory.
     name : str
         The new list's name.
-    reserved_names : frozenset[str], optional
-        Names that may not be used for a list, by default none.
     color : Color | None, optional
         The list's display color, by default none.
 
@@ -311,15 +296,12 @@ def create_list(
         The newly created, empty list.
     """
 
-    if name in reserved_names:
-        raise ReservedNameError(f"'{name}' is a reserved name.")
-
     if list_exists(storage_dir, name):
         raise ListAlreadyExistsError(f"list '{name}' already exists.")
 
-    # if a decendent list (e.g., child list/sublist), ensure all lists before
-    # have already been created.
-    ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
+    # if a descendant list (e.g., sublist), ensure all lists before it have
+    # already been created.
+    ensure_ancestors(storage_dir, name)
 
     task_list = TaskliList(name=name, color=color)
     save_list(storage_dir, task_list)
@@ -347,7 +329,7 @@ def delete_list(storage_dir: Path, name: str) -> list[str]:
     if not path.exists():
         raise ListNotFoundError(f"list '{name}' does not exist.")
 
-    # delete all decendents of list, if exist.
+    # delete all descendants of list, if exist.
     descendants = descendant_list_names(name, list_all_lists(storage_dir))
     for descendant in descendants:
         list_file_path(storage_dir, descendant).unlink()
@@ -386,7 +368,7 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
             return task_list
 
         raise ListNotFoundError(
-            f"list '{name}' does not exist. Run 'task lists' to see "
+            f"list '{name}' does not exist. Run 'task --lists' to see "
             "available lists."
         )
 
@@ -398,12 +380,7 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
         ) from e
 
 
-def load_or_create_list(
-    storage_dir: Path,
-    name: str,
-    *,
-    reserved_names: frozenset[str] = frozenset(),
-) -> TaskliList:
+def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
     """Load a list, creating it empty if it doesn't exist yet.
 
     Parameters
@@ -412,8 +389,6 @@ def load_or_create_list(
         The storage directory.
     name : str
         The list name.
-    reserved_names : frozenset[str], optional
-        Names that may not be used for a list, by default none.
 
     Returns
     -------
@@ -424,7 +399,7 @@ def load_or_create_list(
     if list_exists(storage_dir, name):
         return load_list(storage_dir, name)
 
-    ensure_ancestors(storage_dir, name, reserved_names=reserved_names)
+    ensure_ancestors(storage_dir, name)
 
     task_list = TaskliList(name=name)
     save_list(storage_dir, task_list)

@@ -28,10 +28,6 @@ from .storage import (
     save_list,
 )
 
-TOP_LEVEL_COMMANDS: frozenset[str] = frozenset(
-    {"lists", "new-list", "rm-list", "edit-list", "all", "config"}
-)
-
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     @functools.wraps(func)
@@ -46,93 +42,66 @@ def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     return wrapper
 
 
-def _build_top_level_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    subparsers.add_parser("lists", help="Show all list names.")
-    subparsers.add_parser("all", help="Show every list's items.")
-
-    new_list_parser = subparsers.add_parser(
-        "new-list", help="Create a new, empty list."
-    )
-    new_list_parser.add_argument("name", help="Name of the list to create.")
-
-    colors_str = ", ".join(c.name.lower() for c in Color) + "."
-    new_list_parser.add_argument(
-        "-c",
-        "--color",
-        choices=[c.name.lower() for c in Color],
-        default=None,
-        help=f"List color. Choices: {colors_str}",
-    )
-
-    rm_list_parser = subparsers.add_parser(
-        "rm-list", help="Delete a whole list and all its items."
-    )
-    rm_list_parser.add_argument("name", help="Name of the list to delete.")
-
-    edit_list_parser = subparsers.add_parser(
-        "edit-list", help="Change an existing list's color."
-    )
-    edit_list_parser.add_argument("name", help="Name of the list to edit.")
-    edit_list_parser.add_argument(
-        "-c",
-        "--color",
-        choices=[c.name.lower() for c in Color],
-        required=True,
-        help=f"New list color. Choices: {colors_str}",
-    )
-
-    config_parser = subparsers.add_parser(
-        "config", help="View or edit config settings."
-    )
-    config_parser.add_argument(
-        "key",
-        nargs="?",
-        default=None,
-        help="Config key to view or set (e.g. default_color).",
-    )
-    config_parser.add_argument(
-        "value",
-        nargs="?",
-        default=None,
-        help="New value for KEY. Omit to print KEY's current value.",
-    )
-
-    return parser
-
-
-def _build_list_action_parser() -> argparse.ArgumentParser:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="task",
         description=(
-            "Manage items in a list. LIST defaults to 'inbox' when " "omitted."
+            "Manage task lists. LIST defaults to 'inbox' when omitted."
         ),
-        epilog=(
-            "Top-level commands run as `task COMMAND ...`:\n"
-            "  lists              Show all list names.\n"
-            "  all                Show every list's items.\n"
-            "  new-list NAME      Create a new, empty list.\n"
-            "  rm-list NAME       Delete a whole list and all its "
-            "items.\n"
-            "  edit-list NAME     Change an existing list's color.\n"
-            "  config [KEY] [VALUE]  View or edit config settings.\n\n"
-            "Run `task COMMAND --help` for a command's full options.\n\n"
-            "Example: task new-list groceries -c teal"
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Example: task groceries --new-list -c teal -a "buy milk"',
     )
     parser.add_argument(
-        "list_name",
+        "target",
         nargs="?",
         default=None,
         metavar="LIST",
         help="Name of the list to act on (default: configured default_list).",
     )
 
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument(
+    list_mgmt = parser.add_argument_group("list management")
+    ops = list_mgmt.add_mutually_exclusive_group()
+    ops.add_argument(
+        "--new-list",
+        dest="new_list",
+        action="store_true",
+        help="Create LIST as a new, empty list.",
+    )
+    ops.add_argument(
+        "--rm-list",
+        dest="rm_list",
+        action="store_true",
+        help="Delete LIST and all its items.",
+    )
+    ops.add_argument(
+        "--edit-list",
+        dest="edit_list",
+        action="store_true",
+        help="Change LIST's color (requires -c/--color).",
+    )
+    ops.add_argument(
+        "--config",
+        dest="config",
+        nargs="*",
+        default=None,
+        metavar=("KEY", "VALUE"),
+        help="View or edit config settings. Omit KEY/VALUE to view all.",
+    )
+    ops.add_argument(
+        "--lists",
+        dest="lists",
+        action="store_true",
+        help="Show every list name, nested as a tree.",
+    )
+    ops.add_argument(
+        "--all",
+        dest="all",
+        action="store_true",
+        help="Show every list's items.",
+    )
+
+    item_actions = parser.add_argument_group("item actions")
+    actions = item_actions.add_mutually_exclusive_group()
+    actions.add_argument(
         "-a",
         "--add",
         dest="add",
@@ -141,14 +110,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="TEXT",
         help="Add an item to LIST. Repeatable for multiple items.",
     )
-    action.add_argument(
-        "-l",
-        "--list",
-        dest="show",
-        action="store_true",
-        help="Show items in LIST (default action).",
-    )
-    action.add_argument(
+    actions.add_argument(
         "-d",
         "--done",
         dest="done",
@@ -156,7 +118,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="Mark an item as done.",
     )
-    action.add_argument(
+    actions.add_argument(
         "-u",
         "--undone",
         dest="undone",
@@ -164,7 +126,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="Mark an item as not done.",
     )
-    action.add_argument(
+    actions.add_argument(
         "-r",
         "--rm",
         dest="rm",
@@ -172,7 +134,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="Remove an item from LIST.",
     )
-    action.add_argument(
+    actions.add_argument(
         "-e",
         "--edit",
         dest="edit",
@@ -180,27 +142,36 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="Edit an item's text, priority, or tags.",
     )
-    action.add_argument(
+    actions.add_argument(
         "--tags",
         dest="tags_action",
         action="store_true",
         help="Show all distinct tags used in LIST.",
     )
-    action.add_argument(
+    actions.add_argument(
         "--prune",
         dest="prune",
         action="store_true",
         help="Remove all done items from LIST.",
     )
 
-    parser.add_argument(
+    modifiers = parser.add_argument_group("modifiers")
+    colors_str = ", ".join(c.name.lower() for c in Color) + "."
+    modifiers.add_argument(
+        "-c",
+        "--color",
+        choices=[c.name.lower() for c in Color],
+        default=None,
+        help=f"List color for --new-list/--edit-list. Choices: {colors_str}",
+    )
+    modifiers.add_argument(
         "-p",
         "--priority",
         choices=[p.value for p in Priority],
         default=None,
         help="Item priority for -a/-e (default: medium on add).",
     )
-    parser.add_argument(
+    modifiers.add_argument(
         "-t",
         "--tag",
         dest="tags",
@@ -209,7 +180,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="TAG",
         help="Tag to set on -a/-e. Repeatable.",
     )
-    parser.add_argument(
+    modifiers.add_argument(
         "-f",
         "--filter-tag",
         dest="filter_tag",
@@ -217,7 +188,7 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
         metavar="TAG",
         help="Only show items with this tag (default view only).",
     )
-    parser.add_argument(
+    modifiers.add_argument(
         "--text",
         dest="text",
         default=None,
@@ -227,7 +198,24 @@ def _build_list_action_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_action(namespace: argparse.Namespace) -> str:
+def _resolve_list_op(namespace: argparse.Namespace) -> str | None:
+    if namespace.new_list:
+        return "new_list"
+    if namespace.rm_list:
+        return "rm_list"
+    if namespace.edit_list:
+        return "edit_list"
+    if namespace.config is not None:
+        return "config"
+    if namespace.lists:
+        return "lists"
+    if namespace.all:
+        return "all"
+
+    return None
+
+
+def _resolve_item_action(namespace: argparse.Namespace) -> str | None:
     if namespace.add is not None:
         return "add"
     if namespace.done is not None:
@@ -243,22 +231,39 @@ def _resolve_action(namespace: argparse.Namespace) -> str:
     if namespace.prune:
         return "prune"
 
-    return "view"
+    return None
 
 
-def _validate_list_action_flags(
+def _validate_flags(
     namespace: argparse.Namespace,
-    action: str,
+    list_op: str | None,
+    item_action: str | None,
     parser: argparse.ArgumentParser,
 ) -> None:
-    add_or_edit = action in {"add", "edit"}
+    if list_op in {"config", "lists", "all"} and item_action is not None:
+        parser.error(
+            "item action flags are not valid with --config/--lists/--all."
+        )
+    if namespace.config is not None and len(namespace.config) > 2:
+        parser.error("--config takes at most KEY and VALUE.")
+    if namespace.color is not None and list_op not in {
+        "new_list",
+        "edit_list",
+    }:
+        parser.error("-c/--color is only valid with --new-list/--edit-list.")
+    if list_op == "edit_list" and namespace.color is None:
+        parser.error("--edit-list requires -c/--color.")
+
+    add_or_edit = item_action in {"add", "edit"}
     if namespace.tags and not add_or_edit:
         parser.error("-t/--tag is only valid with -a/--add or -e/--edit.")
     if namespace.priority is not None and not add_or_edit:
         parser.error("-p/--priority is only valid with -a/--add or -e/--edit.")
-    if namespace.filter_tag is not None and action != "view":
+    if namespace.filter_tag is not None and (
+        item_action is not None or list_op is not None
+    ):
         parser.error("-f/--filter-tag is only valid with the default view.")
-    if namespace.text is not None and action != "edit":
+    if namespace.text is not None and item_action != "edit":
         parser.error("--text is only valid with -e/--edit.")
 
 
@@ -299,12 +304,7 @@ def _new_list_cmd(name: str, color: str | None, config: Config) -> int:
         Color[color.upper()] if color is not None else config.default_color
     )
 
-    task_list = create_list(
-        storage_dir,
-        name,
-        reserved_names=TOP_LEVEL_COMMANDS,
-        color=resolved_color,
-    )
+    task_list = create_list(storage_dir, name, color=resolved_color)
 
     display_name = task_list.display_name(config.sublist_delimiter)
     print(f"created list '{display_name}'.")
@@ -397,9 +397,7 @@ def _add_cmd(
     config: Config,
 ) -> int:
     storage_dir = resolve_storage_dir()
-    task_list = load_or_create_list(
-        storage_dir, list_name, reserved_names=TOP_LEVEL_COMMANDS
-    )
+    task_list = load_or_create_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
     for text in texts:
@@ -435,19 +433,19 @@ def _grouped_lists(
         )
     ]
 
-    # filter each decendent list by tag if given to parent.
-    for child_name in descendant_list_names(list_name, all_names):
-        child_list = load_list(storage_dir, child_name)
-        if config.auto_prune and child_list.prune():
-            save_list(storage_dir, child_list)
+    # filter each descendant list by tag if given to parent.
+    for descendant_name in descendant_list_names(list_name, all_names):
+        descendant_list = load_list(storage_dir, descendant_name)
+        if config.auto_prune and descendant_list.prune():
+            save_list(storage_dir, descendant_list)
 
-        child_list.sort_by(config.default_sort)
+        descendant_list.sort_by(config.default_sort)
 
         lists.append(
             TaskliList(
-                name=child_name,
-                color=child_list.color,
-                items=child_list.filtered_items(tag=tag),
+                name=descendant_name,
+                color=descendant_list.color,
+                items=descendant_list.filtered_items(tag=tag),
             )
         )
 
@@ -588,32 +586,12 @@ def _tags_cmd(list_name: str) -> int:
     return 0
 
 
-def _dispatch_top_level(namespace: argparse.Namespace) -> int:
-    if namespace.command == "lists":
-        return _lists_cmd()
-    if namespace.command == "all":
-        return _all_cmd()
-
-    config = load_config(resolve_storage_dir())
-    if namespace.command == "config":
-        return _config_cmd(namespace.key, namespace.value)
-
-    list_name = namespace.name.replace(config.sublist_delimiter, ".")
-    if namespace.command == "new-list":
-        return _new_list_cmd(list_name, namespace.color, config)
-    if namespace.command == "edit-list":
-        return _edit_list_cmd(list_name, namespace.color, config)
-
-    return _rm_list_cmd(list_name, config)
-
-
-def _dispatch_list_action(namespace: argparse.Namespace, action: str) -> int:
-    config = load_config(resolve_storage_dir())
-    if namespace.list_name:
-        list_name = namespace.list_name.replace(config.sublist_delimiter, ".")
-    else:
-        list_name = config.default_list.replace(config.sublist_delimiter, ".")
-
+def _run_item_action(
+    action: str,
+    list_name: str,
+    namespace: argparse.Namespace,
+    config: Config,
+) -> int:
     if action == "add":
         texts = [" ".join(words) for words in namespace.add]
         priority = namespace.priority or config.default_priority.value
@@ -636,33 +614,63 @@ def _dispatch_list_action(namespace: argparse.Namespace, action: str) -> int:
         )
     if action == "tags":
         return _tags_cmd(list_name)
-    if action == "prune":
-        return _prune_cmd(list_name, config)
 
-    return _list_cmd(list_name, namespace.filter_tag)
+    return _prune_cmd(list_name, config)
+
+
+def _dispatch(
+    namespace: argparse.Namespace,
+    config: Config,
+    list_op: str | None,
+    item_action: str | None,
+) -> int:
+    if list_op == "lists":
+        return _lists_cmd()
+    if list_op == "all":
+        return _all_cmd()
+    if list_op == "config":
+        key = namespace.config[0] if namespace.config else None
+        value = namespace.config[1] if len(namespace.config) > 1 else None
+
+        return _config_cmd(key, value)
+
+    if namespace.target:
+        list_name = namespace.target.replace(config.sublist_delimiter, ".")
+    else:
+        list_name = config.default_list.replace(config.sublist_delimiter, ".")
+
+    if list_op == "new_list":
+        exit_code = _new_list_cmd(list_name, namespace.color, config)
+    elif list_op == "rm_list":
+        exit_code = _rm_list_cmd(list_name, config)
+    elif list_op == "edit_list":
+        exit_code = _edit_list_cmd(list_name, namespace.color, config)
+    elif item_action is not None:
+        return _run_item_action(item_action, list_name, namespace, config)
+    else:
+        return _list_cmd(list_name, namespace.filter_tag)
+
+    if exit_code != 0 or item_action is None:
+        return exit_code
+
+    return _run_item_action(item_action, list_name, namespace, config)
 
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
 
-    if raw_argv and raw_argv[0] in TOP_LEVEL_COMMANDS:
-        parser = _build_top_level_parser()
-        try:
-            namespace = parser.parse_args(raw_argv)
-        except SystemExit as e:
-            return e.code if isinstance(e.code, int) else 1
-
-        return _dispatch_top_level(namespace)
-
-    parser = _build_list_action_parser()
+    parser = _build_parser()
     try:
         namespace = parser.parse_args(raw_argv)
-        action = _resolve_action(namespace)
-        _validate_list_action_flags(namespace, action, parser)
+        list_op = _resolve_list_op(namespace)
+        item_action = _resolve_item_action(namespace)
+        _validate_flags(namespace, list_op, item_action, parser)
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 1
 
-    return _dispatch_list_action(namespace, action)
+    config = load_config(resolve_storage_dir())
+
+    return _dispatch(namespace, config, list_op, item_action)
 
 
 if __name__ == "__main__":
