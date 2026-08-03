@@ -483,8 +483,9 @@ $ task lists
 no lists yet.
 ```
 
-`inbox` is created automatically the first time it's read. Any other list
-is created automatically the first time you `-a/--add` to it.
+The configured `default_list` (`inbox` by default) is created
+automatically the first time it's read. Any other list is created
+automatically the first time you `-a/--add` to it.
 
 </details>
 
@@ -516,12 +517,12 @@ set 'default_priority' to 'high'.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `auto_prune` | `true`/`false` | `false` | Reserved for future auto-pruning of done items. |
-| `sublist_delimiter` | string | `.` | Reserved; the delimiter used in nested list names. |
-| `default_list` | string | `inbox` | Reserved; the list used when none is given. |
-| `default_sort` | `tags`/`priority`/`created_at` | `created_at` | Reserved; default sort key for list output. |
-| `default_priority` | `low`/`medium`/`high` | `medium` | Reserved; priority used for new items when `-p` is omitted. |
-| `default_color` | color name (see [Colors](#colors)) | `white` | Reserved; default color for new lists. |
+| `auto_prune` | `true`/`false` | `false` | Automatically removes done items whenever a list is viewed (`task LIST`/`task all`), same effect as `--prune`. |
+| `sublist_delimiter` | one of `.`, `/`, `-`, `\|` | `.` | The delimiter used when typing or displaying nested list names. Storage always uses `.` internally, so lists created under one delimiter are unaffected by later changing it, but existing nested list names containing the old delimiter character may stop resolving as sublists until renamed. Like `.` today, the configured character can't appear literally inside a single segment's name — it always denotes a nesting boundary (e.g. with `-`, `my-list` is parsed as sublist `list` under `my`). |
+| `default_list` | string | `inbox` | The list used when `LIST` is omitted, and the list auto-created on first read. |
+| `default_sort` | `tags`/`priority`/`created_at` | `created_at` | Sort key applied to items shown by `task LIST`/`task all`. |
+| `default_priority` | `low`/`medium`/`high` | `medium` | Priority used for new items added via `-a` when `-p` is omitted. |
+| `default_color` | color name (see [Colors](#colors)) | `white` | Default color for lists created via `new-list` when `-c` is omitted. |
 
 An unknown key or an invalid value for a key is an error (exit 1):
 
@@ -532,9 +533,3 @@ error: 'nope' is not a config key.
 $ task config auto_prune sortof
 error: 'sortof' is not a valid value for 'auto_prune'.
 ```
-
-As of this change, these settings are stored and directly editable via
-`task config`, but none of them are yet consumed by other commands
-(e.g. `-a` still always defaults to `medium` priority regardless of
-`default_priority`). Wiring them into behavior is tracked as separate
-follow-up work.
