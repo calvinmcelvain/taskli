@@ -375,7 +375,11 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
 
     path = list_file_path(storage_dir, name)
     if not path.exists():
-        if name == "inbox":
+        config = load_config(storage_dir)
+        canonical_default = config.default_list.replace(
+            config.sublist_delimiter, "."
+        )
+        if name == canonical_default:
             task_list = TaskliList(name=name)
             save_list(storage_dir, task_list)
 
