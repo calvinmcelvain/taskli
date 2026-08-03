@@ -202,7 +202,7 @@ class TaskliList(BaseModel):
         self.items.remove(item)
         self.reindex()
 
-    def remove_done_items(self) -> list[TaskliItem]:
+    def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
 
         Returns
