@@ -86,8 +86,7 @@ def render_items(
         The list's display color, by default none.
     """
 
-    table = _items_table(items, color)
-    table.title = _add_bold(list_name, color)
+    table = Group(_add_bold(list_name, color), _items_table(items, color))
     _console.print(table)
 
     return None
