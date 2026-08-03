@@ -7,7 +7,6 @@ __all__ = [
     "CorruptedListFileError",
     "InvalidListNameError",
     "ItemNotFoundError",
-    "ReservedNameError",
     "TooManyAncestorListsError",
     "UnknownConfigKeyError",
     "InvalidConfigValueError",
@@ -37,10 +36,6 @@ class InvalidListNameError(TaskliError):
 
 class ItemNotFoundError(TaskliError):
     """Raised when a task item id does not exist in a list."""
-
-
-class ReservedNameError(TaskliError):
-    """Raised when a list name collides with a reserved command word."""
 
 
 class TooManyAncestorListsError(TaskliError):
