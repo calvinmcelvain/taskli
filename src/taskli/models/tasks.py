@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority
+from .config import SortBy
 
 __all__ = ["TaskliItem", "TaskliList"]
 
@@ -28,6 +29,47 @@ class TaskliList(BaseModel):
     name: str
     color: Color | None = Color.WHITE
     items: list[TaskliItem] = Field(default_factory=list)
+
+    def display_name(self, delimiter: str = ".") -> str:
+        """Render the name with sublist segments joined by ``delimiter``.
+
+        Parameters
+        ----------
+        delimiter : str, optional
+            Delimiter to substitute for the storage-form ".", by default
+            ".".
+
+        Returns
+        -------
+        str
+            The name in display form.
+        """
+
+        return self.name.replace(".", delimiter)
+
+    def sort_by(self, sort: SortBy) -> None:
+        """Sort ``items`` list by attributes.
+
+        Parameters
+        ----------
+        sort : SortBy
+            The attribute to sort by.
+        """
+
+        if sort == "tags":
+            self.items = sorted(
+                self.items, key=lambda item: ",".join(sorted(item.tags))
+            )
+        elif sort == "priority":
+            self.items = sorted(
+                self.items, key=lambda item: item.priority.index
+            )
+        else:
+            self.items = sorted(
+                self.items, key=lambda item: getattr(item, sort)
+            )
+
+        return None
 
     def set_color(self, color: Color) -> None:
         """Set the list's display color.
