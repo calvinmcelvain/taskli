@@ -17,7 +17,7 @@ added #1 to 'work'.
 $ task work.meetings -a "Review roadmap"
 added #1 to 'work.meetings'.
 
-$ task work
+$ task work --all
 work
 ┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
 ┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags ┃
@@ -46,8 +46,8 @@ work
 ## Why Taskli
 
 - **Nested lists.** `work.meetings` is a sublist of `work`, up to two levels
-  deep. Parents auto-create on demand; viewing or deleting a list reaches
-  every descendant.
+  deep. Parents auto-create on demand; `--all` and deleting a list both
+  reach every descendant.
 - **Zero config.** Each list is one JSON file, readable, greppable, and
   backed up with any tool you already have.
 - **Explicit, flag-based grammar.** `task work -a "Ship it"` — every
@@ -129,7 +129,8 @@ auto-creates the target list (and any missing parent, for a nested name)
 the first time you use it. Use `--new-list` only when you want to set a
 color at creation time or create an empty list ahead of use. Use
 `task --all` to print every list's items in one shot, instead of viewing
-each list one at a time.
+each list one at a time; `task work --all` scopes that same recursive
+view to `work` and its descendants instead of every list.
 
 ### Nested lists
 
@@ -150,8 +151,9 @@ Join names with a `.` to nest a list under another, e.g. `work.meetings`.
   added #1 to 'work.meetings'.
   ```
 
-- Viewing a list recurses through **every descendant at any depth**, not
-  just direct children, rendered as one tree (see the transcript above).
+- The default view shows only that list's own items. Add `--all` to
+  recurse through **every descendant at any depth**, not just direct
+  children, rendered as one tree (see the transcript above).
 - `--rm-list` on a parent **cascades**: it names every descendant in a
   single confirmation prompt and deletes them all together.
 
@@ -262,15 +264,17 @@ starts empty.
 | `--tags` | List distinct tags used in a list | `task work --tags` |
 | `--prune` | Remove all done items from a list | `task work --prune` |
 | `--lists` | Show every list, nested as a tree | `task --lists` |
-| `--all` | Show every list's items | `task --all` |
+| `--all` | Modifier: include descendants in the default view. Without `LIST`, shows every list's items | `task work --all` / `task --all` |
 | `--new-list` | Create LIST as an empty list | `task groceries --new-list -c teal` |
 | `--edit-list` | Change LIST's color | `task work --edit-list -c coral` |
 | `--rm-list` | Delete LIST and its sublists | `task groceries --rm-list` |
 | `--config [KEY] [VALUE]` | View or edit config settings | `task --config default_priority high` |
 
 There's no explicit view flag — the absence of any item-action flag is
-what shows a list's items. `--lists`/`--all`/`--config` ignore `LIST`
-entirely; every other flag runs against `LIST`, which defaults to
+what shows a list's items. `--lists`/`--config` ignore `LIST` entirely;
+`--all` uses `LIST` when given (scoping the recursive view to that
+list's subtree) and falls back to every list only when `LIST` is
+omitted; every other flag runs against `LIST`, which defaults to
 `inbox`.
 
 ## Workflows
@@ -358,11 +362,12 @@ added #2 to 'work'.
 
 ### Default view
 
-Shows a list's items. This is what runs when you give just a list name
-(`task work`) with no item-action flag. If the list has immediate
-sublists, each one renders as its own titled section right after the
-parent's table — see [Sublists](#sublists) for the grouped view and how
-`-t/--tag` interacts with it.
+Shows a list's own items. This is what runs when you give just a list
+name (`task work`) with no item-action flag. Sublists are **not**
+included by default — add `--all` to also render each descendant as its
+own titled section right after the parent's table — see
+[Sublists](#sublists) for the grouped view and how `-t/--tag` interacts
+with it.
 
 ```
 $ task work
@@ -434,8 +439,11 @@ mutually exclusive); omitting one defaults to the view action.
 Passing a modifier that doesn't apply to the chosen action (e.g.
 `-t`/`-p` with `-d`, or `-f` with `-a`) is an argument error (exit 2).
 
+The default view shows only `LIST`'s own items; add `--all` to also
+render each descendant as its own titled section:
+
 ```
-$ task work
+$ task work --all
                       work
 ┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
 ┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags   ┃
@@ -454,12 +462,14 @@ Section headers show the **full dotted name** (`work.meetings`, not just
 `meetings`), so you can act on that item directly with
 `task work.meetings -d 1`.
 
-**A tag filter applies to every section.** `task work -t urgent` filters
-`work`'s own items *and* each sublist's items by the same tag; a sublist
-with no matches is dropped from the output entirely:
+**A tag filter applies to every section.** `task work --all -f urgent`
+filters `work`'s own items *and* each sublist's items by the same tag; a
+sublist with no matches is dropped from the output entirely. Without
+`--all`, `-f` only filters `work`'s own items, since no sublists are
+shown:
 
 ```
-$ task work -t urgent
+$ task work --all -f urgent
                       work
 ┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
 ┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags   ┃

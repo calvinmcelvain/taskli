@@ -92,12 +92,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show every list name, nested as a tree.",
     )
-    ops.add_argument(
-        "--all",
-        dest="all",
-        action="store_true",
-        help="Show every list's items.",
-    )
 
     item_actions = parser.add_argument_group("item actions")
     actions = item_actions.add_mutually_exclusive_group()
@@ -189,6 +183,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Only show items with this tag (default view only).",
     )
     modifiers.add_argument(
+        "--all",
+        dest="all",
+        action="store_true",
+        help=(
+            "Include descendant lists in the default view. Without LIST, "
+            "shows every list's items."
+        ),
+    )
+    modifiers.add_argument(
         "--text",
         dest="text",
         default=None,
@@ -209,8 +212,6 @@ def _resolve_list_op(namespace: argparse.Namespace) -> str | None:
         return "config"
     if namespace.lists:
         return "lists"
-    if namespace.all:
-        return "all"
 
     return None
 
@@ -240,10 +241,10 @@ def _validate_flags(
     item_action: str | None,
     parser: argparse.ArgumentParser,
 ) -> None:
-    if list_op in {"config", "lists", "all"} and item_action is not None:
-        parser.error(
-            "item action flags are not valid with --config/--lists/--all."
-        )
+    if list_op in {"config", "lists"} and item_action is not None:
+        parser.error("item action flags are not valid with --config/--lists.")
+    if namespace.all and (item_action is not None or list_op is not None):
+        parser.error("--all is only valid with the default view.")
     if namespace.config is not None and len(namespace.config) > 2:
         parser.error("--config takes at most KEY and VALUE.")
     if namespace.color is not None and list_op not in {
@@ -453,10 +454,12 @@ def _grouped_lists(
 
 
 @_handle_errors
-def _list_cmd(list_name: str, tag: str | None) -> int:
+def _list_cmd(
+    list_name: str, tag: str | None, include_descendants: bool
+) -> int:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
-    all_names = list_all_lists(storage_dir)
+    all_names = list_all_lists(storage_dir) if include_descendants else []
 
     render_list_tree(
         _grouped_lists(storage_dir, list_name, all_names, tag, config),
@@ -626,15 +629,14 @@ def _dispatch(
 ) -> int:
     if list_op == "lists":
         return _lists_cmd()
-    if list_op == "all":
-        return _all_cmd()
     if list_op == "config":
         key = namespace.config[0] if namespace.config else None
         value = namespace.config[1] if len(namespace.config) > 1 else None
 
         return _config_cmd(key, value)
 
-    if namespace.target:
+    target_given = namespace.target is not None
+    if target_given:
         list_name = namespace.target.replace(config.sublist_delimiter, ".")
     else:
         list_name = config.default_list.replace(config.sublist_delimiter, ".")
@@ -647,8 +649,10 @@ def _dispatch(
         exit_code = _edit_list_cmd(list_name, namespace.color, config)
     elif item_action is not None:
         return _run_item_action(item_action, list_name, namespace, config)
+    elif not target_given and namespace.all:
+        return _all_cmd()
     else:
-        return _list_cmd(list_name, namespace.filter_tag)
+        return _list_cmd(list_name, namespace.filter_tag, namespace.all)
 
     if exit_code != 0 or item_action is None:
         return exit_code

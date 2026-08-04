@@ -382,6 +382,20 @@ class TestAllCommand:
         assert child_index > parent_index
         assert "sync with design" in captured.out
 
+    def test_with_target_scopes_to_its_subtree(self, taskli_env, capsys):
+        main(["work", "-a", "finish report"])
+        main(["work.meetings", "-a", "sync with design"])
+        main(["groceries", "-a", "buy milk"])
+        capsys.readouterr()
+
+        main(["work", "--all"])
+
+        captured = capsys.readouterr()
+        assert "finish report" in captured.out
+        assert "sync with design" in captured.out
+        assert "groceries" not in captured.out
+        assert "buy milk" not in captured.out
+
 
 class TestNewListRmList:
     def test_creates_empty_list(self, taskli_env, capsys):
@@ -585,6 +599,19 @@ class TestDefaultListAction:
         assert exit_code == 0
         assert "added #1 to 'work'" in captured.out
 
+    def test_bare_invocation_excludes_descendants(self, taskli_env, capsys):
+        main(["-a", "task"])
+        main(["inbox.notes", "-a", "sub-task"])
+        capsys.readouterr()
+
+        exit_code = main([])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "task" in captured.out
+        assert "sub-task" not in captured.out
+        assert "notes" not in captured.out
+
     def test_list_name_shows_items(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
@@ -655,7 +682,7 @@ class TestSublistDelimiter:
         main(["work.meetings", "-a", "sub-task"])
         capsys.readouterr()
 
-        exit_code = main(["work"])
+        exit_code = main(["work", "--all"])
 
         captured = capsys.readouterr()
 
@@ -668,10 +695,10 @@ class TestSublistDelimiter:
         main(["work.meetings.notes", "-a", "deep-task"])
         capsys.readouterr()
 
-        main(["work"])
+        main(["work", "--all"])
         top_captured = capsys.readouterr()
 
-        main(["work.meetings"])
+        main(["work.meetings", "--all"])
         mid_captured = capsys.readouterr()
 
         assert "deep-task" in top_captured.out
@@ -685,12 +712,25 @@ class TestSublistDelimiter:
         main(["work.meetings", "-a", "c", "-t", "later"])
         capsys.readouterr()
 
-        main(["work", "-f", "urgent"])
+        main(["work", "--all", "-f", "urgent"])
 
         captured = capsys.readouterr()
         assert "a" in captured.out
         assert "b" in captured.out
         assert "c" not in captured.out
+
+    def test_tag_filter_ignores_descendants_without_all(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "a", "-t", "urgent"])
+        main(["work.meetings", "-a", "b", "-t", "urgent"])
+        capsys.readouterr()
+
+        main(["work", "-f", "urgent"])
+
+        captured = capsys.readouterr()
+        assert "a" in captured.out
+        assert "b" not in captured.out
 
     def test_empty_child_section_shown_without_filter(
         self, taskli_env, capsys
@@ -698,10 +738,22 @@ class TestSublistDelimiter:
         main(["work.meetings", "--new-list"])
         capsys.readouterr()
 
-        main(["work"])
+        main(["work", "--all"])
 
         captured = capsys.readouterr()
         assert "meetings" in captured.out
+
+    def test_default_view_excludes_descendants(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        main(["work.meetings", "-a", "sub-task"])
+        capsys.readouterr()
+
+        main(["work"])
+
+        captured = capsys.readouterr()
+        assert "task" in captured.out
+        assert "sub-task" not in captured.out
+        assert "meetings" not in captured.out
 
 
 class TestCompoundOps:
@@ -751,6 +803,11 @@ class TestFlagCombinations:
 
     def test_all_with_item_action_errors(self, taskli_env, capsys):
         exit_code = main(["--all", "--prune"])
+
+        assert exit_code == 2
+
+    def test_all_with_list_mgmt_flag_errors(self, taskli_env, capsys):
+        exit_code = main(["work", "--new-list", "--all"])
 
         assert exit_code == 2
 
