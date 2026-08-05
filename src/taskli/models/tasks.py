@@ -62,7 +62,7 @@ class TaskliList(BaseModel):
             )
         elif sort == "priority":
             self.items = sorted(
-                self.items, key=lambda item: item.priority.index
+                self.items, key=lambda item: item.priority.index, reverse=True
             )
         else:
             self.items = sorted(
