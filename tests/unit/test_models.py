@@ -259,12 +259,14 @@ class TestTaskliList:
         todo_list = TaskliList(name="work")
         todo_list.add_item("first", tags=["z", "a"])
         todo_list.add_item("second", tags=["m"])
+        todo_list.add_item("third")
 
         todo_list.sort_by("tags")
 
         assert [item.text for item in todo_list.items] == [
             "first",
             "second",
+            "third",
         ]
 
     def test_sort_by_priority_orders_low_to_high(self):
@@ -275,4 +277,4 @@ class TestTaskliList:
 
         todo_list.sort_by("priority")
 
-        assert [item.text for item in todo_list.items] == ["a", "b", "c"]
+        assert [item.text for item in todo_list.items] == ["c", "b", "a"]
