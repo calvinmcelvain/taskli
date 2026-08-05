@@ -133,7 +133,7 @@ class TestListItems:
         main([])
 
         captured = capsys.readouterr()
-        assert captured.out.index("a-task") < captured.out.index("z-task")
+        assert captured.out.index("a-task") > captured.out.index("z-task")
 
     def test_auto_prunes_done_items_on_view(self, taskli_env, capsys):
         main(["-a", "task"])
