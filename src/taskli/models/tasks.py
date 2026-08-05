@@ -58,7 +58,11 @@ class TaskliList(BaseModel):
 
         if sort == "tags":
             self.items = sorted(
-                self.items, key=lambda item: ",".join(sorted(item.tags))
+                self.items,
+                key=lambda item: (
+                    "".join(item.tags) == "",
+                    ",".join(sorted(item.tags)),
+                ),
             )
         elif sort == "priority":
             self.items = sorted(
