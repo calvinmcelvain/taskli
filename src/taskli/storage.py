@@ -11,9 +11,10 @@ from .exceptions import (
     InvalidListNameError,
     ListAlreadyExistsError,
     ListNotFoundError,
+    TaskliError,
     TooManyAncestorListsError,
 )
-from .models import Color, Config, TaskliList
+from .models import Color, Config, SortBy, TaskliList
 
 
 def resolve_storage_dir() -> Path:
@@ -373,11 +374,15 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
         )
 
     try:
-        return TaskliList.model_validate_json(path.read_text())
+        task_list = TaskliList.model_validate_json(path.read_text())
     except ValidationError as e:
         raise CorruptedListFileError(
             f"list file '{path}' is corrupted and could not be read."
         ) from e
+
+    task_list.reindex()
+
+    return task_list
 
 
 def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
@@ -418,7 +423,31 @@ def save_list(storage_dir: Path, task_list: TaskliList) -> None:
         The list to save.
     """
 
+    task_list.sort_by_index()
     path = list_file_path(storage_dir, task_list.name)
     path.write_text(task_list.model_dump_json(indent=2))
+
+    return None
+
+
+def resort_all_lists(storage_dir: Path, sort: SortBy) -> None:
+    """Resort and reindex every list on disk by ``sort``.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    sort : SortBy
+        The attribute to sort by.
+    """
+
+    for name in list_all_lists(storage_dir):
+        try:
+            task_list = load_list(storage_dir, name)
+        except TaskliError:
+            continue
+
+        task_list.resort(sort)
+        save_list(storage_dir, task_list)
 
     return None

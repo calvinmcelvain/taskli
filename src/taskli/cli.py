@@ -25,6 +25,7 @@ from .storage import (
     load_list,
     load_or_create_list,
     resolve_storage_dir,
+    resort_all_lists,
     save_config,
     save_list,
 )
@@ -371,6 +372,9 @@ def _config_cmd(key: str | None, value: str | None) -> int:
     config.set_value(key, value)
     save_config(storage_dir, config)
 
+    if key == "default_sort":
+        resort_all_lists(storage_dir, config.default_sort)
+
     print(f"set '{key}' to '{value}'.")
 
     return 0
@@ -425,10 +429,15 @@ def _add_cmd(
     task_list = load_or_create_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
-    for text in texts:
-        item = task_list.add_item(
-            text, priority=Priority(priority), tags=list(tags)
-        )
+    # add items first --> re-sort --> print item indexes.
+    added = [
+        task_list.add_item(text, priority=Priority(priority), tags=list(tags))
+        for text in texts
+    ]
+
+    task_list.resort(config.default_sort)
+
+    for item in added:
         print(f"added #{item.id} to '{display_name}'.")
 
     save_list(storage_dir, task_list)
@@ -448,8 +457,6 @@ def _grouped_lists(
     if config.auto_prune and task_list.prune():
         save_list(storage_dir, task_list)
 
-    task_list.sort_by(config.default_sort)
-
     lists = [
         TaskliList(
             name=list_name,
@@ -463,8 +470,6 @@ def _grouped_lists(
         descendant_list = load_list(storage_dir, descendant_name)
         if config.auto_prune and descendant_list.prune():
             save_list(storage_dir, descendant_list)
-
-        descendant_list.sort_by(config.default_sort)
 
         lists.append(
             TaskliList(
