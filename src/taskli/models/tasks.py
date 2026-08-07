@@ -1,5 +1,6 @@
 """Tasks & task list models."""
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -8,7 +9,7 @@ from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority
 from .config import SortBy
 
-__all__ = ["TaskliItem", "TaskliList"]
+__all__ = ["ActionOutcome", "TaskliItem", "TaskliList"]
 
 
 class TaskliItem(BaseModel):
@@ -21,6 +22,14 @@ class TaskliItem(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ActionOutcome:
+    """Result of applying an action to a single item id."""
+
+    item_id: int
+    error: str | None
 
 
 class TaskliList(BaseModel):
@@ -174,7 +183,7 @@ class TaskliList(BaseModel):
                 f"no item with id {item_id} in list '{self.name}'."
             ) from e
 
-    def mark_done(self, item_id: int) -> TaskliItem:
+    def mark_done(self, item_id: int) -> ActionOutcome:
         """Mark an item done and set its completion timestamp.
 
         Parameters
@@ -184,17 +193,37 @@ class TaskliList(BaseModel):
 
         Returns
         -------
-        TaskliItem
-            The updated item.
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         item.done = True
         item.completed_at = datetime.now()
 
-        return item
+        return ActionOutcome(item_id, error=None)
 
-    def mark_undone(self, item_id: int) -> TaskliItem:
+    def mark_done_many(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Mark multiple items done, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to mark done, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+        """
+
+        return [self.mark_done(item_id) for item_id in item_ids]
+
+    def mark_undone(self, item_id: int) -> ActionOutcome:
         """Mark an item not done and clear its completion timestamp.
 
         Parameters
@@ -204,28 +233,94 @@ class TaskliList(BaseModel):
 
         Returns
         -------
-        TaskliItem
-            The updated item.
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         item.done = False
         item.completed_at = None
 
-        return item
+        return ActionOutcome(item_id, error=None)
 
-    def remove_item(self, item_id: int) -> None:
+    def mark_undone_many(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Mark multiple items not done, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to mark not done, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+        """
+
+        return [self.mark_undone(item_id) for item_id in item_ids]
+
+    def remove_item(self, item_id: int) -> ActionOutcome:
         """Remove an item from the list.
 
         Parameters
         ----------
         item_id : int
             The item's id.
+
+        Returns
+        -------
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         self.items.remove(item)
         self.reindex()
+
+        return ActionOutcome(item_id, error=None)
+
+    def remove_items(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Remove multiple items, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to remove, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+
+        Notes
+        -----
+        Validates every id first, then removes all found items and reindexes
+        once, so removing several ids in one call can't drift ids mid-batch the
+        way repeated single removals would.
+        """
+
+        outcomes = []
+        found_ids: set[int] = set()
+        for item_id in item_ids:
+            try:
+                self.get_item(item_id)
+                found_ids.add(item_id)
+                outcomes.append(ActionOutcome(item_id, error=None))
+            except ItemNotFoundError as e:
+                outcomes.append(ActionOutcome(item_id, error=str(e)))
+
+        self.items = [item for item in self.items if item.id not in found_ids]
+        self.reindex()
+
+        return outcomes
 
     def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
