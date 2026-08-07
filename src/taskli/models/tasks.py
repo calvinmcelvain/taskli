@@ -1,5 +1,6 @@
 """Tasks & task list models."""
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -8,7 +9,7 @@ from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority
 from .config import SortBy
 
-__all__ = ["TaskliItem", "TaskliList"]
+__all__ = ["ActionOutcome", "TaskliItem", "TaskliList"]
 
 
 class TaskliItem(BaseModel):
@@ -21,6 +22,14 @@ class TaskliItem(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
     completed_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ActionOutcome:
+    """Result of applying an action to a single item id."""
+
+    item_id: int
+    error: str | None
 
 
 class TaskliList(BaseModel):
