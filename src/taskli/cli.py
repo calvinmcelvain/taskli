@@ -4,6 +4,7 @@ import argparse
 import functools
 import sys
 from collections.abc import Callable
+from enum import StrEnum
 from pathlib import Path
 
 from .exceptions import TaskliError
@@ -27,6 +28,24 @@ from .storage import (
     save_config,
     save_list,
 )
+
+
+class ListOp(StrEnum):
+    NEW_LIST = "new_list"
+    RM_LIST = "rm_list"
+    EDIT_LIST = "edit_list"
+    CONFIG = "config"
+    LISTS = "lists"
+
+
+class ItemAction(StrEnum):
+    ADD = "add"
+    DONE = "done"
+    UNDONE = "undone"
+    RM = "rm"
+    EDIT = "edit"
+    TAGS = "tags"
+    PRUNE = "prune"
 
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
@@ -201,70 +220,65 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_list_op(namespace: argparse.Namespace) -> str | None:
+def _resolve_list_op(namespace: argparse.Namespace) -> ListOp | None:
     if namespace.new_list:
-        return "new_list"
+        return ListOp.NEW_LIST
     if namespace.rm_list:
-        return "rm_list"
+        return ListOp.RM_LIST
     if namespace.edit_list:
-        return "edit_list"
+        return ListOp.EDIT_LIST
     if namespace.config is not None:
-        return "config"
+        return ListOp.CONFIG
     if namespace.lists:
-        return "lists"
+        return ListOp.LISTS
 
     return None
 
 
-def _resolve_item_action(namespace: argparse.Namespace) -> str | None:
+def _resolve_item_action(namespace: argparse.Namespace) -> ItemAction | None:
     if namespace.add is not None:
-        return "add"
+        return ItemAction.ADD
     if namespace.done is not None:
-        return "done"
+        return ItemAction.DONE
     if namespace.undone is not None:
-        return "undone"
+        return ItemAction.UNDONE
     if namespace.rm is not None:
-        return "rm"
+        return ItemAction.RM
     if namespace.edit is not None:
-        return "edit"
+        return ItemAction.EDIT
     if namespace.tags_action:
-        return "tags"
+        return ItemAction.TAGS
     if namespace.prune:
-        return "prune"
+        return ItemAction.PRUNE
 
     return None
 
 
 def _validate_flags(
     namespace: argparse.Namespace,
-    list_op: str | None,
-    item_action: str | None,
+    list_op: ListOp | None,
+    item_action: ItemAction | None,
     parser: argparse.ArgumentParser,
 ) -> None:
-    if list_op in {"config", "lists"} and item_action is not None:
+    if list_op in {ListOp.CONFIG, ListOp.LISTS} and item_action:
         parser.error("item action flags are not valid with --config/--lists.")
-    if namespace.all and (item_action is not None or list_op is not None):
+    if namespace.all and any((item_action, list_op)):
         parser.error("--all is only valid with the default view.")
-    if namespace.config is not None and len(namespace.config) > 2:
+    if namespace.config and len(namespace.config) > 2:
         parser.error("--config takes at most KEY and VALUE.")
-    if namespace.color is not None and list_op not in {
-        "new_list",
-        "edit_list",
-    }:
+    if namespace.color and list_op not in {ListOp.NEW_LIST, ListOp.EDIT_LIST}:
         parser.error("-c/--color is only valid with --new-list/--edit-list.")
-    if list_op == "edit_list" and namespace.color is None:
+    if list_op == ListOp.EDIT_LIST and namespace.color is None:
         parser.error("--edit-list requires -c/--color.")
 
-    add_or_edit = item_action in {"add", "edit"}
+    add_or_edit = item_action in {ItemAction.ADD, ItemAction.EDIT}
     if namespace.tags and not add_or_edit:
         parser.error("-t/--tag is only valid with -a/--add or -e/--edit.")
-    if namespace.priority is not None and not add_or_edit:
+    if namespace.priority and not add_or_edit:
         parser.error("-p/--priority is only valid with -a/--add or -e/--edit.")
-    if namespace.filter_tag is not None and (
-        item_action is not None or list_op is not None
-    ):
+    if namespace.filter_tag and any((item_action, list_op)):
         parser.error("-f/--filter-tag is only valid with the default view.")
-    if namespace.text is not None and item_action != "edit":
+    if namespace.text and item_action != ItemAction.EDIT:
         parser.error("--text is only valid with -e/--edit.")
 
 
@@ -280,6 +294,20 @@ def _print_list(task_list: TaskliList, config: Config) -> None:
         task_list.items,
         task_list.color,
     )
+
+
+def _mutate_cmd(
+    list_name: str, config: Config, mutate: Callable[[TaskliList], str]
+) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    message = mutate(task_list)
+
+    save_list(storage_dir, task_list)
+    print(message)
+    _print_list(task_list, config)
+
+    return 0
 
 
 @_handle_errors
@@ -316,17 +344,13 @@ def _new_list_cmd(name: str, color: str | None, config: Config) -> int:
 
 @_handle_errors
 def _edit_list_cmd(name: str, color: str, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, name)
-    task_list.set_color(Color[color.upper()])
+    def mutate(task_list: TaskliList) -> str:
+        task_list.set_color(Color[color.upper()])
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"updated color of '{display_name}' to '{color}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"updated color of '{display_name}' to '{color}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(name, config, mutate)
 
 
 @_handle_errors
@@ -492,62 +516,46 @@ def _all_cmd() -> int:
 
 @_handle_errors
 def _done_cmd(list_name: str, item_id: int, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    task_list.mark_done(item_id)
+    def mutate(task_list: TaskliList) -> str:
+        task_list.mark_done(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"marked #{item_id} done in '{display_name}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"marked #{item_id} done in '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
 def _undone_cmd(list_name: str, item_id: int, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    task_list.mark_undone(item_id)
+    def mutate(task_list: TaskliList) -> str:
+        task_list.mark_undone(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"marked #{item_id} not done in '{display_name}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"marked #{item_id} not done in '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
 def _rm_cmd(list_name: str, item_id: int, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    task_list.remove_item(item_id)
+    def mutate(task_list: TaskliList) -> str:
+        task_list.remove_item(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"removed #{item_id} from '{display_name}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"removed #{item_id} from '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
 def _prune_cmd(list_name: str, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    removed = task_list.prune()
+    def mutate(task_list: TaskliList) -> str:
+        removed = task_list.prune()
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"pruned {len(removed)} item(s) from '{display_name}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"pruned {len(removed)} item(s) from '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
@@ -559,22 +567,18 @@ def _edit_cmd(
     tags: list[str],
     config: Config,
 ) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    task_list.edit_item(
-        item_id,
-        text=text,
-        priority=Priority(priority) if priority else None,
-        tags=list(tags) if tags else None,
-    )
+    def mutate(task_list: TaskliList) -> str:
+        task_list.edit_item(
+            item_id,
+            text=text,
+            priority=Priority(priority) if priority else None,
+            tags=list(tags) if tags else None,
+        )
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    save_list(storage_dir, task_list)
+        return f"updated #{item_id} in '{display_name}'."
 
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"updated #{item_id} in '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
@@ -590,23 +594,23 @@ def _tags_cmd(list_name: str) -> int:
 
 
 def _run_item_action(
-    action: str,
+    action: ItemAction,
     list_name: str,
     namespace: argparse.Namespace,
     config: Config,
 ) -> int:
-    if action == "add":
+    if action == ItemAction.ADD:
         texts = [" ".join(words) for words in namespace.add]
         priority = namespace.priority or config.default_priority.value
 
         return _add_cmd(list_name, texts, namespace.tags, priority, config)
-    if action == "done":
+    if action == ItemAction.DONE:
         return _done_cmd(list_name, namespace.done, config)
-    if action == "undone":
+    if action == ItemAction.UNDONE:
         return _undone_cmd(list_name, namespace.undone, config)
-    if action == "rm":
+    if action == ItemAction.RM:
         return _rm_cmd(list_name, namespace.rm, config)
-    if action == "edit":
+    if action == ItemAction.EDIT:
         return _edit_cmd(
             list_name,
             namespace.edit,
@@ -615,7 +619,7 @@ def _run_item_action(
             namespace.tags,
             config,
         )
-    if action == "tags":
+    if action == ItemAction.TAGS:
         return _tags_cmd(list_name)
 
     return _prune_cmd(list_name, config)
@@ -624,12 +628,12 @@ def _run_item_action(
 def _dispatch(
     namespace: argparse.Namespace,
     config: Config,
-    list_op: str | None,
-    item_action: str | None,
+    list_op: ListOp | None,
+    item_action: ItemAction | None,
 ) -> int:
-    if list_op == "lists":
+    if list_op == ListOp.LISTS:
         return _lists_cmd()
-    if list_op == "config":
+    if list_op == ListOp.CONFIG:
         key = namespace.config[0] if namespace.config else None
         value = namespace.config[1] if len(namespace.config) > 1 else None
 
@@ -641,11 +645,11 @@ def _dispatch(
     else:
         list_name = config.default_list.replace(config.sublist_delimiter, ".")
 
-    if list_op == "new_list":
+    if list_op == ListOp.NEW_LIST:
         exit_code = _new_list_cmd(list_name, namespace.color, config)
-    elif list_op == "rm_list":
+    elif list_op == ListOp.RM_LIST:
         exit_code = _rm_list_cmd(list_name, config)
-    elif list_op == "edit_list":
+    elif list_op == ListOp.EDIT_LIST:
         exit_code = _edit_list_cmd(list_name, namespace.color, config)
     elif item_action is not None:
         return _run_item_action(item_action, list_name, namespace, config)
