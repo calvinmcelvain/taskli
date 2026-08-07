@@ -269,7 +269,7 @@ class TestTaskliList:
             "third",
         ]
 
-    def test_sort_by_priority_orders_low_to_high(self):
+    def test_sort_by_priority_orders_high_to_low(self):
         todo_list = TaskliList(name="work")
         todo_list.add_item("c", priority=Priority.HIGH)
         todo_list.add_item("a", priority=Priority.LOW)
@@ -278,3 +278,27 @@ class TestTaskliList:
         todo_list.sort_by("priority")
 
         assert [item.text for item in todo_list.items] == ["c", "b", "a"]
+
+    def test_sort_by_index_orders_by_id_ascending(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("a")
+        todo_list.add_item("b")
+        todo_list.add_item("c")
+        todo_list.items[0].id, todo_list.items[2].id = (
+            todo_list.items[2].id,
+            todo_list.items[0].id,
+        )
+
+        todo_list.sort_by_index()
+
+        assert [item.text for item in todo_list.items] == ["c", "b", "a"]
+
+    def test_resort_sorts_then_reindexes(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("low", priority=Priority.LOW)
+        todo_list.add_item("high", priority=Priority.HIGH)
+
+        todo_list.resort("priority")
+
+        assert [item.text for item in todo_list.items] == ["high", "low"]
+        assert [item.id for item in todo_list.items] == [1, 2]

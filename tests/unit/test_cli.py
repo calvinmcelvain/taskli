@@ -99,6 +99,24 @@ class TestAdd:
         task_list = load_list(taskli_env, "inbox")
         assert task_list.items[0].priority == Priority.HIGH
 
+    def test_add_sorts_and_reindexes_by_default_sort(self, taskli_env, capsys):
+        main(["--config", "default_sort", "priority"])
+        main(["work", "--new-list"])
+        main(["work", "-a", "low", "task", "-p", "low"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-a", "high", "task", "-p", "high"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'work'" in captured.out
+
+        task_list = load_list(taskli_env, "work")
+        assert [item.text for item in task_list.items] == [
+            "high task",
+            "low task",
+        ]
+
 
 class TestListItems:
     def test_shows_added_items(self, taskli_env, capsys):
@@ -134,6 +152,20 @@ class TestListItems:
 
         captured = capsys.readouterr()
         assert captured.out.index("a-task") > captured.out.index("z-task")
+
+    def test_default_view_does_not_resort(self, taskli_env, capsys):
+        main(["--config", "default_sort", "priority"])
+        main(["work", "--new-list"])
+        main(["work", "-a", "first", "-p", "high"])
+        main(["work", "-a", "second", "-p", "low"])
+        # swap priorities so stored order and sort order now disagree.
+        main(["work", "-e", "1", "-p", "low"])
+        main(["work", "-e", "2", "-p", "high"])
+        capsys.readouterr()
+
+        main(["work"])
+        captured = capsys.readouterr()
+        assert captured.out.index("first") < captured.out.index("second")
 
     def test_auto_prunes_done_items_on_view(self, taskli_env, capsys):
         main(["-a", "task"])
@@ -577,6 +609,25 @@ class TestConfigCommand:
 
         assert exit_code == 1
         assert "not a valid value for 'auto_prune'" in captured.err
+
+    def test_default_sort_change_resorts_all_lists(self, taskli_env, capsys):
+        main(["work", "--new-list"])
+        main(["work", "-a", "low task", "-p", "low"])
+        main(["work", "-a", "high task", "-p", "high"])
+        capsys.readouterr()
+
+        exit_code = main(["--config", "default_sort", "priority"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "set 'default_sort' to 'priority'" in captured.out
+
+        task_list = load_list(taskli_env, "work")
+        assert [item.text for item in task_list.items] == [
+            "high task",
+            "low task",
+        ]
+        assert [item.id for item in task_list.items] == [1, 2]
 
 
 class TestDefaultListAction:

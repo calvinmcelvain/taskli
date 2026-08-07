@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from taskli.models import Color, Config, TaskliList
+from taskli.models import Color, Config, Priority, TaskliList
 from taskli.storage import (
     CorruptedConfigFileError,
     CorruptedListFileError,
@@ -24,6 +24,7 @@ from taskli.storage import (
     load_or_create_list,
     parent_list_name,
     resolve_storage_dir,
+    resort_all_lists,
     save_config,
     save_list,
 )
@@ -245,6 +246,33 @@ class TestLoadList:
         with pytest.raises(CorruptedListFileError):
             load_list(tmp_path, "broken")
 
+    def test_save_list_persists_items_in_id_order(self, tmp_path):
+        task_list = TaskliList(name="work")
+        task_list.add_item("a")
+        task_list.add_item("b")
+        task_list.items[0].id, task_list.items[1].id = (
+            task_list.items[1].id,
+            task_list.items[0].id,
+        )
+
+        save_list(tmp_path, task_list)
+        reloaded = load_list(tmp_path, "work")
+
+        assert [item.text for item in reloaded.items] == ["b", "a"]
+
+    def test_load_list_reindexes_on_read(self, tmp_path):
+        task_list = TaskliList(name="work")
+        task_list.add_item("a")
+        task_list.add_item("b")
+        task_list.items[0].id = 5
+        task_list.items[1].id = 9
+        path = tmp_path / "work.json"
+        path.write_text(task_list.model_dump_json(indent=2))
+
+        reloaded = load_list(tmp_path, "work")
+
+        assert [item.id for item in reloaded.items] == [1, 2]
+
     def test_auto_creates_configured_default_list(self, tmp_path):
         config = load_config(tmp_path)
         config.default_list = "work"
@@ -278,3 +306,34 @@ class TestLoadOrCreateList:
         assert task_list.name == "work.meetings"
         assert list_exists(tmp_path, "work")
         assert list_exists(tmp_path, "work.meetings")
+
+
+class TestResortAllLists:
+    def test_resorts_and_reindexes_every_list(self, tmp_path):
+        for name in ("work", "home"):
+            task_list = create_list(tmp_path, name)
+            task_list.add_item("low", priority=Priority.LOW)
+            task_list.add_item("high", priority=Priority.HIGH)
+            save_list(tmp_path, task_list)
+
+        resort_all_lists(tmp_path, "priority")
+
+        for name in ("work", "home"):
+            reloaded = load_list(tmp_path, name)
+            assert [item.text for item in reloaded.items] == [
+                "high",
+                "low",
+            ]
+            assert [item.id for item in reloaded.items] == [1, 2]
+
+    def test_skips_corrupted_list(self, tmp_path):
+        task_list = create_list(tmp_path, "work")
+        task_list.add_item("low", priority=Priority.LOW)
+        task_list.add_item("high", priority=Priority.HIGH)
+        save_list(tmp_path, task_list)
+        (tmp_path / "broken.json").write_text("not valid json")
+
+        resort_all_lists(tmp_path, "priority")
+
+        reloaded = load_list(tmp_path, "work")
+        assert [item.text for item in reloaded.items] == ["high", "low"]
