@@ -207,6 +207,22 @@ class TaskliList(BaseModel):
 
         return ActionOutcome(item_id, error=None)
 
+    def mark_done_many(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Mark multiple items done, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to mark done, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+        """
+
+        return [self.mark_done(item_id) for item_id in item_ids]
+
     def mark_undone(self, item_id: int) -> ActionOutcome:
         """Mark an item not done and clear its completion timestamp.
 
@@ -231,6 +247,22 @@ class TaskliList(BaseModel):
 
         return ActionOutcome(item_id, error=None)
 
+    def mark_undone_many(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Mark multiple items not done, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to mark not done, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+        """
+
+        return [self.mark_undone(item_id) for item_id in item_ids]
+
     def remove_item(self, item_id: int) -> ActionOutcome:
         """Remove an item from the list.
 
@@ -254,6 +286,41 @@ class TaskliList(BaseModel):
         self.reindex()
 
         return ActionOutcome(item_id, error=None)
+
+    def remove_items(self, item_ids: list[int]) -> list[ActionOutcome]:
+        """Remove multiple items, skipping ids that don't exist.
+
+        Parameters
+        ----------
+        item_ids : list[int]
+            The ids to remove, in the order to report them.
+
+        Returns
+        -------
+        list[ActionOutcome]
+            One outcome per id, in the same order as ``item_ids``.
+
+        Notes
+        -----
+        Validates every id first, then removes all found items and reindexes
+        once, so removing several ids in one call can't drift ids mid-batch the
+        way repeated single removals would.
+        """
+
+        outcomes = []
+        found_ids: set[int] = set()
+        for item_id in item_ids:
+            try:
+                self.get_item(item_id)
+                found_ids.add(item_id)
+                outcomes.append(ActionOutcome(item_id, error=None))
+            except ItemNotFoundError as e:
+                outcomes.append(ActionOutcome(item_id, error=str(e)))
+
+        self.items = [item for item in self.items if item.id not in found_ids]
+        self.reindex()
+
+        return outcomes
 
     def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
