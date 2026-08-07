@@ -217,13 +217,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     modifiers = parser.add_argument_group("modifiers")
-    colors_str = ", ".join(c.name.lower() for c in Color) + "."
     modifiers.add_argument(
         "-c",
         "--color",
         choices=[c.name.lower() for c in Color],
         default=None,
-        help=f"List color for --new-list/--edit-list. Choices: {colors_str}",
+        help="List color for --new-list/--edit-list.",
     )
     modifiers.add_argument(
         "-p",
