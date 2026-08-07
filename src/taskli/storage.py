@@ -373,11 +373,15 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
         )
 
     try:
-        return TaskliList.model_validate_json(path.read_text())
+        task_list = TaskliList.model_validate_json(path.read_text())
     except ValidationError as e:
         raise CorruptedListFileError(
             f"list file '{path}' is corrupted and could not be read."
         ) from e
+
+    task_list.reindex()
+
+    return task_list
 
 
 def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
