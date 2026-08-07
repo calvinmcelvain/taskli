@@ -183,7 +183,7 @@ class TaskliList(BaseModel):
                 f"no item with id {item_id} in list '{self.name}'."
             ) from e
 
-    def mark_done(self, item_id: int) -> TaskliItem:
+    def mark_done(self, item_id: int) -> ActionOutcome:
         """Mark an item done and set its completion timestamp.
 
         Parameters
@@ -193,17 +193,21 @@ class TaskliList(BaseModel):
 
         Returns
         -------
-        TaskliItem
-            The updated item.
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         item.done = True
         item.completed_at = datetime.now()
 
-        return item
+        return ActionOutcome(item_id, error=None)
 
-    def mark_undone(self, item_id: int) -> TaskliItem:
+    def mark_undone(self, item_id: int) -> ActionOutcome:
         """Mark an item not done and clear its completion timestamp.
 
         Parameters
@@ -213,28 +217,43 @@ class TaskliList(BaseModel):
 
         Returns
         -------
-        TaskliItem
-            The updated item.
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         item.done = False
         item.completed_at = None
 
-        return item
+        return ActionOutcome(item_id, error=None)
 
-    def remove_item(self, item_id: int) -> None:
+    def remove_item(self, item_id: int) -> ActionOutcome:
         """Remove an item from the list.
 
         Parameters
         ----------
         item_id : int
             The item's id.
+
+        Returns
+        -------
+        ActionOutcome
+            The result — ``error`` is set if ``item_id`` doesn't exist.
         """
 
-        item = self.get_item(item_id)
+        try:
+            item = self.get_item(item_id)
+        except ItemNotFoundError as e:
+            return ActionOutcome(item_id, error=str(e))
+
         self.items.remove(item)
         self.reindex()
+
+        return ActionOutcome(item_id, error=None)
 
     def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
