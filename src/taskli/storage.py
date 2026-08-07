@@ -422,6 +422,7 @@ def save_list(storage_dir: Path, task_list: TaskliList) -> None:
         The list to save.
     """
 
+    task_list.sort_by_index()
     path = list_file_path(storage_dir, task_list.name)
     path.write_text(task_list.model_dump_json(indent=2))
 
