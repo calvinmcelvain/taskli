@@ -96,6 +96,27 @@ class TaskliList(BaseModel):
 
         return None
 
+    def sort_by_index(self) -> None:
+        """Reorder ``items`` ascending by their current ``id``."""
+
+        self.items = sorted(self.items, key=lambda item: item.id)
+
+        return None
+
+    def resort(self, sort: SortBy) -> None:
+        """Sort ``items`` by ``sort``, then reindex to match the new order.
+
+        Parameters
+        ----------
+        sort : SortBy
+            The attribute to sort by.
+        """
+
+        self.sort_by(sort)
+        self.reindex()
+
+        return None
+
     def add_item(
         self,
         text: str,
