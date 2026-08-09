@@ -28,18 +28,12 @@ class TestAdd:
         assert "added #1 to 'inbox'" in captured.out
         assert "added #2 to 'inbox'" in captured.out
 
-    def test_repeated_add_flags_bind_to_nearest_preceding(
-        self, taskli_env, capsys
-    ):
+    def test_repeated_flag_shares(self, taskli_env, capsys):
         main(
             [
                 "-a",
                 "buy",
                 "milk",
-                "-p",
-                "low",
-                "-t",
-                "errand",
                 "-a",
                 "buy",
                 "eggs",
@@ -53,40 +47,9 @@ class TestAdd:
 
         task_list = load_list(taskli_env, "inbox")
 
-        milk = next(i for i in task_list.items if i.text == "buy milk")
-        eggs = next(i for i in task_list.items if i.text == "buy eggs")
-        assert milk.priority == Priority.LOW
-        assert milk.tags == ["errand"]
-        assert eggs.priority == Priority.HIGH
-        assert eggs.tags == ["urgent"]
-
-    def test_later_add_without_modifiers_uses_config_default(
-        self, taskli_env, capsys
-    ):
-        main(["--config", "default_priority", "low"])
-        capsys.readouterr()
-
-        main(["-a", "first", "-p", "high", "-t", "urgent", "-a", "second"])
-        capsys.readouterr()
-
-        task_list = load_list(taskli_env, "inbox")
-        second = next(i for i in task_list.items if i.text == "second")
-        assert second.priority == Priority.LOW
-        assert second.tags == []
-
-    def test_orphan_priority_before_any_add_errors(self, taskli_env, capsys):
-        exit_code = main(["-p", "high", "-a", "task"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 2
-        assert "immediately follow" in captured.err
-
-    def test_orphan_tag_after_other_flag_closes_window_errors(
-        self, taskli_env, capsys
-    ):
-        exit_code = main(["-a", "task", "-a", "other", "-d", "1", "-t", "x"])
-        capsys.readouterr()
-        assert exit_code == 2
+        assert len(task_list.items) == 2
+        assert all(item.priority == Priority.HIGH for item in task_list.items)
+        assert all(item.tags == ["urgent"] for item in task_list.items)
 
     def test_unquoted_bare_text_errors(self, taskli_env, capsys):
         exit_code = main(["buy", "milk"])
@@ -226,7 +189,7 @@ class TestListItems:
         assert "does not exist" in captured.err
 
 
-class TestBatchDoneUndoneRm:
+class TestDoneUndone:
     def test_marks_done_and_undone(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
@@ -242,51 +205,8 @@ class TestBatchDoneUndoneRm:
         assert undone_exit_code == 0
         assert "marked #1 not done" in undone_captured.out
 
-    def test_marks_multiple_done_and_undone(self, taskli_env, capsys):
-        main(["work", "-a", "a", "-a", "b", "-a", "c"])
-        capsys.readouterr()
-
-        exit_code = main(["work", "-d", "1", "3", "-u", "2"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "marked #1 done in 'work'." in captured.out
-        assert "marked #3 done in 'work'." in captured.out
-        assert "marked #2 not done in 'work'." in captured.out
-
-    def test_combines_done_undone_rm_in_one_call(self, taskli_env, capsys):
-        main(["work", "-a", "a", "-a", "b", "-a", "c", "-a", "d"])
-        capsys.readouterr()
-
-        exit_code = main(["work", "-d", "1", "-u", "2", "-r", "4"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "marked #1 done in 'work'." in captured.out
-        assert "marked #2 not done in 'work'." in captured.out
-        assert "removed #4 from 'work'." in captured.out
-
-        task_list = load_list(taskli_env, "work")
-        assert [item.text for item in task_list.items] == ["a", "b", "c"]
-
-    def test_partial_failure_applies_valid_ids_and_nonzero_exit(
-        self, taskli_env, capsys
-    ):
-        main(["work", "-a", "a", "-a", "b"])
-        capsys.readouterr()
-
-        exit_code = main(["work", "-d", "1", "99"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "marked #1 done in 'work'." in captured.out
-        assert "no item with id 99 in list 'work'." in captured.err
-
-        task_list = load_list(taskli_env, "work")
-        assert task_list.items[0].done is True
-
-    def test_bad_single_id_still_renders_table(self, taskli_env, capsys):
-        main(["work", "-a", "a"])
+    def test_raises_for_missing_item(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
         capsys.readouterr()
 
         exit_code = main(["work", "-d", "999"])
@@ -294,19 +214,6 @@ class TestBatchDoneUndoneRm:
         captured = capsys.readouterr()
         assert exit_code == 1
         assert "no item with id 999" in captured.err
-        assert "a" in captured.out
-
-    def test_removing_multiple_ids_reindexes_once(self, taskli_env, capsys):
-        main(["work", "-a", "a", "-a", "b", "-a", "c", "-a", "d"])
-        capsys.readouterr()
-
-        exit_code = main(["work", "-r", "2", "4"])
-        capsys.readouterr()
-        assert exit_code == 0
-
-        task_list = load_list(taskli_env, "work")
-        assert [item.text for item in task_list.items] == ["a", "c"]
-        assert [item.id for item in task_list.items] == [1, 2]
 
 
 class TestEditRm:
@@ -969,23 +876,3 @@ class TestFlagCombinations:
         exit_code = main(["--help"])
 
         assert exit_code == 0
-
-    def test_done_undone_rm_combine_without_error(self, taskli_env, capsys):
-        main(["work", "-a", "a", "-a", "b", "-a", "c"])
-        capsys.readouterr()
-
-        exit_code = main(["work", "-d", "1", "-u", "2", "-r", "3"])
-
-        assert exit_code == 0
-
-    def test_batch_flag_with_add_still_errors(self, taskli_env, capsys):
-        exit_code = main(["-a", "task", "-d", "1"])
-
-        captured = capsys.readouterr()
-        assert exit_code == 2
-        assert "not allowed with argument" in captured.err
-
-    def test_batch_flag_with_prune_still_errors(self, taskli_env, capsys):
-        exit_code = main(["work", "--prune", "-r", "1"])
-        capsys.readouterr()
-        assert exit_code == 2

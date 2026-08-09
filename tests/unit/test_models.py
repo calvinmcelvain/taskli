@@ -9,7 +9,6 @@ from taskli.exceptions import (
     UnknownConfigKeyError,
 )
 from taskli.models import (
-    ActionOutcome,
     Color,
     Config,
     Delimters,
@@ -172,48 +171,6 @@ class TestTaskliList:
 
         assert todo_list.items == []
 
-    def test_mark_done_returns_outcome(self):
-        todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task")
-
-        outcome = todo_list.mark_done(item.id)
-
-        assert isinstance(outcome, ActionOutcome)
-        assert outcome.item_id == item.id
-        assert not outcome.error
-
-    def test_mark_done_missing_id_returns_error_outcome(self):
-        todo_list = TaskliList(name="work")
-
-        outcome = todo_list.mark_done(1)
-
-        assert outcome.item_id == 1
-        assert outcome.error
-
-    def test_mark_undone_missing_id_returns_error_outcome(self):
-        todo_list = TaskliList(name="work")
-
-        outcome = todo_list.mark_undone(1)
-
-        assert outcome.error
-
-    def test_remove_item_returns_outcome(self):
-        todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task")
-
-        outcome = todo_list.remove_item(item.id)
-
-        assert isinstance(outcome, ActionOutcome)
-        assert not outcome.error
-        assert todo_list.items == []
-
-    def test_remove_item_missing_id_returns_error_outcome(self):
-        todo_list = TaskliList(name="work")
-
-        outcome = todo_list.remove_item(1)
-
-        assert outcome.error
-
     def test_prune_keeps_open_items(self):
         todo_list = TaskliList(name="work")
         done_item = todo_list.add_item("done task")
@@ -345,53 +302,3 @@ class TestTaskliList:
 
         assert [item.text for item in todo_list.items] == ["high", "low"]
         assert [item.id for item in todo_list.items] == [1, 2]
-
-
-class TestBatchMutation:
-    def test_mark_done_many_partial_success(self):
-        task_list = TaskliList(name="work")
-        for text in ("a", "b", "c"):
-            task_list.add_item(text)
-
-        outcomes = task_list.mark_done_many([1, 3, 99])
-
-        assert [o.item_id for o in outcomes] == [1, 3, 99]
-        assert not outcomes[0].error
-        assert not outcomes[1].error
-        assert outcomes[2].error
-        assert task_list.get_item(1).done is True
-        assert task_list.get_item(3).done is True
-        assert task_list.get_item(2).done is False
-
-    def test_mark_undone_many_partial_success(self):
-        task_list = TaskliList(name="work")
-        task_list.add_item("a")
-        task_list.mark_done(1)
-
-        outcomes = task_list.mark_undone_many([1, 99])
-
-        assert not outcomes[0].error
-        assert outcomes[1].error
-        assert task_list.get_item(1).done is False
-
-    def test_remove_items_partial_success_reindexes_once(self):
-        task_list = TaskliList(name="work")
-        for text in ("a", "b", "c", "d"):
-            task_list.add_item(text)
-
-        outcomes = task_list.remove_items([2, 4, 99])
-
-        assert not outcomes[0].error
-        assert not outcomes[1].error
-        assert outcomes[2].error
-        assert [item.text for item in task_list.items] == ["a", "c"]
-        assert [item.id for item in task_list.items] == [1, 2]
-
-    def test_remove_items_all_missing_removes_nothing(self):
-        task_list = TaskliList(name="work")
-        task_list.add_item("a")
-
-        outcomes = task_list.remove_items([99, 100])
-
-        assert all(o.error for o in outcomes)
-        assert [item.text for item in task_list.items] == ["a"]

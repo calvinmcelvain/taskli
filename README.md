@@ -193,13 +193,8 @@ work
 > [!IMPORTANT]
 > `-e/--edit`'s `-t/--tag` **replaces** an item's entire tag list — it
 > does not add to the existing tags. Omit `-t` entirely to leave tags
-> untouched. With repeated `-a`, `-p`/`-t` bind to the **nearest
-> preceding** `-a` only — each new `-a` starts fresh at the configured
-> default priority and no tags unless given its own `-p`/`-t`:
->
-> ```bash
-> task work -a "low-pri item" -p low -t someday -a "high-pri item" -p high -t urgent
-> ```
+> untouched. Passing `-t`/`-p` alongside repeated `-a` flags applies
+> that priority/tags to **every** item added in the same invocation.
 
 ### Colors
 
@@ -255,9 +250,6 @@ task work --edit-list -c red -d 1
 > Item IDs are positions within a list, not permanent identifiers — `-r`
 > and `--prune` renumber the remaining items starting from 1. Don't
 > hardcode an ID across a sequence of commands that also removes items.
-> Removing several ids in one `-r` call (`task work -r 2 4`) reindexes
-> once at the end, not once per id, so all the ids you pass are
-> resolved against the list's state before that call.
 
 Every example below builds on the same running session — `TASKLI_PATH`
 starts empty.
@@ -265,10 +257,10 @@ starts empty.
 | Flag | Purpose | Example |
 |---|---|---|
 | `-a, --add TEXT` | Add an item to a list (repeatable) | `task work -a "Ship v2" -p high` |
-| `-d, --done ID...` | Mark one or more items done (combinable with `-u`/`-r`) | `task work -d 1 3` |
-| `-u, --undone ID...` | Mark one or more items not done (combinable with `-d`/`-r`) | `task work -u 2` |
+| `-d, --done ID` | Mark an item done | `task work -d 1` |
+| `-u, --undone ID` | Mark an item not done | `task work -u 1` |
 | `-e, --edit ID` | Change an item's text, priority, or tags | `task work -e 1 --text "Ship v2.1"` |
-| `-r, --rm ID...` | Remove one or more items (combinable with `-d`/`-u`) | `task work -r 2 4` |
+| `-r, --rm ID` | Remove an item | `task work -r 1` |
 | `--tags` | List distinct tags used in a list | `task work --tags` |
 | `--prune` | Remove all done items from a list | `task work --prune` |
 | `--lists` | Show every list, nested as a tree | `task --lists` |
@@ -368,10 +360,6 @@ $ task work -a "buy milk" -t errand
 added #2 to 'work'.
 ```
 
-Repeat `-a` to add several items in one call — each gets its own
-`-p`/`-t` bound to the `-a` immediately before it (see
-[Priorities & tags](#priorities--tags) for the exact binding rule).
-
 ### Default view
 
 Shows a list's own items. This is what runs when you give just a list
@@ -410,34 +398,6 @@ $ task work
 ┃ ID ┃ Done ┃ Text ┃ Priority ┃ Tags ┃
 ┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
 └────┴──────┴──────┴──────────┴──────┘
-```
-
-`-d`, `-u`, and `-r` each take one or more ids and can be combined in a
-single call — done ids are applied first, then undone, then removed
-last:
-
-```bash
-$ task work -a "a" -a "b" -a "c" -a "d" -a "e"
-added #1 to 'work'.
-added #2 to 'work'.
-added #3 to 'work'.
-added #4 to 'work'.
-added #5 to 'work'.
-
-$ task work -d 1 3 -u 2 -r 5
-marked #1 done in 'work'.
-marked #3 done in 'work'.
-marked #2 not done in 'work'.
-removed #5 from 'work'.
-```
-
-If any id doesn't exist, the valid ones are still applied and saved —
-only the bad id's line reports an error, and the whole command exits 1:
-
-```bash
-$ task work -d 1 99
-marked #1 done in 'work'.
-error: no item with id 99 in list 'work'.
 ```
 
 ## Sublists

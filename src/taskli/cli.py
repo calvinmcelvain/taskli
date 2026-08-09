@@ -49,47 +49,6 @@ class ItemAction(StrEnum):
     PRUNE = "prune"
 
 
-def _split_add_modifiers(
-    argv: list[str], flag_tokens: frozenset[str]
-) -> tuple[list[str], list[str | None], list[list[str]]]:
-    remaining: list[str] = []
-    priorities: list[str | None] = []
-    tags_lists: list[list[str]] = []
-    i, n = 0, len(argv)
-
-    while i < n:
-        token = argv[i]
-        remaining.append(token)
-        i += 1
-
-        if token not in ("-a", "--add"):
-            continue
-
-        while i < n and argv[i] not in flag_tokens:
-            remaining.append(argv[i])
-            i += 1
-
-        priority: str | None = None
-        tags: list[str] = []
-        while i < n and argv[i] in ("-p", "--priority", "-t", "--tag"):
-            flag = argv[i]
-            i += 1
-            if i >= n or argv[i] in flag_tokens:
-                remaining.append(flag)
-                break
-            value = argv[i]
-            i += 1
-            if flag in ("-p", "--priority"):
-                priority = value
-            else:
-                tags.append(value)
-
-        priorities.append(priority)
-        tags_lists.append(tags)
-
-    return remaining, priorities, tags_lists
-
-
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     @functools.wraps(func)
     def wrapper(*args: object, **kwargs: object) -> int:
@@ -165,35 +124,29 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="TEXT",
         help="Add an item to LIST. Repeatable for multiple items.",
     )
-    item_actions.add_argument(
+    actions.add_argument(
         "-d",
         "--done",
         dest="done",
         type=int,
-        nargs="+",
-        default=None,
         metavar="ID",
-        help="Mark one or more items done. Combinable with -u/-r.",
+        help="Mark an item as done.",
     )
-    item_actions.add_argument(
+    actions.add_argument(
         "-u",
         "--undone",
         dest="undone",
         type=int,
-        nargs="+",
-        default=None,
         metavar="ID",
-        help="Mark one or more items not done. Combinable with -d/-r.",
+        help="Mark an item as not done.",
     )
-    item_actions.add_argument(
+    actions.add_argument(
         "-r",
         "--rm",
         dest="rm",
         type=int,
-        nargs="+",
-        default=None,
         metavar="ID",
-        help="Remove one or more items. Combinable with -d/-u.",
+        help="Remove an item from LIST.",
     )
     actions.add_argument(
         "-e",
@@ -229,10 +182,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--priority",
         choices=[p.value for p in Priority],
         default=None,
-        help=(
-            "Item priority for -a/-e (default: medium on add). With "
-            "repeated -a, binds to the nearest preceding -a."
-        ),
+        help="Item priority for -a/-e (default: medium on add).",
     )
     modifiers.add_argument(
         "-t",
@@ -241,10 +191,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="TAG",
-        help=(
-            "Tag to set on -a/-e. Repeatable. With repeated -a, binds "
-            "to the nearest preceding -a."
-        ),
+        help="Tag to set on -a/-e. Repeatable.",
     )
     modifiers.add_argument(
         "-f",
@@ -289,13 +236,13 @@ def _resolve_list_op(namespace: argparse.Namespace) -> ListOp | None:
 
 
 def _resolve_item_action(namespace: argparse.Namespace) -> ItemAction | None:
-    if namespace.add:
+    if namespace.add is not None:
         return ItemAction.ADD
-    if namespace.done:
+    if namespace.done is not None:
         return ItemAction.DONE
-    if namespace.undone:
+    if namespace.undone is not None:
         return ItemAction.UNDONE
-    if namespace.rm:
+    if namespace.rm is not None:
         return ItemAction.RM
     if namespace.edit is not None:
         return ItemAction.EDIT
@@ -313,20 +260,6 @@ def _validate_flags(
     item_action: ItemAction | None,
     parser: argparse.ArgumentParser,
 ) -> None:
-    batch_given = bool(namespace.done or namespace.undone or namespace.rm)
-    exclusive_given = any(
-        (
-            namespace.add,
-            namespace.edit is not None,
-            namespace.tags_action,
-            namespace.prune,
-        )
-    )
-    if batch_given and exclusive_given:
-        parser.error(
-            "argument -a/-e/--tags/--prune: not allowed with argument "
-            "-d/-u/-r."
-        )
     if list_op in {ListOp.CONFIG, ListOp.LISTS} and item_action:
         parser.error("item action flags are not valid with --config/--lists.")
     if namespace.all and any((item_action, list_op)):
@@ -487,8 +420,8 @@ def _rm_list_cmd(name: str, config: Config) -> int:
 def _add_cmd(
     list_name: str,
     texts: list[str],
-    priorities: list[str | None],
-    tags_lists: list[list[str]],
+    tags: list[str],
+    priority: str,
     config: Config,
 ) -> int:
     storage_dir = resolve_storage_dir()
@@ -497,14 +430,8 @@ def _add_cmd(
 
     # add items first --> re-sort --> print item indexes.
     added = [
-        task_list.add_item(
-            text,
-            priority=Priority(priority or config.default_priority.value),
-            tags=list(tags),
-        )
-        for text, priority, tags in zip(
-            texts, priorities, tags_lists, strict=True
-        )
+        task_list.add_item(text, priority=Priority(priority), tags=list(tags))
+        for text in texts
     ]
 
     task_list.resort(config.default_sort)
@@ -592,63 +519,36 @@ def _all_cmd() -> int:
 
 
 @_handle_errors
-def _done_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-    any_failed = False
+def _done_cmd(list_name: str, item_id: int, config: Config) -> int:
+    def mutate(task_list: TaskliList) -> str:
+        task_list.mark_done(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    for outcome in task_list.mark_done_many(item_ids):
-        if outcome.error:
-            render_error(outcome.error)
-            any_failed = True
-        else:
-            print(f"marked #{outcome.item_id} done in '{display_name}'.")
+        return f"marked #{item_id} done in '{display_name}'."
 
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if any_failed else 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
-def _undone_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-    any_failed = False
+def _undone_cmd(list_name: str, item_id: int, config: Config) -> int:
+    def mutate(task_list: TaskliList) -> str:
+        task_list.mark_undone(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    for outcome in task_list.mark_undone_many(item_ids):
-        if outcome.error:
-            render_error(outcome.error)
-            any_failed = True
-        else:
-            print(f"marked #{outcome.item_id} not done in '{display_name}'.")
+        return f"marked #{item_id} not done in '{display_name}'."
 
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if any_failed else 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
-def _rm_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-    any_failed = False
+def _rm_cmd(list_name: str, item_id: int, config: Config) -> int:
+    def mutate(task_list: TaskliList) -> str:
+        task_list.remove_item(item_id)
+        display_name = task_list.display_name(config.sublist_delimiter)
 
-    for outcome in task_list.remove_items(item_ids):
-        if outcome.error:
-            render_error(outcome.error)
-            any_failed = True
-        else:
-            print(f"removed #{outcome.item_id} from '{display_name}'.")
+        return f"removed #{item_id} from '{display_name}'."
 
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if any_failed else 0
+    return _mutate_cmd(list_name, config, mutate)
 
 
 @_handle_errors
@@ -702,29 +602,18 @@ def _run_item_action(
     list_name: str,
     namespace: argparse.Namespace,
     config: Config,
-    add_priorities: list[str | None],
-    add_tags: list[list[str]],
 ) -> int:
     if action == ItemAction.ADD:
         texts = [" ".join(words) for words in namespace.add]
+        priority = namespace.priority or config.default_priority.value
 
-        return _add_cmd(list_name, texts, add_priorities, add_tags, config)
-    if action in (ItemAction.DONE, ItemAction.UNDONE, ItemAction.RM):
-        exit_code = 0
-        if namespace.done:
-            exit_code = max(
-                exit_code, _done_cmd(list_name, namespace.done, config)
-            )
-        if namespace.undone:
-            exit_code = max(
-                exit_code, _undone_cmd(list_name, namespace.undone, config)
-            )
-        if namespace.rm:
-            exit_code = max(
-                exit_code, _rm_cmd(list_name, namespace.rm, config)
-            )
-
-        return exit_code
+        return _add_cmd(list_name, texts, namespace.tags, priority, config)
+    if action == ItemAction.DONE:
+        return _done_cmd(list_name, namespace.done, config)
+    if action == ItemAction.UNDONE:
+        return _undone_cmd(list_name, namespace.undone, config)
+    if action == ItemAction.RM:
+        return _rm_cmd(list_name, namespace.rm, config)
     if action == ItemAction.EDIT:
         return _edit_cmd(
             list_name,
@@ -745,8 +634,6 @@ def _dispatch(
     config: Config,
     list_op: ListOp | None,
     item_action: ItemAction | None,
-    add_priorities: list[str | None],
-    add_tags: list[list[str]],
 ) -> int:
     if list_op == ListOp.LISTS:
         return _lists_cmd()
@@ -769,9 +656,7 @@ def _dispatch(
     elif list_op == ListOp.EDIT_LIST:
         exit_code = _edit_list_cmd(list_name, namespace.color, config)
     elif item_action is not None:
-        return _run_item_action(
-            item_action, list_name, namespace, config, add_priorities, add_tags
-        )
+        return _run_item_action(item_action, list_name, namespace, config)
     elif not target_given and namespace.all:
         return _all_cmd()
     else:
@@ -780,41 +665,24 @@ def _dispatch(
     if exit_code != 0 or item_action is None:
         return exit_code
 
-    return _run_item_action(
-        item_action, list_name, namespace, config, add_priorities, add_tags
-    )
+    return _run_item_action(item_action, list_name, namespace, config)
 
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
 
     parser = _build_parser()
-    flag_tokens = frozenset(parser._option_string_actions)
-    processed_argv, add_priorities, add_tags = _split_add_modifiers(
-        raw_argv, flag_tokens
-    )
-
     try:
-        namespace = parser.parse_args(processed_argv)
+        namespace = parser.parse_args(raw_argv)
         list_op = _resolve_list_op(namespace)
         item_action = _resolve_item_action(namespace)
         _validate_flags(namespace, list_op, item_action, parser)
-
-        if item_action == ItemAction.ADD and (
-            namespace.priority or namespace.tags
-        ):
-            parser.error(
-                "-p/--priority and -t/--tag must immediately follow the "
-                "-a they modify."
-            )
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 1
 
     config = load_config(resolve_storage_dir())
 
-    return _dispatch(
-        namespace, config, list_op, item_action, add_priorities, add_tags
-    )
+    return _dispatch(namespace, config, list_op, item_action)
 
 
 if __name__ == "__main__":
