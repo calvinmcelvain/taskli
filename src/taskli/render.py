@@ -13,6 +13,7 @@ __all__ = [
     "render_list_names",
     "render_config",
     "render_error",
+    "render_warning",
 ]
 
 _console = Console()
@@ -212,5 +213,19 @@ def render_error(message: str) -> None:
     """
 
     _err_console.print(f"[bold red]error:[/bold red] {message}")
+
+    return None
+
+
+def render_warning(message: str) -> None:
+    """Print a non-fatal warning message in yellow.
+
+    Parameters
+    ----------
+    message : str
+        The warning text.
+    """
+
+    _console.print(f"[bold yellow]warning:[/bold yellow] {message}")
 
     return None

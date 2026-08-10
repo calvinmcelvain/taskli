@@ -77,7 +77,8 @@ jobs:
           source .venv/bin/activate
 
           pip install dist/*.whl
-          task --help
+          tk --help
+          taskli --help
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
