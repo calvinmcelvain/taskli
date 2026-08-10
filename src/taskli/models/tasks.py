@@ -279,13 +279,20 @@ class TaskliList(BaseModel):
 
         return item
 
-    def filtered_items(self, *, tag: str | None = None) -> list[TaskliItem]:
-        """Return items, optionally filtered by tag (case-insensitive).
+    def filtered_items(
+        self,
+        *,
+        tag: str | None = None,
+        priority: Priority | None = None,
+    ) -> list[TaskliItem]:
+        """Return items, optionally filtered by tag and/or priority.
 
         Parameters
         ----------
         tag : str | None, optional
-            Tag to filter by, by default no filtering.
+            Tag to filter by (case-insensitive), by default no filtering.
+        priority : Priority | None, optional
+            Priority to filter by, by default no filtering.
 
         Returns
         -------
@@ -293,13 +300,36 @@ class TaskliList(BaseModel):
             The matching items.
         """
 
-        if tag is None:
-            return list(self.items)
+        items = list(self.items)
+        if tag is not None:
+            needle = tag.lower()
+            items = [
+                item
+                for item in items
+                if needle in (t.lower() for t in item.tags)
+            ]
+        if priority is not None:
+            items = [item for item in items if item.priority == priority]
 
-        needle = tag.lower()
+        return items
 
-        return [
-            item
-            for item in self.items
-            if needle in (t.lower() for t in item.tags)
-        ]
+    def add_tags(self, item_id: int, tags: list[str]) -> TaskliItem:
+        """Append new tags to an item's existing tags, deduplicated.
+
+        Parameters
+        ----------
+        item_id : int
+            The item's id.
+        tags : list[str]
+            Tags to add, in addition to any the item already has.
+
+        Returns
+        -------
+        TaskliItem
+            The updated item.
+        """
+
+        item = self.get_item(item_id)
+        item.tags = item.tags + [t for t in tags if t not in item.tags]
+
+        return item
