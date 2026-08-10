@@ -29,7 +29,8 @@ Homepage = "https://github.com/calvinmcelvain/taskli"
 Repository = "https://github.com/calvinmcelvain/taskli"
 
 [project.scripts]
-task = "taskli.cli:main"
+taskli = "taskli.cli:main"
+tk = "taskli.cli:main"
 
 [project.optional-dependencies]
 dev = [
