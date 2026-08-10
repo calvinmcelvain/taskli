@@ -7,7 +7,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 
-from .exceptions import TaskliError
+from .exceptions import ItemNotFoundError, TaskliError
 from .models import Color, Config, Priority, TaskliList
 from .render import (
     render_config,
@@ -15,6 +15,7 @@ from .render import (
     render_items,
     render_list_names,
     render_list_tree,
+    render_warning,
 )
 from .storage import (
     create_list,
@@ -31,24 +32,6 @@ from .storage import (
 )
 
 
-class ListOp(StrEnum):
-    NEW_LIST = "new_list"
-    RM_LIST = "rm_list"
-    EDIT_LIST = "edit_list"
-    CONFIG = "config"
-    LISTS = "lists"
-
-
-class ItemAction(StrEnum):
-    ADD = "add"
-    DONE = "done"
-    UNDONE = "undone"
-    RM = "rm"
-    EDIT = "edit"
-    TAGS = "tags"
-    PRUNE = "prune"
-
-
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     @functools.wraps(func)
     def wrapper(*args: object, **kwargs: object) -> int:
@@ -60,226 +43,6 @@ def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
             return 1
 
     return wrapper
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="task",
-        description=(
-            "Manage task lists. LIST defaults to 'inbox' when omitted."
-        ),
-        epilog='Example: task groceries --new-list -c teal -a "buy milk"',
-    )
-    parser.add_argument(
-        "target",
-        nargs="?",
-        default=None,
-        metavar="LIST",
-        help="Name of the list to act on (default: configured default_list).",
-    )
-
-    list_mgmt = parser.add_argument_group("list management")
-    ops = list_mgmt.add_mutually_exclusive_group()
-    ops.add_argument(
-        "--new-list",
-        dest="new_list",
-        action="store_true",
-        help="Create LIST as a new, empty list.",
-    )
-    ops.add_argument(
-        "--rm-list",
-        dest="rm_list",
-        action="store_true",
-        help="Delete LIST and all its items.",
-    )
-    ops.add_argument(
-        "--edit-list",
-        dest="edit_list",
-        action="store_true",
-        help="Change LIST's color (requires -c/--color).",
-    )
-    ops.add_argument(
-        "--config",
-        dest="config",
-        nargs="*",
-        default=None,
-        metavar=("KEY", "VALUE"),
-        help="View or edit config settings. Omit KEY/VALUE to view all.",
-    )
-    ops.add_argument(
-        "--lists",
-        dest="lists",
-        action="store_true",
-        help="Show every list name, nested as a tree.",
-    )
-
-    item_actions = parser.add_argument_group("item actions")
-    actions = item_actions.add_mutually_exclusive_group()
-    actions.add_argument(
-        "-a",
-        "--add",
-        dest="add",
-        nargs="+",
-        action="append",
-        metavar="TEXT",
-        help="Add an item to LIST. Repeatable for multiple items.",
-    )
-    actions.add_argument(
-        "-d",
-        "--done",
-        dest="done",
-        type=int,
-        metavar="ID",
-        help="Mark an item as done.",
-    )
-    actions.add_argument(
-        "-u",
-        "--undone",
-        dest="undone",
-        type=int,
-        metavar="ID",
-        help="Mark an item as not done.",
-    )
-    actions.add_argument(
-        "-r",
-        "--rm",
-        dest="rm",
-        type=int,
-        metavar="ID",
-        help="Remove an item from LIST.",
-    )
-    actions.add_argument(
-        "-e",
-        "--edit",
-        dest="edit",
-        type=int,
-        metavar="ID",
-        help="Edit an item's text, priority, or tags.",
-    )
-    actions.add_argument(
-        "--tags",
-        dest="tags_action",
-        action="store_true",
-        help="Show all distinct tags used in LIST.",
-    )
-    actions.add_argument(
-        "--prune",
-        dest="prune",
-        action="store_true",
-        help="Remove all done items from LIST.",
-    )
-
-    modifiers = parser.add_argument_group("modifiers")
-    modifiers.add_argument(
-        "-c",
-        "--color",
-        choices=[c.name.lower() for c in Color],
-        default=None,
-        help="List color for --new-list/--edit-list.",
-    )
-    modifiers.add_argument(
-        "-p",
-        "--priority",
-        choices=[p.value for p in Priority],
-        default=None,
-        help="Item priority for -a/-e (default: medium on add).",
-    )
-    modifiers.add_argument(
-        "-t",
-        "--tag",
-        dest="tags",
-        action="append",
-        default=[],
-        metavar="TAG",
-        help="Tag to set on -a/-e. Repeatable.",
-    )
-    modifiers.add_argument(
-        "-f",
-        "--filter-tag",
-        dest="filter_tag",
-        default=None,
-        metavar="TAG",
-        help="Only show items with this tag (default view only).",
-    )
-    modifiers.add_argument(
-        "--all",
-        dest="all",
-        action="store_true",
-        help=(
-            "Include descendant lists in the default view. Without LIST, "
-            "shows every list's items."
-        ),
-    )
-    modifiers.add_argument(
-        "--text",
-        dest="text",
-        default=None,
-        help="Replace an item's text (-e only).",
-    )
-
-    return parser
-
-
-def _resolve_list_op(namespace: argparse.Namespace) -> ListOp | None:
-    if namespace.new_list:
-        return ListOp.NEW_LIST
-    if namespace.rm_list:
-        return ListOp.RM_LIST
-    if namespace.edit_list:
-        return ListOp.EDIT_LIST
-    if namespace.config is not None:
-        return ListOp.CONFIG
-    if namespace.lists:
-        return ListOp.LISTS
-
-    return None
-
-
-def _resolve_item_action(namespace: argparse.Namespace) -> ItemAction | None:
-    if namespace.add is not None:
-        return ItemAction.ADD
-    if namespace.done is not None:
-        return ItemAction.DONE
-    if namespace.undone is not None:
-        return ItemAction.UNDONE
-    if namespace.rm is not None:
-        return ItemAction.RM
-    if namespace.edit is not None:
-        return ItemAction.EDIT
-    if namespace.tags_action:
-        return ItemAction.TAGS
-    if namespace.prune:
-        return ItemAction.PRUNE
-
-    return None
-
-
-def _validate_flags(
-    namespace: argparse.Namespace,
-    list_op: ListOp | None,
-    item_action: ItemAction | None,
-    parser: argparse.ArgumentParser,
-) -> None:
-    if list_op in {ListOp.CONFIG, ListOp.LISTS} and item_action:
-        parser.error("item action flags are not valid with --config/--lists.")
-    if namespace.all and any((item_action, list_op)):
-        parser.error("--all is only valid with the default view.")
-    if namespace.config and len(namespace.config) > 2:
-        parser.error("--config takes at most KEY and VALUE.")
-    if namespace.color and list_op not in {ListOp.NEW_LIST, ListOp.EDIT_LIST}:
-        parser.error("-c/--color is only valid with --new-list/--edit-list.")
-    if list_op == ListOp.EDIT_LIST and namespace.color is None:
-        parser.error("--edit-list requires -c/--color.")
-
-    add_or_edit = item_action in {ItemAction.ADD, ItemAction.EDIT}
-    if namespace.tags and not add_or_edit:
-        parser.error("-t/--tag is only valid with -a/--add or -e/--edit.")
-    if namespace.priority and not add_or_edit:
-        parser.error("-p/--priority is only valid with -a/--add or -e/--edit.")
-    if namespace.filter_tag and any((item_action, list_op)):
-        parser.error("-f/--filter-tag is only valid with the default view.")
-    if namespace.text and item_action != ItemAction.EDIT:
-        parser.error("--text is only valid with -e/--edit.")
 
 
 def _confirm(prompt: str) -> bool:
@@ -294,6 +57,402 @@ def _print_list(task_list: TaskliList, config: Config) -> None:
         task_list.items,
         task_list.color,
     )
+
+    return None
+
+
+class ListCommands(StrEnum):
+    VIEW = "view"
+    NEW = "new"
+    DELETE = "delete"
+    COLOR = "color"
+    LISTS = "lists"
+    PRUNE = "prune"
+
+
+class ConfigCommands(StrEnum):
+    CONFIG = "config"
+
+
+class ItemActionCommands(StrEnum):
+    ADD = "add"
+    REMOVE = "remove"
+    DONE = "done"
+    UNDONE = "undone"
+    EDIT = "edit"
+
+
+class ModifierCommands(StrEnum):
+    ALL = "all"
+    PRIORITY = "priority"
+    TAG = "tags"
+    ADD_TAG = "add_tag"
+    TEXT = "text"
+
+
+type CommandOptions = ListCommands | ItemActionCommands | ConfigCommands
+
+
+def _register_list_args(parser: argparse.ArgumentParser) -> None:
+    list_group = parser.add_argument_group(
+        "List management",
+        "Add, remove, view, prune, or change the color for the given LIST.",
+    )
+
+    ops = list_group.add_mutually_exclusive_group()
+    ops.add_argument(
+        "-n",
+        "--new",
+        dest="new",
+        action="store_true",
+        help="Create LIST as a new, empty list.",
+    )
+    ops.add_argument(
+        "--delete",
+        dest="delete",
+        action="store_true",
+        help="Delete LIST and all its items.",
+    )
+    ops.add_argument(
+        "-l",
+        "--lists",
+        dest="lists",
+        action="store_true",
+        help="Show every list name, nested as a tree.",
+    )
+    ops.add_argument(
+        "--prune",
+        dest="prune",
+        action="store_true",
+        help=(
+            "Remove all done items from LIST. Combine with --all to prune"
+            " all lists."
+        ),
+    )
+
+    return None
+
+
+def _register_config_args(parser: argparse.ArgumentParser) -> None:
+    config_group = parser.add_argument_group(
+        "Configuration management", "View or edit Taskli configs."
+    )
+
+    ops = config_group.add_mutually_exclusive_group()
+    ops.add_argument(
+        "--config",
+        dest="config",
+        nargs="*",
+        default=None,
+        metavar=("KEY", "VALUE"),
+        help="View or edit config settings. Omit KEY/VALUE to view all.",
+    )
+
+    return None
+
+
+def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
+    actions_group = parser.add_argument_group(
+        "Item actions",
+        "Add, remove, edit, or mark item(s) done/undone for the current LIST.",
+    )
+
+    ops = actions_group.add_mutually_exclusive_group()
+    ops.add_argument(
+        "-a",
+        "--add",
+        dest="add",
+        nargs="+",
+        action="append",
+        metavar="TEXT",
+        help="Add an item to LIST. Repeatable for multiple items.",
+    )
+    ops.add_argument(
+        "-rm",
+        "--remove",
+        dest="remove",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Remove an item, or items, from LIST.",
+    )
+    ops.add_argument(
+        "-d",
+        "--done",
+        dest="done",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Mark an item, or items, as done.",
+    )
+    ops.add_argument(
+        "-u",
+        "--undone",
+        dest="undone",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Mark an item, or items, as not done.",
+    )
+    ops.add_argument(
+        "-e",
+        "--edit",
+        dest="edit",
+        type=int,
+        nargs=1,
+        metavar="ID",
+        help="Edit an item's text, priority, or tags.",
+    )
+
+    return None
+
+
+def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
+    modifiers = parser.add_argument_group(
+        "Modifiers", "Add to list or item action args to change behavior."
+    )
+
+    modifiers.add_argument(
+        "-p",
+        "--priority",
+        choices=[p.value for p in Priority],
+        nargs="?",
+        default=None,
+        help=(
+            "Set or filter item's priority. Used to set priority for -a/-e."
+            " Used to filter for viewing items."
+        ),
+    )
+    modifiers.add_argument(
+        "--tag",
+        dest="tag",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help=(
+            "Set of filter item's tag. Used to add/replace tags for -a/-e."
+            " Use to filter for viewing items. NOTE: If you want to add a tag"
+            " and not REPLACE a tag, use --add-tag instead."
+        ),
+    )
+    modifiers.add_argument(
+        "--add-tag",
+        dest="add_tag",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help=(
+            "Used to add a tag to an existing set of tags for an item. Can"
+            " only be used for -e statements."
+        ),
+    )
+    modifiers.add_argument(
+        "--all",
+        dest="all",
+        action="store_true",
+        help=(
+            "Used to prune or view across multiple lists. See documentation"
+            " for examples."
+        ),
+    )
+    modifiers.add_argument(
+        "-t",
+        "--text",
+        dest="text",
+        type=str,
+        default=None,
+        help="Replace an item's text. Can use for -e statements only.",
+    )
+    modifiers.add_argument(
+        "--color",
+        dest="color",
+        choices=[c.name.lower() for c in Color],
+        nargs="?",
+        default=None,
+        help="Add/Change color of LIST.",
+    )
+
+
+def _compose_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="taskli[tk]",
+        description=(
+            "Manage Taskli lists/items. LIST defaults to 'inbox' when omitted."
+        ),
+        epilog="Example: tk groceries --new --color teal",
+    )
+    parser.add_argument(
+        "list",
+        nargs="?",
+        default=None,
+        metavar="LIST",
+        help="Name of the list to act on (default: configured default_list).",
+    )
+
+    # register commands/arg groups.
+    _register_list_args(parser)
+    _register_item_action_args(parser)
+    _register_modifier_args(parser)
+    _register_config_args(parser)
+
+    return parser
+
+
+def _resolve_list_op(namespace: argparse.Namespace) -> ListCommands | None:
+    if namespace.new:
+        return ListCommands.NEW
+    if namespace.delete:
+        return ListCommands.DELETE
+    if namespace.lists:
+        return ListCommands.LISTS
+    if namespace.prune:
+        return ListCommands.PRUNE
+    # bare --color with no other list flag means "recolor this list."
+    if namespace.color:
+        return ListCommands.COLOR
+
+    return None
+
+
+def _resolve_item_action_op(
+    namespace: argparse.Namespace,
+) -> ItemActionCommands | None:
+    if namespace.add:
+        return ItemActionCommands.ADD
+    if namespace.remove:
+        return ItemActionCommands.REMOVE
+    if namespace.done:
+        return ItemActionCommands.DONE
+    if namespace.undone:
+        return ItemActionCommands.UNDONE
+    if namespace.edit:
+        return ItemActionCommands.EDIT
+
+    return None
+
+
+def _resolve_config_op(
+    namespace: argparse.Namespace,
+) -> ConfigCommands | None:
+    if namespace.config is not None:
+        return ConfigCommands.CONFIG
+
+    return None
+
+
+def _resolve_op(namespace: argparse.Namespace) -> CommandOptions:
+    defined = [
+        (label, op)
+        for label, op in (
+            ("list management", _resolve_list_op(namespace)),
+            ("item action", _resolve_item_action_op(namespace)),
+            ("config", _resolve_config_op(namespace)),
+        )
+        if op is not None
+    ]
+
+    # only allow one option. take first & warn.
+    if len(defined) > 1:
+        winner_label, winner_op = defined[0]
+        ignored = ", ".join(label for label, _ in defined[1:])
+        render_warning(
+            f"multiple option groups given; using {winner_label} "
+            f"('{winner_op.value}'), ignoring {ignored}."
+        )
+
+    if defined:
+        return defined[0][1]
+
+    # if no option (w/ exception of modifiers), default is view.
+    return ListCommands.VIEW
+
+
+def _validate(
+    op: ListCommands | ItemActionCommands | ConfigCommands,
+    namespace: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+) -> None:
+    match op:
+        case ListCommands.DELETE | ListCommands.LISTS:
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.all
+                or namespace.color
+            ):
+                parser.error(f"no modifiers are valid with --{op.value}.")
+        case ListCommands.NEW | ListCommands.COLOR:
+            # --color is the only modifier that means anything for either:
+            # the initial color on creation, or the new color on recolor.
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.all
+            ):
+                parser.error(
+                    "only --color is valid with --new/when recoloring an"
+                    " existing list."
+                )
+        case ListCommands.PRUNE:
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.color
+            ):
+                parser.error("only --all is valid with --prune.")
+        case ItemActionCommands.ADD:
+            if namespace.add_tag or namespace.text or namespace.all:
+                parser.error(
+                    "--add-tag/--text/--all are not valid with -a/--add."
+                )
+        case ItemActionCommands.EDIT:
+            if namespace.tag and namespace.add_tag:
+                parser.error(
+                    "--tag and --add-tag cannot both be given; --tag"
+                    " replaces, --add-tag appends."
+                )
+            if namespace.all:
+                parser.error("--all is not valid with -e/--edit.")
+        case (
+            ItemActionCommands.REMOVE
+            | ItemActionCommands.DONE
+            | ItemActionCommands.UNDONE
+        ):
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.all
+                or namespace.color
+            ):
+                parser.error(f"no modifiers are valid with --{op.value}.")
+        case ConfigCommands.CONFIG:
+            if namespace.config and len(namespace.config) > 2:
+                parser.error("--config takes at most KEY and VALUE.")
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.all
+                or namespace.color
+            ):
+                parser.error("no modifiers are valid with --config.")
+        case ListCommands.VIEW:
+            if namespace.add_tag or namespace.text or namespace.color:
+                parser.error(
+                    "--add-tag/--text/--color are not valid with the"
+                    " default view."
+                )
+
+    return None
 
 
 def _mutate_cmd(
@@ -329,9 +488,7 @@ def _lists_cmd() -> int:
 @_handle_errors
 def _new_list_cmd(name: str, color: str | None, config: Config) -> int:
     storage_dir = resolve_storage_dir()
-    resolved_color = (
-        Color[color.upper()] if color is not None else config.default_color
-    )
+    resolved_color = Color[color.upper()] if color else config.default_color
 
     task_list = create_list(storage_dir, name, color=resolved_color)
 
@@ -343,7 +500,7 @@ def _new_list_cmd(name: str, color: str | None, config: Config) -> int:
 
 
 @_handle_errors
-def _edit_list_cmd(name: str, color: str, config: Config) -> int:
+def _color_cmd(name: str, color: str, config: Config) -> int:
     def mutate(task_list: TaskliList) -> str:
         task_list.set_color(Color[color.upper()])
         display_name = task_list.display_name(config.sublist_delimiter)
@@ -351,32 +508,6 @@ def _edit_list_cmd(name: str, color: str, config: Config) -> int:
         return f"updated color of '{display_name}' to '{color}'."
 
     return _mutate_cmd(name, config, mutate)
-
-
-@_handle_errors
-def _config_cmd(key: str | None, value: str | None) -> int:
-    storage_dir = resolve_storage_dir()
-    config = load_config(storage_dir)
-
-    if key is None:
-        render_config(config)
-
-        return 0
-
-    if value is None:
-        print(config.get_value(key))
-
-        return 0
-
-    config.set_value(key, value)
-    save_config(storage_dir, config)
-
-    if key == "default_sort":
-        resort_all_lists(storage_dir, config.default_sort)
-
-    print(f"set '{key}' to '{value}'.")
-
-    return 0
 
 
 @_handle_errors
@@ -417,6 +548,32 @@ def _rm_list_cmd(name: str, config: Config) -> int:
 
 
 @_handle_errors
+def _config_cmd(key: str | None, value: str | None) -> int:
+    storage_dir = resolve_storage_dir()
+    config = load_config(storage_dir)
+
+    if key is None:
+        render_config(config)
+
+        return 0
+
+    if value is None:
+        print(config.get_value(key))
+
+        return 0
+
+    config.set_value(key, value)
+    save_config(storage_dir, config)
+
+    if key == "default_sort":
+        resort_all_lists(storage_dir, config.default_sort)
+
+    print(f"set '{key}' to '{value}'.")
+
+    return 0
+
+
+@_handle_errors
 def _add_cmd(
     list_name: str,
     texts: list[str],
@@ -450,6 +607,7 @@ def _grouped_lists(
     list_name: str,
     all_names: list[str],
     tag: str | None,
+    priority: Priority | None,
     config: Config,
 ) -> list[TaskliList]:
     task_list = load_list(storage_dir, list_name)
@@ -460,11 +618,11 @@ def _grouped_lists(
         TaskliList(
             name=list_name,
             color=task_list.color,
-            items=task_list.filtered_items(tag=tag),
+            items=task_list.filtered_items(tag=tag, priority=priority),
         )
     ]
 
-    # filter each descendant list by tag if given to parent.
+    # filter each descendant list by tag/priority if given to parent.
     for descendant_name in descendant_list_names(list_name, all_names):
         descendant_list = load_list(storage_dir, descendant_name)
         if config.auto_prune and descendant_list.prune():
@@ -474,7 +632,9 @@ def _grouped_lists(
             TaskliList(
                 name=descendant_name,
                 color=descendant_list.color,
-                items=descendant_list.filtered_items(tag=tag),
+                items=descendant_list.filtered_items(
+                    tag=tag, priority=priority
+                ),
             )
         )
 
@@ -483,14 +643,20 @@ def _grouped_lists(
 
 @_handle_errors
 def _list_cmd(
-    list_name: str, tag: str | None, include_descendants: bool
+    list_name: str,
+    tag: str | None,
+    priority: str | None,
+    include_descendants: bool,
 ) -> int:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir) if include_descendants else []
+    resolved_priority = Priority(priority) if priority else None
 
     render_list_tree(
-        _grouped_lists(storage_dir, list_name, all_names, tag, config),
+        _grouped_lists(
+            storage_dir, list_name, all_names, tag, resolved_priority, config
+        ),
         config.sublist_delimiter,
     )
 
@@ -498,10 +664,11 @@ def _list_cmd(
 
 
 @_handle_errors
-def _all_cmd() -> int:
+def _all_cmd(tag: str | None, priority: str | None) -> int:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir)
+    resolved_priority = Priority(priority) if priority else None
 
     if not all_names:
         render_list_names([])
@@ -511,7 +678,9 @@ def _all_cmd() -> int:
     roots = [name for name in all_names if "." not in name]
     for root in roots:
         render_list_tree(
-            _grouped_lists(storage_dir, root, all_names, None, config),
+            _grouped_lists(
+                storage_dir, root, all_names, tag, resolved_priority, config
+            ),
             config.sublist_delimiter,
         )
 
@@ -519,47 +688,105 @@ def _all_cmd() -> int:
 
 
 @_handle_errors
-def _done_cmd(list_name: str, item_id: int, config: Config) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        task_list.mark_done(item_id)
-        display_name = task_list.display_name(config.sublist_delimiter)
+def _done_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
 
-        return f"marked #{item_id} done in '{display_name}'."
+    failed = False
+    for item_id in item_ids:
+        try:
+            task_list.mark_done(item_id)
+            print(f"marked #{item_id} done in '{display_name}'.")
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
 
-    return _mutate_cmd(list_name, config, mutate)
+    save_list(storage_dir, task_list)
+    _print_list(task_list, config)
 
-
-@_handle_errors
-def _undone_cmd(list_name: str, item_id: int, config: Config) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        task_list.mark_undone(item_id)
-        display_name = task_list.display_name(config.sublist_delimiter)
-
-        return f"marked #{item_id} not done in '{display_name}'."
-
-    return _mutate_cmd(list_name, config, mutate)
-
-
-@_handle_errors
-def _rm_cmd(list_name: str, item_id: int, config: Config) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        task_list.remove_item(item_id)
-        display_name = task_list.display_name(config.sublist_delimiter)
-
-        return f"removed #{item_id} from '{display_name}'."
-
-    return _mutate_cmd(list_name, config, mutate)
+    return 1 if failed else 0
 
 
 @_handle_errors
-def _prune_cmd(list_name: str, config: Config) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        removed = task_list.prune()
-        display_name = task_list.display_name(config.sublist_delimiter)
+def _undone_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
 
-        return f"pruned {len(removed)} item(s) from '{display_name}'."
+    failed = False
+    for item_id in item_ids:
+        try:
+            task_list.mark_undone(item_id)
+            print(f"marked #{item_id} not done in '{display_name}'.")
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
 
-    return _mutate_cmd(list_name, config, mutate)
+    save_list(storage_dir, task_list)
+    _print_list(task_list, config)
+
+    return 1 if failed else 0
+
+
+@_handle_errors
+def _rm_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
+
+    failed = False
+    # remove_item reindexes on every call, which renumbers ids positioned
+    # after the removed one; working id-descending keeps not-yet-processed
+    # ids stable.
+    for item_id in sorted(item_ids, reverse=True):
+        try:
+            task_list.remove_item(item_id)
+            print(f"removed #{item_id} from '{display_name}'.")
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
+
+    save_list(storage_dir, task_list)
+    _print_list(task_list, config)
+
+    return 1 if failed else 0
+
+
+@_handle_errors
+def _prune_cmd(
+    list_name: str, all: bool, target_given: bool, config: Config
+) -> int:
+    storage_dir = resolve_storage_dir()
+
+    # an explicit LIST scopes --all to LIST + its descendants (a missing
+    # LIST still raises, same as without --all); no LIST (falls back to
+    # default_list) prunes every list instead, same as the default view's
+    # --all fallback.
+    lists: list[TaskliList] = [load_list(storage_dir, list_name)]
+    if all:
+        all_lists = list_all_lists(storage_dir)
+        if target_given:
+            lists.extend(
+                [
+                    load_list(storage_dir, lst)
+                    for lst in descendant_list_names(list_name, all_lists)
+                ]
+            )
+        else:
+            lists.extend([load_list(storage_dir, lst) for lst in all_lists])
+
+    for lst in lists:
+        removed = lst.prune()
+        save_list(storage_dir, lst)
+
+        display_name = lst.display_name(config.sublist_delimiter)
+
+        print(f"pruned {len(removed)} item(s) from '{display_name}'.")
+
+    render_list_tree(lists, config.sublist_delimiter)
+
+    return 0
 
 
 @_handle_errors
@@ -569,6 +796,7 @@ def _edit_cmd(
     text: str | None,
     priority: str | None,
     tags: list[str],
+    add_tag: list[str],
     config: Config,
 ) -> int:
     def mutate(task_list: TaskliList) -> str:
@@ -578,6 +806,9 @@ def _edit_cmd(
             priority=Priority(priority) if priority else None,
             tags=list(tags) if tags else None,
         )
+        if add_tag:
+            task_list.add_tags(item_id, add_tag)
+
         display_name = task_list.display_name(config.sublist_delimiter)
 
         return f"updated #{item_id} in '{display_name}'."
@@ -585,104 +816,96 @@ def _edit_cmd(
     return _mutate_cmd(list_name, config, mutate)
 
 
-@_handle_errors
-def _tags_cmd(list_name: str) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-
-    tags = sorted({t for item in task_list.items for t in item.tags})
-    for tag in tags:
-        print(tag)
-
-    return 0
-
-
 def _run_item_action(
-    action: ItemAction,
+    action: ItemActionCommands,
     list_name: str,
     namespace: argparse.Namespace,
     config: Config,
 ) -> int:
-    if action == ItemAction.ADD:
-        texts = [" ".join(words) for words in namespace.add]
-        priority = namespace.priority or config.default_priority.value
+    match action:
+        case ItemActionCommands.ADD:
+            texts = [" ".join(words) for words in namespace.add]
+            priority = namespace.priority or config.default_priority.value
 
-        return _add_cmd(list_name, texts, namespace.tags, priority, config)
-    if action == ItemAction.DONE:
-        return _done_cmd(list_name, namespace.done, config)
-    if action == ItemAction.UNDONE:
-        return _undone_cmd(list_name, namespace.undone, config)
-    if action == ItemAction.RM:
-        return _rm_cmd(list_name, namespace.rm, config)
-    if action == ItemAction.EDIT:
-        return _edit_cmd(
-            list_name,
-            namespace.edit,
-            namespace.text,
-            namespace.priority,
-            namespace.tags,
-            config,
-        )
-    if action == ItemAction.TAGS:
-        return _tags_cmd(list_name)
+            return _add_cmd(list_name, texts, namespace.tag, priority, config)
+        case ItemActionCommands.DONE:
+            return _done_cmd(list_name, namespace.done, config)
+        case ItemActionCommands.UNDONE:
+            return _undone_cmd(list_name, namespace.undone, config)
+        case ItemActionCommands.REMOVE:
+            return _rm_cmd(list_name, namespace.remove, config)
 
-    return _prune_cmd(list_name, config)
+    # only EDIT is left once the match above didn't return.
+    return _edit_cmd(
+        list_name,
+        namespace.edit[0],
+        namespace.text,
+        namespace.priority,
+        namespace.tag,
+        namespace.add_tag,
+        config,
+    )
 
 
 def _dispatch(
     namespace: argparse.Namespace,
     config: Config,
-    list_op: ListOp | None,
-    item_action: ItemAction | None,
+    op: ListCommands | ItemActionCommands | ConfigCommands,
 ) -> int:
-    if list_op == ListOp.LISTS:
-        return _lists_cmd()
-    if list_op == ListOp.CONFIG:
-        key = namespace.config[0] if namespace.config else None
-        value = namespace.config[1] if len(namespace.config) > 1 else None
-
-        return _config_cmd(key, value)
-
-    target_given = namespace.target is not None
-    if target_given:
-        list_name = namespace.target.replace(config.sublist_delimiter, ".")
+    if namespace.list:
+        list_name = namespace.list.replace(config.sublist_delimiter, ".")
     else:
         list_name = config.default_list.replace(config.sublist_delimiter, ".")
 
-    if list_op == ListOp.NEW_LIST:
-        exit_code = _new_list_cmd(list_name, namespace.color, config)
-    elif list_op == ListOp.RM_LIST:
-        exit_code = _rm_list_cmd(list_name, config)
-    elif list_op == ListOp.EDIT_LIST:
-        exit_code = _edit_list_cmd(list_name, namespace.color, config)
-    elif item_action is not None:
-        return _run_item_action(item_action, list_name, namespace, config)
-    elif not target_given and namespace.all:
-        return _all_cmd()
-    else:
-        return _list_cmd(list_name, namespace.filter_tag, namespace.all)
+    match op:
+        case ListCommands.LISTS:
+            return _lists_cmd()
+        case ConfigCommands.CONFIG:
+            key = namespace.config[0] if namespace.config else None
+            value = namespace.config[1] if len(namespace.config) > 1 else None
 
-    if exit_code != 0 or item_action is None:
-        return exit_code
+            return _config_cmd(key, value)
+        case ListCommands.NEW:
+            return _new_list_cmd(list_name, namespace.color, config)
+        case ListCommands.DELETE:
+            return _rm_list_cmd(list_name, config)
+        case ListCommands.COLOR:
+            return _color_cmd(list_name, namespace.color, config)
+        case ListCommands.PRUNE:
+            return _prune_cmd(
+                list_name, namespace.all, bool(namespace.list), config
+            )
+        case ItemActionCommands():
+            return _run_item_action(op, list_name, namespace, config)
+        case _:
+            # only ListCommands.VIEW reaches here; it's the fallback when
+            # nothing else matched, so it's never named explicitly.
+            tag_filter = namespace.tag[0] if namespace.tag else None
+            if not namespace.list and namespace.all:
+                return _all_cmd(tag_filter, namespace.priority)
 
-    return _run_item_action(item_action, list_name, namespace, config)
+            return _list_cmd(
+                list_name, tag_filter, namespace.priority, namespace.all
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
 
-    parser = _build_parser()
+    parser = _compose_parser()
     try:
         namespace = parser.parse_args(raw_argv)
-        list_op = _resolve_list_op(namespace)
-        item_action = _resolve_item_action(namespace)
-        _validate_flags(namespace, list_op, item_action, parser)
+        op = _resolve_op(namespace)
+        _validate(op, namespace, parser)
+
+    # argparse calls sys.exit for --help and its own parse errors; convert
+    # that into a return code instead of letting it propagate.
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 1
 
     config = load_config(resolve_storage_dir())
 
-    return _dispatch(namespace, config, list_op, item_action)
+    return _dispatch(namespace, config, op)
 
 
 if __name__ == "__main__":
