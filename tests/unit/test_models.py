@@ -219,6 +219,35 @@ class TestTaskliList:
 
         assert len(result) == 2
 
+    def test_filtered_items_by_priority(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("a", priority=Priority.HIGH)
+        todo_list.add_item("b", priority=Priority.LOW)
+
+        result = todo_list.filtered_items(priority=Priority.HIGH)
+
+        assert len(result) == 1
+        assert result[0].text == "a"
+
+    def test_filtered_items_combines_tag_and_priority(self):
+        todo_list = TaskliList(name="work")
+        todo_list.add_item("a", tags=["urgent"], priority=Priority.HIGH)
+        todo_list.add_item("b", tags=["urgent"], priority=Priority.LOW)
+        todo_list.add_item("c", tags=["later"], priority=Priority.HIGH)
+
+        result = todo_list.filtered_items(tag="urgent", priority=Priority.HIGH)
+
+        assert len(result) == 1
+        assert result[0].text == "a"
+
+    def test_add_tags_appends_new_only(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task", tags=["a"])
+
+        todo_list.add_tags(item.id, ["a", "b"])
+
+        assert item.tags == ["a", "b"]
+
     def test_color_defaults(self):
         todo_list = TaskliList(name="work")
 
