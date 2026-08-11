@@ -138,6 +138,13 @@ class TestTaskliList:
         assert item.tags == []
         assert item.done is False
 
+    def test_add_item_defaults_modified_at_to_created_at(self):
+        todo_list = TaskliList(name="work")
+
+        item = todo_list.add_item("task")
+
+        assert item.modified_at == item.created_at
+
     def test_get_item_missing_id_raises(self):
         todo_list = TaskliList(name="work")
 

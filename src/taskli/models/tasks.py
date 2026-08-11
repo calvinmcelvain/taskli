@@ -20,6 +20,7 @@ class TaskliItem(BaseModel):
     priority: Priority = Priority.MEDIUM
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
+    modified_at: datetime | None = None
     completed_at: datetime | None = None
 
 
@@ -123,6 +124,8 @@ class TaskliList(BaseModel):
         *,
         priority: Priority = Priority.MEDIUM,
         tags: list[str] | None = None,
+        created_at: datetime | None = None,
+        modified_at: datetime | None = None,
     ) -> TaskliItem:
         """Create and append a new item, returning it.
 
@@ -134,6 +137,12 @@ class TaskliList(BaseModel):
             Urgency level, by default ``Priority.MEDIUM``.
         tags : list[str] | None, optional
             Tags to attach, by default none.
+        created_at : datetime | None, optional
+            Creation timestamp, by default ``datetime.now()``. Set by
+            ``copy_item`` to preserve the source item's timestamp.
+        modified_at : datetime | None, optional
+            Last-modified timestamp, by default the resolved
+            ``created_at``. Set by ``copy_item`` to the time of copy.
 
         Returns
         -------
@@ -142,12 +151,14 @@ class TaskliList(BaseModel):
         """
 
         idx = len(self.items) + 1
+        resolved_created_at = created_at or datetime.now()
         item = TaskliItem(
             id=idx,
             text=text,
             priority=priority,
             tags=tags or [],
-            created_at=datetime.now(),
+            created_at=resolved_created_at,
+            modified_at=modified_at or resolved_created_at,
         )
         self.items.append(item)
 
