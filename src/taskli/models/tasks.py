@@ -284,12 +284,15 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
+        changed = text is not None or priority is not None or tags is not None
         if text is not None:
             item.text = text
         if priority is not None:
             item.priority = priority
         if tags is not None:
             item.tags = tags
+        if changed:
+            item.modified_at = datetime.now()
 
         return item
 

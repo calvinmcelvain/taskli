@@ -227,6 +227,24 @@ class TestTaskliList:
         assert item.text == "new text"
         assert item.tags == ["a"]
 
+    def test_edit_item_updates_modified_at_when_changed(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.edit_item(item.id, text="new text")
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_edit_item_leaves_modified_at_when_nothing_changes(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.edit_item(item.id)
+
+        assert item.modified_at == datetime(2020, 1, 1)
+
     def test_filtered_items_by_tag_case_insensitive(self):
         todo_list = TaskliList(name="work")
         todo_list.add_item("a", tags=["Urgent"])
