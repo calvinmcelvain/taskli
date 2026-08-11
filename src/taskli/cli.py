@@ -516,7 +516,7 @@ def _mutate_cmd(
 
 
 @_handle_errors
-def _lists_cmd() -> int:
+def _lists_cmd(config: Config) -> int:
     storage_dir = resolve_storage_dir()
 
     entries: list[tuple[str, Color | None]] = []
@@ -526,7 +526,8 @@ def _lists_cmd() -> int:
         except TaskliError:
             entries.append((name, None))
 
-    render_list_names(entries)
+    default_name = config.default_list.replace(config.sublist_delimiter, ".")
+    render_list_names(entries, default_name)
 
     return 0
 
@@ -987,7 +988,7 @@ def _dispatch(
 
     match op:
         case ListCommands.LISTS:
-            return _lists_cmd()
+            return _lists_cmd(config)
         case ConfigCommands.CONFIG:
             key = namespace.config[0] if namespace.config else None
             value = namespace.config[1] if len(namespace.config) > 1 else None
