@@ -460,6 +460,11 @@ copied #1 from 'work' to 'errands'.
 Both share the same partial-success batch semantics as `-d`/`-u`/`-rm` —
 see [Routing grammar](#routing-grammar).
 
+A copied or moved item keeps its original creation time rather than
+getting a fresh one, so under `default_sort=created_at` it sorts into the
+target list by that original time instead of always landing last. If the
+target already has newer items, this can shift their `ID`s.
+
 ## Sublists
 
 Any list name can be nested under another by joining names with a `.`,
