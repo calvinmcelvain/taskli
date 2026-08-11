@@ -339,6 +339,19 @@ class TestTaskliList:
         assert copied.created_at == datetime(2020, 1, 1)
         assert copied.modified_at != datetime(2020, 1, 1)
 
+    def test_copy_item_interleaves_target_by_created_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        old_item = source.add_item("old task")
+        old_item.created_at = datetime(2020, 1, 1)
+        existing = target.add_item("existing task")
+
+        source.copy_item(old_item.id, target)
+        target.resort("created_at")
+
+        assert target.get_item(1).text == "old task"
+        assert target.get_item(2).text == existing.text
+
     def test_copy_item_missing_id_raises(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
