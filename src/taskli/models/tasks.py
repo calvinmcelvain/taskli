@@ -355,6 +355,9 @@ class TaskliList(BaseModel):
     def copy_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
         """Copy an item into another list as a fresh, undone item.
 
+        The copy keeps the source item's ``created_at``; only
+        ``modified_at`` is stamped with the time of copy.
+
         Parameters
         ----------
         item_id : int
@@ -371,7 +374,11 @@ class TaskliList(BaseModel):
         item = self.get_item(item_id)
 
         return target.add_item(
-            item.text, priority=item.priority, tags=list(item.tags)
+            item.text,
+            priority=item.priority,
+            tags=list(item.tags),
+            created_at=item.created_at,
+            modified_at=datetime.now(),
         )
 
     def move_item(self, item_id: int, target: "TaskliList") -> TaskliItem:

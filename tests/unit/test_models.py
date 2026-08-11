@@ -327,6 +327,18 @@ class TestTaskliList:
         assert copied.done is False
         assert copied.completed_at is None
 
+    def test_copy_item_preserves_created_at_and_bumps_modified_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+        item.created_at = datetime(2020, 1, 1)
+        item.modified_at = datetime(2020, 1, 1)
+
+        copied = source.copy_item(item.id, target)
+
+        assert copied.created_at == datetime(2020, 1, 1)
+        assert copied.modified_at != datetime(2020, 1, 1)
+
     def test_copy_item_missing_id_raises(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
@@ -357,6 +369,18 @@ class TestTaskliList:
 
         assert [item.id for item in source.items] == [1]
         assert second.id == 1
+
+    def test_move_item_preserves_created_at_and_bumps_modified_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+        item.created_at = datetime(2020, 1, 1)
+        item.modified_at = datetime(2020, 1, 1)
+
+        moved = source.move_item(item.id, target)
+
+        assert moved.created_at == datetime(2020, 1, 1)
+        assert moved.modified_at != datetime(2020, 1, 1)
 
     def test_move_item_missing_id_raises(self):
         source = TaskliList(name="work")
