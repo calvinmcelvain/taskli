@@ -293,6 +293,15 @@ class TestTaskliList:
 
         assert item.tags == ["a", "b"]
 
+    def test_add_tags_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task", tags=["a"])
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.add_tags(item.id, ["b"])
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
     def test_copy_item_adds_to_target_with_new_id(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")

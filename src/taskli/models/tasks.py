@@ -348,6 +348,7 @@ class TaskliList(BaseModel):
 
         item = self.get_item(item_id)
         item.tags = item.tags + [t for t in tags if t not in item.tags]
+        item.modified_at = datetime.now()
 
         return item
 
