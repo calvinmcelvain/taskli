@@ -333,3 +333,46 @@ class TaskliList(BaseModel):
         item.tags = item.tags + [t for t in tags if t not in item.tags]
 
         return item
+
+    def copy_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
+        """Copy an item into another list as a fresh, undone item.
+
+        Parameters
+        ----------
+        item_id : int
+            The item's id in ``self``.
+        target : TaskliList
+            The list to copy the item into.
+
+        Returns
+        -------
+        TaskliItem
+            The newly created item in ``target``.
+        """
+
+        item = self.get_item(item_id)
+
+        return target.add_item(
+            item.text, priority=item.priority, tags=list(item.tags)
+        )
+
+    def move_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
+        """Move an item into another list, removing it from ``self``.
+
+        Parameters
+        ----------
+        item_id : int
+            The item's id in ``self``.
+        target : TaskliList
+            The list to move the item into.
+
+        Returns
+        -------
+        TaskliItem
+            The newly created item in ``target``.
+        """
+
+        moved = self.copy_item(item_id, target)
+        self.remove_item(item_id)
+
+        return moved
