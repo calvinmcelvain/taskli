@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import get_args
 
 import pytest
@@ -169,6 +170,25 @@ class TestTaskliList:
 
         assert item.done is False
         assert item.completed_at is None
+
+    def test_mark_done_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.mark_done(item.id)
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_mark_undone_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        todo_list.mark_done(item.id)
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.mark_undone(item.id)
+
+        assert item.modified_at != datetime(2020, 1, 1)
 
     def test_remove_item(self):
         todo_list = TaskliList(name="work")

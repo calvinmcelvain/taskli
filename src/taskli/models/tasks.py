@@ -200,8 +200,10 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
+        now = datetime.now()
         item.done = True
-        item.completed_at = datetime.now()
+        item.completed_at = now
+        item.modified_at = now
 
         return item
 
@@ -222,6 +224,7 @@ class TaskliList(BaseModel):
         item = self.get_item(item_id)
         item.done = False
         item.completed_at = None
+        item.modified_at = datetime.now()
 
         return item
 
