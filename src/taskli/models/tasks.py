@@ -20,6 +20,7 @@ class TaskliItem(BaseModel):
     priority: Priority = Priority.MEDIUM
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
+    modified_at: datetime | None = None
     completed_at: datetime | None = None
 
 
@@ -96,6 +97,15 @@ class TaskliList(BaseModel):
 
         return None
 
+    def backfill_modified_at(self) -> None:
+        """Default any item's missing ``modified_at`` to its ``created_at``."""
+
+        for item in self.items:
+            if item.modified_at is None:
+                item.modified_at = item.created_at
+
+        return None
+
     def sort_by_index(self) -> None:
         """Reorder ``items`` ascending by their current ``id``."""
 
@@ -123,6 +133,8 @@ class TaskliList(BaseModel):
         *,
         priority: Priority = Priority.MEDIUM,
         tags: list[str] | None = None,
+        created_at: datetime | None = None,
+        modified_at: datetime | None = None,
     ) -> TaskliItem:
         """Create and append a new item, returning it.
 
@@ -134,6 +146,12 @@ class TaskliList(BaseModel):
             Urgency level, by default ``Priority.MEDIUM``.
         tags : list[str] | None, optional
             Tags to attach, by default none.
+        created_at : datetime | None, optional
+            Creation timestamp, by default ``datetime.now()``. Set by
+            ``copy_item`` to preserve the source item's timestamp.
+        modified_at : datetime | None, optional
+            Last-modified timestamp, by default the resolved
+            ``created_at``. Set by ``copy_item`` to the time of copy.
 
         Returns
         -------
@@ -142,12 +160,14 @@ class TaskliList(BaseModel):
         """
 
         idx = len(self.items) + 1
+        resolved_created_at = created_at or datetime.now()
         item = TaskliItem(
             id=idx,
             text=text,
             priority=priority,
             tags=tags or [],
-            created_at=datetime.now(),
+            created_at=resolved_created_at,
+            modified_at=modified_at or resolved_created_at,
         )
         self.items.append(item)
 
@@ -189,8 +209,10 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
+        now = datetime.now()
         item.done = True
-        item.completed_at = datetime.now()
+        item.completed_at = now
+        item.modified_at = now
 
         return item
 
@@ -211,6 +233,7 @@ class TaskliList(BaseModel):
         item = self.get_item(item_id)
         item.done = False
         item.completed_at = None
+        item.modified_at = datetime.now()
 
         return item
 
@@ -270,12 +293,15 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
+        changed = text is not None or priority is not None or tags is not None
         if text is not None:
             item.text = text
         if priority is not None:
             item.priority = priority
         if tags is not None:
             item.tags = tags
+        if changed:
+            item.modified_at = datetime.now()
 
         return item
 
@@ -331,11 +357,15 @@ class TaskliList(BaseModel):
 
         item = self.get_item(item_id)
         item.tags = item.tags + [t for t in tags if t not in item.tags]
+        item.modified_at = datetime.now()
 
         return item
 
     def copy_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
         """Copy an item into another list as a fresh, undone item.
+
+        The copy keeps the source item's ``created_at``; only
+        ``modified_at`` is stamped with the time of copy.
 
         Parameters
         ----------
@@ -353,7 +383,11 @@ class TaskliList(BaseModel):
         item = self.get_item(item_id)
 
         return target.add_item(
-            item.text, priority=item.priority, tags=list(item.tags)
+            item.text,
+            priority=item.priority,
+            tags=list(item.tags),
+            created_at=item.created_at,
+            modified_at=datetime.now(),
         )
 
     def move_item(self, item_id: int, target: "TaskliList") -> TaskliItem:

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import get_args
 
 import pytest
@@ -138,6 +139,13 @@ class TestTaskliList:
         assert item.tags == []
         assert item.done is False
 
+    def test_add_item_defaults_modified_at_to_created_at(self):
+        todo_list = TaskliList(name="work")
+
+        item = todo_list.add_item("task")
+
+        assert item.modified_at == item.created_at
+
     def test_get_item_missing_id_raises(self):
         todo_list = TaskliList(name="work")
 
@@ -162,6 +170,25 @@ class TestTaskliList:
 
         assert item.done is False
         assert item.completed_at is None
+
+    def test_mark_done_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.mark_done(item.id)
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_mark_undone_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        todo_list.mark_done(item.id)
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.mark_undone(item.id)
+
+        assert item.modified_at != datetime(2020, 1, 1)
 
     def test_remove_item(self):
         todo_list = TaskliList(name="work")
@@ -199,6 +226,24 @@ class TestTaskliList:
 
         assert item.text == "new text"
         assert item.tags == ["a"]
+
+    def test_edit_item_updates_modified_at_when_changed(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.edit_item(item.id, text="new text")
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_edit_item_leaves_modified_at_when_nothing_changes(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.edit_item(item.id)
+
+        assert item.modified_at == datetime(2020, 1, 1)
 
     def test_filtered_items_by_tag_case_insensitive(self):
         todo_list = TaskliList(name="work")
@@ -248,6 +293,15 @@ class TestTaskliList:
 
         assert item.tags == ["a", "b"]
 
+    def test_add_tags_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task", tags=["a"])
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.add_tags(item.id, ["b"])
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
     def test_copy_item_adds_to_target_with_new_id(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
@@ -272,6 +326,31 @@ class TestTaskliList:
 
         assert copied.done is False
         assert copied.completed_at is None
+
+    def test_copy_item_preserves_created_at_and_bumps_modified_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+        item.created_at = datetime(2020, 1, 1)
+        item.modified_at = datetime(2020, 1, 1)
+
+        copied = source.copy_item(item.id, target)
+
+        assert copied.created_at == datetime(2020, 1, 1)
+        assert copied.modified_at != datetime(2020, 1, 1)
+
+    def test_copy_item_interleaves_target_by_created_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        old_item = source.add_item("old task")
+        old_item.created_at = datetime(2020, 1, 1)
+        existing = target.add_item("existing task")
+
+        source.copy_item(old_item.id, target)
+        target.resort("created_at")
+
+        assert target.get_item(1).text == "old task"
+        assert target.get_item(2).text == existing.text
 
     def test_copy_item_missing_id_raises(self):
         source = TaskliList(name="work")
@@ -303,6 +382,18 @@ class TestTaskliList:
 
         assert [item.id for item in source.items] == [1]
         assert second.id == 1
+
+    def test_move_item_preserves_created_at_and_bumps_modified_at(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+        item.created_at = datetime(2020, 1, 1)
+        item.modified_at = datetime(2020, 1, 1)
+
+        moved = source.move_item(item.id, target)
+
+        assert moved.created_at == datetime(2020, 1, 1)
+        assert moved.modified_at != datetime(2020, 1, 1)
 
     def test_move_item_missing_id_raises(self):
         source = TaskliList(name="work")
@@ -394,3 +485,21 @@ class TestTaskliList:
 
         assert [item.text for item in todo_list.items] == ["high", "low"]
         assert [item.id for item in todo_list.items] == [1, 2]
+
+    def test_backfill_modified_at_defaults_missing_to_created_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = None
+
+        todo_list.backfill_modified_at()
+
+        assert item.modified_at == item.created_at
+
+    def test_backfill_modified_at_leaves_existing_value(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.backfill_modified_at()
+
+        assert item.modified_at == datetime(2020, 1, 1)

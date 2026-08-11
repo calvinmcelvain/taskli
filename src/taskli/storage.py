@@ -381,6 +381,7 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
         ) from e
 
     task_list.reindex()
+    task_list.backfill_modified_at()
 
     return task_list
 
