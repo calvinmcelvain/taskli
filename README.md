@@ -238,8 +238,8 @@ what recolors an existing list.
 
 `tk [LIST] [FLAG] [MODIFIERS]` — `LIST` is an optional positional
 (defaults to `inbox`); every action, including list management, is an
-explicit flag (`-a`, `-d`, `-u`, `-rm`, `-e`, `--prune`, `--new`,
-`--delete`, `--color`, `--config`, `--lists`, `--all`), never a bare
+explicit flag (`-a`, `-d`, `-u`, `-rm`, `-e`, `-mv`, `--copy`, `--prune`,
+`--new`, `--delete`, `--color`, `--config`, `--lists`, `--all`), never a bare
 word — a list can be named anything, including `add` or `config`, with no
 collision risk.
 
@@ -290,6 +290,8 @@ starts empty.
 | `-d, --done ID...` | Mark one or more items done | `tk work -d 1 2` |
 | `-u, --undone ID...` | Mark one or more items not done | `tk work -u 1 2` |
 | `-e, --edit ID` | Change an item's text, priority, or tags | `tk work -e 1 --text "Ship v2.1"` |
+| `-mv, --move TARGET_LIST [ID...]` | Move item(s) from `LIST` to `TARGET_LIST` (creates `TARGET_LIST` if missing) | `tk work -mv groceries 1 2` |
+| `--copy TARGET_LIST [ID...]` | Copy item(s) from `LIST` to `TARGET_LIST`, leaving `LIST` unchanged | `tk work --copy groceries 1 2` |
 | `-rm, --remove ID...` | Remove one or more items | `tk work -rm 1 2` |
 | `--prune` | Remove all done items from `LIST` (or `LIST` + its descendants with `--all`) | `tk work --prune` / `tk work --prune --all` |
 | `-l, --lists` | Show every list, nested as a tree | `tk --lists` |
@@ -306,9 +308,9 @@ list's subtree) and falls back to every list only when `LIST` is
 omitted; every other flag runs against `LIST`, which defaults to
 `inbox`.
 
-A batch of ids (`-d`/`-u`/`-rm`) uses **partial success**: a missing id
-prints its own warning and the rest of the batch still runs, and the
-whole call exits 1 if any id failed —
+A batch of ids (`-d`/`-u`/`-rm`/`-mv`/`--copy`) uses **partial success**: a
+missing id prints its own warning and the rest of the batch still runs,
+and the whole call exits 1 if any id failed —
 
 ```bash
 $ tk work -d 1 99
@@ -439,6 +441,25 @@ work
 └────┴──────┴──────┴──────────┴──────┘
 ```
 
+### `-mv/--move` / `--copy`
+
+Moves or copies one or more items into another list by `ID`, auto-creating
+the target list (and any missing parent, for a nested name) the same way
+`-a/--add` does. Omit every `ID` to act on the whole list. `--copy` leaves
+the source list untouched; `-mv/--move` removes the item(s) from the
+source.
+
+```bash
+$ tk work -mv groceries 1
+moved #1 from 'work' to 'groceries'.
+
+$ tk work --copy errands
+copied #1 from 'work' to 'errands'.
+```
+
+Both share the same partial-success batch semantics as `-d`/`-u`/`-rm` —
+see [Routing grammar](#routing-grammar).
+
 ## Sublists
 
 Any list name can be nested under another by joining names with a `.`,
@@ -473,6 +494,8 @@ given. Omitting an item-action flag defaults to the view action.
 | `-u, --undone ID...` | — | Same batch behavior as `-d`. |
 | `-rm, --remove ID...` | — | Same batch behavior as `-d`. Remaining items are renumbered starting from 1. |
 | `-e, --edit ID` | `-t, --text TEXT` · `-p, --priority {low,medium,high}` · `--tag TAG` (repeatable, replaces) · `--add-tag TAG` (repeatable, appends) | Only the flags you pass are changed. `--tag` and `--add-tag` can't be combined in the same call. |
+| `-mv, --move TARGET_LIST [ID...]` | — | Moves item(s) into `TARGET_LIST`, auto-creating it (and missing ancestors) if needed. Omit `ID` to move every item. Same batch/partial-success behavior as `-d`. |
+| `--copy TARGET_LIST [ID...]` | — | Same as `-mv`, but leaves the source list unchanged. |
 | `--prune` | `--all` | Removes every done item from `LIST`. With `--all`, also prunes every descendant of `LIST`; without a `LIST` (falls back to `default_list`), `--all` prunes every list instead. Reports how many were removed, per list. |
 
 Passing a modifier that doesn't apply to the chosen action (e.g.

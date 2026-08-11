@@ -310,6 +310,182 @@ class TestEdit:
         assert "error:" in captured.err
 
 
+class TestMoveCopy:
+    def test_move_and_copy_are_mutually_exclusive_with_add(
+        self, taskli_env, capsys
+    ):
+        exit_code = main(["work", "-a", "task", "-mv", "groceries"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "not allowed with argument" in captured.err
+
+    def test_move_rejects_non_integer_id(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-mv", "groceries", "x"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "error:" in captured.err
+
+    def test_copy_rejects_non_integer_id(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--copy", "groceries", "x"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "error:" in captured.err
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["work", "-mv", "groceries", "1", "--tag", "urgent"],
+            ["work", "-mv", "groceries", "1", "-p", "high"],
+            ["work", "-mv", "groceries", "1", "--all"],
+            ["work", "--copy", "groceries", "1", "--text", "new"],
+            ["work", "--copy", "groceries", "1", "--add-tag", "urgent"],
+        ],
+        ids=[
+            "move-tag",
+            "move-priority",
+            "move-all",
+            "copy-text",
+            "copy-add-tag",
+        ],
+    )
+    def test_modifier_rejected_for_move_or_copy(
+        self, taskli_env, capsys, argv
+    ):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(argv)
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "error:" in captured.err
+
+    def test_move_creates_target_list_if_missing(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-mv", "groceries", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "moved #1 from 'work' to 'groceries'" in captured.out
+        assert load_list(taskli_env, "work").items == []
+        assert [i.text for i in load_list(taskli_env, "groceries").items] == [
+            "task"
+        ]
+
+    def test_move_resets_done_state_in_target(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        main(["work", "-d", "1"])
+        capsys.readouterr()
+
+        main(["work", "-mv", "groceries", "1"])
+        capsys.readouterr()
+
+        moved = load_list(taskli_env, "groceries").items[0]
+        assert moved.done is False
+        assert moved.completed_at is None
+
+    def test_move_no_ids_moves_every_item(self, taskli_env, capsys):
+        main(["work", "-a", "a"])
+        main(["work", "-a", "b"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-mv", "groceries"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "moved #1" in captured.out
+        assert "moved #2" in captured.out
+        assert load_list(taskli_env, "work").items == []
+        assert len(load_list(taskli_env, "groceries").items) == 2
+
+    def test_move_bad_id_warns_and_continues(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-mv", "groceries", "1", "99"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "moved #1" in captured.out
+        assert "warning:" in captured.out
+        assert "no item with id 99" in captured.out
+        assert load_list(taskli_env, "work").items == []
+
+    def test_move_resorts_target(self, taskli_env, capsys):
+        main(["--config", "default_sort", "priority"])
+        main(["groceries", "--new"])
+        main(["groceries", "-a", "low task", "-p", "low"])
+        main(["work", "-a", "high task", "-p", "high"])
+        capsys.readouterr()
+
+        main(["work", "-mv", "groceries", "1"])
+        capsys.readouterr()
+
+        task_list = load_list(taskli_env, "groceries")
+        assert [item.text for item in task_list.items] == [
+            "high task",
+            "low task",
+        ]
+
+    def test_copy_leaves_source_unchanged(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--copy", "groceries", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "copied #1 from 'work' to 'groceries'" in captured.out
+        assert [i.text for i in load_list(taskli_env, "work").items] == [
+            "task"
+        ]
+        assert [i.text for i in load_list(taskli_env, "groceries").items] == [
+            "task"
+        ]
+
+    def test_copy_no_ids_copies_every_item(self, taskli_env, capsys):
+        main(["work", "-a", "a"])
+        main(["work", "-a", "b"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--copy", "groceries"])
+
+        capsys.readouterr()
+        assert exit_code == 0
+        assert len(load_list(taskli_env, "work").items) == 2
+        assert len(load_list(taskli_env, "groceries").items) == 2
+
+    def test_copy_bad_id_warns_and_continues(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--copy", "groceries", "1", "99"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "copied #1" in captured.out
+        assert "warning:" in captured.out
+        assert "no item with id 99" in captured.out
+
+    def test_move_missing_source_list_raises(self, taskli_env, capsys):
+        exit_code = main(["ghost", "-mv", "groceries", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "does not exist" in captured.err
+
+
 class TestPrune:
     def test_removes_done_items(self, taskli_env, capsys):
         main(["work", "-a", "done task"])

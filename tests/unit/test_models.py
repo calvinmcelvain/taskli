@@ -248,6 +248,69 @@ class TestTaskliList:
 
         assert item.tags == ["a", "b"]
 
+    def test_copy_item_adds_to_target_with_new_id(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task", priority=Priority.HIGH, tags=["a"])
+
+        copied = source.copy_item(item.id, target)
+
+        assert copied.id == 1
+        assert copied.text == "task"
+        assert copied.priority == Priority.HIGH
+        assert copied.tags == ["a"]
+        assert copied in target.items
+        assert item in source.items
+
+    def test_copy_item_resets_done_state(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+        source.mark_done(item.id)
+
+        copied = source.copy_item(item.id, target)
+
+        assert copied.done is False
+        assert copied.completed_at is None
+
+    def test_copy_item_missing_id_raises(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+
+        with pytest.raises(ItemNotFoundError):
+            source.copy_item(1, target)
+
+    def test_move_item_removes_from_source(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task", priority=Priority.LOW, tags=["a"])
+
+        moved = source.move_item(item.id, target)
+
+        assert source.items == []
+        assert moved in target.items
+        assert moved.text == "task"
+        assert moved.priority == Priority.LOW
+        assert moved.tags == ["a"]
+
+    def test_move_item_reindexes_source(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        first = source.add_item("first")
+        second = source.add_item("second")
+
+        source.move_item(first.id, target)
+
+        assert [item.id for item in source.items] == [1]
+        assert second.id == 1
+
+    def test_move_item_missing_id_raises(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+
+        with pytest.raises(ItemNotFoundError):
+            source.move_item(1, target)
+
     def test_color_defaults(self):
         todo_list = TaskliList(name="work")
 

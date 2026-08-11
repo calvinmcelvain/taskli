@@ -80,6 +80,8 @@ class ItemActionCommands(StrEnum):
     DONE = "done"
     UNDONE = "undone"
     EDIT = "edit"
+    MOVE = "move"
+    COPY = "copy"
 
 
 class ModifierCommands(StrEnum):
@@ -202,6 +204,27 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         nargs=1,
         metavar="ID",
         help="Edit an item's text, priority, or tags.",
+    )
+    ops.add_argument(
+        "-mv",
+        "--move",
+        dest="move",
+        nargs="+",
+        metavar=("TARGET_LIST", "ID"),
+        help=(
+            "Move item(s) from LIST to TARGET_LIST. Omit ID to move"
+            " every item in LIST."
+        ),
+    )
+    ops.add_argument(
+        "--copy",
+        dest="copy",
+        nargs="+",
+        metavar=("TARGET_LIST", "ID"),
+        help=(
+            "Copy item(s) from LIST to TARGET_LIST. Omit ID to copy"
+            " every item in LIST."
+        ),
     )
 
     return None
@@ -327,6 +350,10 @@ def _resolve_item_action_op(
         return ItemActionCommands.UNDONE
     if namespace.edit:
         return ItemActionCommands.EDIT
+    if namespace.move:
+        return ItemActionCommands.MOVE
+    if namespace.copy:
+        return ItemActionCommands.COPY
 
     return None
 
@@ -424,6 +451,25 @@ def _validate(
             | ItemActionCommands.DONE
             | ItemActionCommands.UNDONE
         ):
+            if (
+                namespace.priority
+                or namespace.tag
+                or namespace.add_tag
+                or namespace.text
+                or namespace.all
+                or namespace.color
+            ):
+                parser.error(f"no modifiers are valid with --{op.value}.")
+        case ItemActionCommands.MOVE | ItemActionCommands.COPY:
+            ids = (
+                namespace.move
+                if op == ItemActionCommands.MOVE
+                else namespace.copy
+            )[1:]
+            try:
+                [int(i) for i in ids]
+            except ValueError:
+                parser.error("ID must be an integer.")
             if (
                 namespace.priority
                 or namespace.tag
@@ -816,6 +862,74 @@ def _edit_cmd(
     return _mutate_cmd(list_name, config, mutate)
 
 
+@_handle_errors
+def _move_cmd(
+    list_name: str, target_name: str, item_ids: list[int], config: Config
+) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    target_list = load_or_create_list(storage_dir, target_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
+    target_display_name = target_list.display_name(config.sublist_delimiter)
+
+    ids = item_ids or [item.id for item in task_list.items]
+
+    # move_item reindexes the source on every call, renumbering ids
+    # positioned after the one just moved; id-descending order keeps
+    # not-yet-processed ids stable, same reasoning as -rm's batch loop.
+    failed = False
+    for item_id in sorted(ids, reverse=True):
+        try:
+            task_list.move_item(item_id, target_list)
+            print(
+                f"moved #{item_id} from '{display_name}' to "
+                f"'{target_display_name}'."
+            )
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
+
+    target_list.resort(config.default_sort)
+
+    save_list(storage_dir, task_list)
+    save_list(storage_dir, target_list)
+    _print_list(target_list, config)
+
+    return 1 if failed else 0
+
+
+@_handle_errors
+def _copy_cmd(
+    list_name: str, target_name: str, item_ids: list[int], config: Config
+) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    target_list = load_or_create_list(storage_dir, target_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
+    target_display_name = target_list.display_name(config.sublist_delimiter)
+
+    ids = item_ids or [item.id for item in task_list.items]
+
+    failed = False
+    for item_id in ids:
+        try:
+            task_list.copy_item(item_id, target_list)
+            print(
+                f"copied #{item_id} from '{display_name}' to "
+                f"'{target_display_name}'."
+            )
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
+
+    target_list.resort(config.default_sort)
+
+    save_list(storage_dir, target_list)
+    _print_list(target_list, config)
+
+    return 1 if failed else 0
+
+
 def _run_item_action(
     action: ItemActionCommands,
     list_name: str,
@@ -834,6 +948,20 @@ def _run_item_action(
             return _undone_cmd(list_name, namespace.undone, config)
         case ItemActionCommands.REMOVE:
             return _rm_cmd(list_name, namespace.remove, config)
+        case ItemActionCommands.MOVE:
+            target, *ids = namespace.move
+            target_name = target.replace(config.sublist_delimiter, ".")
+
+            return _move_cmd(
+                list_name, target_name, [int(i) for i in ids], config
+            )
+        case ItemActionCommands.COPY:
+            target, *ids = namespace.copy
+            target_name = target.replace(config.sublist_delimiter, ".")
+
+            return _copy_cmd(
+                list_name, target_name, [int(i) for i in ids], config
+            )
 
     # only EDIT is left once the match above didn't return.
     return _edit_cmd(
