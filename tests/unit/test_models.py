@@ -472,3 +472,21 @@ class TestTaskliList:
 
         assert [item.text for item in todo_list.items] == ["high", "low"]
         assert [item.id for item in todo_list.items] == [1, 2]
+
+    def test_backfill_modified_at_defaults_missing_to_created_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = None
+
+        todo_list.backfill_modified_at()
+
+        assert item.modified_at == item.created_at
+
+    def test_backfill_modified_at_leaves_existing_value(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.backfill_modified_at()
+
+        assert item.modified_at == datetime(2020, 1, 1)

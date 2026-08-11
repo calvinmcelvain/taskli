@@ -97,6 +97,15 @@ class TaskliList(BaseModel):
 
         return None
 
+    def backfill_modified_at(self) -> None:
+        """Default any item's missing ``modified_at`` to its ``created_at``."""
+
+        for item in self.items:
+            if item.modified_at is None:
+                item.modified_at = item.created_at
+
+        return None
+
     def sort_by_index(self) -> None:
         """Reorder ``items`` ascending by their current ``id``."""
 

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -272,6 +273,27 @@ class TestLoadList:
         reloaded = load_list(tmp_path, "work")
 
         assert [item.id for item in reloaded.items] == [1, 2]
+
+    def test_backfills_modified_at_missing_from_legacy_file(self, tmp_path):
+        path = tmp_path / "work.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "name": "work",
+                    "items": [
+                        {
+                            "id": 1,
+                            "text": "task",
+                            "created_at": "2020-01-01T00:00:00",
+                        }
+                    ],
+                }
+            )
+        )
+
+        reloaded = load_list(tmp_path, "work")
+
+        assert reloaded.items[0].modified_at == reloaded.items[0].created_at
 
     def test_auto_creates_configured_default_list(self, tmp_path):
         config = load_config(tmp_path)
