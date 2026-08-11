@@ -137,7 +137,10 @@ def render_list_tree(
     return None
 
 
-def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
+def render_list_names(
+    entries: list[tuple[str, Color | None]],
+    default_name: str | None = None,
+) -> None:
     """Print list names as a parent-indented tree.
 
     Parameters
@@ -145,6 +148,9 @@ def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
     entries : list[tuple[str, Color | None]]
         (list_name, color) pairs for all existing lists (flat), in
         any order.
+    default_name : str | None, optional
+        Dot-normalized name of the configured default list, bolded in
+        the tree if present, by default none.
     """
 
     if not entries:
@@ -166,12 +172,14 @@ def render_list_names(entries: list[tuple[str, Color | None]]) -> None:
                 parent = nodes[i]
                 continue
 
+            style = _add_bold if i == default_name else _add_color
+
             if parent is None:
-                node = Tree(_add_color(i, colors.get(i)))
+                node = Tree(style(i, colors.get(i)))
                 roots[i] = node
             else:
                 label = i.rsplit(".", 1)[-1]
-                node = parent.add(_add_color(label, colors.get(i)))
+                node = parent.add(style(label, colors.get(i)))
 
             nodes[i] = node
             parent = node
