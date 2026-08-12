@@ -7,6 +7,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 
+from .__version__ import __version__
 from .exceptions import ItemNotFoundError, TaskliError
 from .models import Color, Config, Priority, TaskliList
 from .render import (
@@ -310,6 +311,16 @@ def _compose_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="LIST",
         help="Name of the list to act on (default: configured default_list).",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"taskli {__version__}",
+    )
+    parser.add_argument(
+        "--path",
+        action="store_true",
+        help="Print the storage directory currently in use and exit.",
     )
 
     # register commands/arg groups.
@@ -1024,6 +1035,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = _compose_parser()
     try:
         namespace = parser.parse_args(raw_argv)
+
+        if namespace.path:
+            print(resolve_storage_dir())
+
+            return 0
+
         op = _resolve_op(namespace)
         _validate(op, namespace, parser)
 
