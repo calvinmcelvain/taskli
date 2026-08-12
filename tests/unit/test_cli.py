@@ -1,5 +1,6 @@
 import pytest
 
+from taskli.__version__ import __version__
 from taskli.cli import main
 from taskli.models import Color, Priority
 from taskli.storage import load_config, load_list
@@ -1157,3 +1158,21 @@ class TestFlagCombinations:
         exit_code = main(["--help"])
 
         assert exit_code == 0
+
+
+class TestVersion:
+    def test_prints_version(self, taskli_env, capsys):
+        exit_code = main(["--version"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert __version__ in captured.out
+
+
+class TestPath:
+    def test_prints_storage_dir(self, taskli_env, capsys, tmp_path):
+        exit_code = main(["--path"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.out.strip() == str(tmp_path)

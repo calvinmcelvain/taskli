@@ -300,13 +300,17 @@ starts empty.
 | `--color` | Recolor an existing LIST (or set the initial color on `--new`) | `tk work --color coral` |
 | `--delete` | Delete LIST and its sublists | `tk groceries --delete` |
 | `--config [KEY] [VALUE]` | View or edit config settings | `tk --config default_priority high` |
+| `--version` | Print the installed taskli version | `tk --version` |
+| `--path` | Print the storage directory currently in use (`$TASKLI_PATH` or `~/.taskli`) | `tk --path` |
 
 There's no explicit view flag — the absence of any item-action flag is
 what shows a list's items. `--lists`/`--config` ignore `LIST` entirely;
 `--all` uses `LIST` when given (scoping the recursive view to that
 list's subtree) and falls back to every list only when `LIST` is
 omitted; every other flag runs against `LIST`, which defaults to
-`inbox`.
+`inbox`. `--version`/`--path` also ignore `LIST` and any other flag
+entirely, printing their info and exiting immediately, the same as
+`--help`.
 
 A batch of ids (`-d`/`-u`/`-rm`/`-mv`/`--copy`) uses **partial success**: a
 missing id prints its own warning and the rest of the batch still runs,
