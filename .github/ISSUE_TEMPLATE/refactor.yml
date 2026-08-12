@@ -5,7 +5,6 @@ labels:
   - refactor
 assignees:
   - calvinmcelvain
-  - Collin-McElvain
 
 body:
   - type: textarea
@@ -22,7 +21,7 @@ body:
     attributes:
       label: Proposed Refactor
       description: What should change structurally?
-      placeholder: File structure, abstraction changes, simplification, etc.
+      placeholder: Module boundaries (models/storage/render/cli), abstraction changes, simplification, etc.
 
   - type: textarea
     id: notes
