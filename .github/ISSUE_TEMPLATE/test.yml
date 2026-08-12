@@ -5,7 +5,6 @@ labels:
   - test
 assignees:
   - calvinmcelvain
-  - Collin-McElvain
 
 body:
   - type: textarea
@@ -13,7 +12,7 @@ body:
     attributes:
       label: Test Scope
       description: What should be tested?
-      placeholder: Specific system, mechanic, function, or workflow
+      placeholder: Specific command, model method, storage path, or edge case
     validations:
       required: true
 

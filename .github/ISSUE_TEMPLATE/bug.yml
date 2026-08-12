@@ -5,7 +5,6 @@ labels:
   - fix
 assignees:
   - calvinmcelvain
-  - Collin-McElvain
 
 body:
   - type: textarea
@@ -22,9 +21,9 @@ body:
     attributes:
       label: Steps to Reproduce
       placeholder: |
-        1. Start game
-        2. Open menu
-        3. Enemy freezes
+        1. `tk work --new`
+        2. `tk work -a "buy milk"`
+        3. `tk work -d 1`
     validations:
       required: true
 
@@ -34,8 +33,14 @@ body:
       label: Expected Behavior
       placeholder: (Optional) What should happen instead?
 
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `tk --version` (or commit SHA)
+
   - type: textarea
     id: notes
     attributes:
       label: Notes
-      description: (Optional) Logs, screenshots, theories, related systems, etc.
+      description: (Optional) Command output, stack traces, list JSON contents, related issues, etc.

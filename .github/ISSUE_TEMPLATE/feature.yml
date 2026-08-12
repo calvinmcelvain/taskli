@@ -1,11 +1,10 @@
 name: Feature
-description: Propose a new feature or gameplay/system improvement
+description: Propose a new feature or CLI improvement
 title: "feat: <description>"
 labels:
   - feat
 assignees:
   - calvinmcelvain
-  - Collin-McElvain
 
 body:
   - type: textarea
@@ -22,11 +21,20 @@ body:
     attributes:
       label: Motivation
       description: Why does this feature matter?
-      placeholder: (Optional) Explain the gameplay, technical, or UX reason
+      placeholder: (Optional) Explain the workflow, CLI ergonomics, or technical reason
+
+  - type: textarea
+    id: usage
+    attributes:
+      label: Example Usage
+      description: (Optional) What would the command look like?
+      placeholder: |
+        tk work --archive
+        tk work.meetings -a "sync with team" -p high
 
   - type: textarea
     id: implementation
     attributes:
       label: Possible Implementation
       description: Optional notes on how this could work
-      placeholder: (Optional) Systems, algorithms, files, ideas, etc.
+      placeholder: (Optional) Affected modules (models/storage/render/cli), files, ideas, etc.

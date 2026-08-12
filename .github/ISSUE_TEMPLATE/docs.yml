@@ -5,7 +5,6 @@ labels:
   - docs
 assignees:
   - calvinmcelvain
-  - Collin-McElvain
 
 body:
   - type: textarea
