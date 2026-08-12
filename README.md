@@ -1,7 +1,7 @@
 # Taskli
 
+![Release](https://img.shields.io/github/v/release/calvinmcelvain/taskli?include_prereleases)
 [![CI](https://github.com/calvinmcelvain/taskli/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinmcelvain/taskli/actions/workflows/ci.yml)
-[![Release](https://github.com/calvinmcelvain/taskli/actions/workflows/release.yml/badge.svg)](https://github.com/calvinmcelvain/taskli/actions/workflows/release.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Type checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue)
 
