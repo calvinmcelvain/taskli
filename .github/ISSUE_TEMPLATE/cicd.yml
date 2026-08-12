@@ -1,0 +1,42 @@
+name: CI/CD
+description: Report or propose changes to build, lint, release, or workflow automation
+title: "cicd: <description>"
+labels:
+  - cicd
+assignees:
+  - calvinmcelvain
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's broken or what should change?
+      placeholder: ruff/black/isort/mypy config, GitHub Actions workflow, PyPI release, packaging, etc.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CI (ci.yml)
+        - Release (release.yml)
+        - PyPI publish (pypi.yaml)
+        - Packaging (pyproject.toml)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Change
+      placeholder: (Optional) What should the workflow/config look like instead?
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: (Optional) Failing run links, logs, related issues, etc.
