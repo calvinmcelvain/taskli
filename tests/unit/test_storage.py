@@ -24,6 +24,7 @@ from taskli.storage import (
     load_list,
     load_or_create_list,
     parent_list_name,
+    rename_list,
     resolve_storage_dir,
     resort_all_lists,
     save_config,
@@ -210,6 +211,85 @@ class TestListLifecycle:
         create_list(tmp_path, "workshop")
 
         delete_list(tmp_path, "work")
+
+        assert list_exists(tmp_path, "workshop")
+
+    def test_rename_list_moves_file(self, tmp_path):
+        task_list = create_list(tmp_path, "work")
+        task_list.add_item("existing task")
+        save_list(tmp_path, task_list)
+
+        rename_list(tmp_path, "work", "job")
+
+        assert not list_exists(tmp_path, "work")
+        assert list_exists(tmp_path, "job")
+        renamed = load_list(tmp_path, "job")
+        assert renamed.name == "job"
+        assert renamed.items[0].text == "existing task"
+
+    def test_rename_list_returns_renamed_pairs(self, tmp_path):
+        create_list(tmp_path, "work")
+
+        renamed = rename_list(tmp_path, "work", "job")
+
+        assert renamed == [("work", "job")]
+
+    def test_rename_list_raises_for_missing_source(self, tmp_path):
+        with pytest.raises(ListNotFoundError):
+            rename_list(tmp_path, "ghost", "job")
+
+    def test_rename_list_raises_for_existing_target(self, tmp_path):
+        create_list(tmp_path, "work")
+        create_list(tmp_path, "job")
+
+        with pytest.raises(ListAlreadyExistsError):
+            rename_list(tmp_path, "work", "job")
+
+    def test_rename_list_cascades_to_descendants(self, tmp_path):
+        create_list(tmp_path, "work")
+        create_list(tmp_path, "work.meetings")
+        create_list(tmp_path, "work.meetings.notes")
+
+        renamed = rename_list(tmp_path, "work", "job")
+
+        assert renamed == [
+            ("work", "job"),
+            ("work.meetings", "job.meetings"),
+            ("work.meetings.notes", "job.meetings.notes"),
+        ]
+        assert not list_exists(tmp_path, "work")
+        assert not list_exists(tmp_path, "work.meetings")
+        assert not list_exists(tmp_path, "work.meetings.notes")
+        assert list_exists(tmp_path, "job")
+        assert list_exists(tmp_path, "job.meetings")
+        assert list_exists(tmp_path, "job.meetings.notes")
+
+    def test_rename_list_raises_for_colliding_descendant_target(
+        self, tmp_path
+    ):
+        create_list(tmp_path, "work")
+        create_list(tmp_path, "work.meetings")
+        create_list(tmp_path, "job.meetings")
+
+        with pytest.raises(ListAlreadyExistsError):
+            rename_list(tmp_path, "work", "job")
+
+        assert list_exists(tmp_path, "work")
+        assert list_exists(tmp_path, "work.meetings")
+
+    def test_rename_list_self_rename_is_noop(self, tmp_path):
+        create_list(tmp_path, "work")
+
+        renamed = rename_list(tmp_path, "work", "work")
+
+        assert renamed == []
+        assert list_exists(tmp_path, "work")
+
+    def test_rename_list_does_not_affect_sibling(self, tmp_path):
+        create_list(tmp_path, "work")
+        create_list(tmp_path, "workshop")
+
+        rename_list(tmp_path, "work", "job")
 
         assert list_exists(tmp_path, "workshop")
 

@@ -796,6 +796,93 @@ class TestDeleteList:
         assert "does not exist" in captured.err
 
 
+class TestRenameList:
+    def test_renames_list(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--rename", "job"])
+
+        captured = capsys.readouterr()
+        main(["--lists"])
+        lists_captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "renamed 'work' to 'job'" in captured.out
+        assert "job" in lists_captured.out
+        assert "work" not in lists_captured.out
+        assert load_list(taskli_env, "job").items[0].text == "task"
+
+    def test_cascades_to_children(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        main(["work.meetings", "-a", "sub-task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--rename", "job"])
+
+        captured = capsys.readouterr()
+        main(["--lists"])
+        lists_captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "renamed 'work' to 'job' and 1 sublist(s)" in captured.out
+        assert "job" in lists_captured.out
+        assert "meetings" in lists_captured.out
+        assert "work" not in lists_captured.out
+        assert load_list(taskli_env, "job.meetings").items[0].text == (
+            "sub-task"
+        )
+
+    def test_missing_list_errors(self, taskli_env, capsys):
+        exit_code = main(["ghost", "--rename", "job"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "does not exist" in captured.err
+
+    def test_existing_target_errors(self, taskli_env, capsys):
+        main(["work", "--new"])
+        main(["job", "--new"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--rename", "job"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "already exists" in captured.err
+
+    def test_self_rename_is_noop(self, taskli_env, capsys):
+        main(["work", "--new"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--rename", "work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "already named 'work'" in captured.out
+
+    def test_default_list_follows_rename(self, taskli_env, capsys):
+        main(["work", "--new"])
+        main(["--config", "default_list", "work"])
+        capsys.readouterr()
+
+        main(["work", "--rename", "job"])
+        capsys.readouterr()
+
+        exit_code = main(["-a", "task"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'job'" in captured.out
+
+    def test_rejects_modifiers(self, taskli_env, capsys):
+        exit_code = main(["work", "--rename", "job", "--tag", "urgent"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "no modifiers are valid" in captured.err
+
+
 class TestColorCommand:
     def test_changes_color(self, taskli_env, capsys):
         main(["work", "--new"])
