@@ -26,6 +26,7 @@ from .storage import (
     load_config,
     load_list,
     load_or_create_list,
+    rename_list,
     resolve_storage_dir,
     resort_all_lists,
     save_config,
@@ -69,6 +70,7 @@ class ListCommands(StrEnum):
     COLOR = "color"
     LISTS = "lists"
     PRUNE = "prune"
+    RENAME = "rename"
 
 
 class ConfigCommands(StrEnum):
@@ -131,6 +133,13 @@ def _register_list_args(parser: argparse.ArgumentParser) -> None:
             "Remove all done items from LIST. Combine with --all to prune"
             " all lists."
         ),
+    )
+    ops.add_argument(
+        "--rename",
+        dest="rename",
+        default=None,
+        metavar="NEW_NAME",
+        help="Rename LIST (and its sublists) to NEW_NAME.",
     )
 
     return None
@@ -341,6 +350,8 @@ def _resolve_list_op(namespace: argparse.Namespace) -> ListCommands | None:
         return ListCommands.LISTS
     if namespace.prune:
         return ListCommands.PRUNE
+    if namespace.rename:
+        return ListCommands.RENAME
     # bare --color with no other list flag means "recolor this list."
     if namespace.color:
         return ListCommands.COLOR
@@ -411,7 +422,7 @@ def _validate(
     parser: argparse.ArgumentParser,
 ) -> None:
     match op:
-        case ListCommands.DELETE | ListCommands.LISTS:
+        case ListCommands.DELETE | ListCommands.LISTS | ListCommands.RENAME:
             if (
                 namespace.priority
                 or namespace.tag
@@ -601,6 +612,43 @@ def _rm_list_cmd(name: str, config: Config) -> int:
         )
     else:
         print(f"deleted list '{display_name}'.")
+
+    return 0
+
+
+@_handle_errors
+def _rename_list_cmd(old_name: str, new_name: str, config: Config) -> int:
+    storage_dir = resolve_storage_dir()
+    old_display = TaskliList(name=old_name).display_name(
+        config.sublist_delimiter
+    )
+    new_display = TaskliList(name=new_name).display_name(
+        config.sublist_delimiter
+    )
+
+    renamed = rename_list(storage_dir, old_name, new_name)
+
+    if not renamed:
+        print(f"'{old_display}' is already named '{old_display}'.")
+
+        return 0
+
+    if len(renamed) > 1:
+        print(
+            f"renamed '{old_display}' to '{new_display}' and "
+            f"{len(renamed) - 1} sublist(s)."
+        )
+    else:
+        print(f"renamed '{old_display}' to '{new_display}'.")
+
+    canonical_default = config.default_list.replace(
+        config.sublist_delimiter, "."
+    )
+    for old, new in renamed:
+        if canonical_default == old:
+            config.default_list = new.replace(".", config.sublist_delimiter)
+            save_config(storage_dir, config)
+            break
 
     return 0
 
@@ -1015,6 +1063,10 @@ def _dispatch(
             return _prune_cmd(
                 list_name, namespace.all, bool(namespace.list), config
             )
+        case ListCommands.RENAME:
+            new_name = namespace.rename.replace(config.sublist_delimiter, ".")
+
+            return _rename_list_cmd(list_name, new_name, config)
         case ItemActionCommands():
             return _run_item_action(op, list_name, namespace, config)
         case _:

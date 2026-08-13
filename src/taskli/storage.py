@@ -340,6 +340,58 @@ def delete_list(storage_dir: Path, name: str) -> list[str]:
     return descendants
 
 
+def rename_list(
+    storage_dir: Path, old_name: str, new_name: str
+) -> list[tuple[str, str]]:
+    """Rename a list's file and all of its descendant lists.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    old_name : str
+        The list's current name.
+    new_name : str
+        The list's new name.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        (old, new) name pairs for the list and every renamed descendant,
+        in old-name-ascending order. Empty if `old_name` == `new_name`.
+    """
+
+    if old_name == new_name:
+        return []
+
+    path = list_file_path(storage_dir, old_name)
+    if not path.exists():
+        raise ListNotFoundError(f"list '{old_name}' does not exist.")
+
+    descendants = descendant_list_names(old_name, list_all_lists(storage_dir))
+    renames = [(old_name, new_name)] + [
+        (descendant, new_name + descendant[len(old_name) :])
+        for descendant in descendants
+    ]
+
+    # validate every target before touching any file, so a colliding
+    # descendant target doesn't leave a partial rename on disk.
+    for _, target in renames:
+        if list_exists(storage_dir, target):
+            raise ListAlreadyExistsError(f"list '{target}' already exists.")
+
+    ensure_ancestors(storage_dir, new_name)
+
+    for old, new in renames:
+        task_list = load_list(storage_dir, old)
+        task_list.name = new
+
+        save_list(storage_dir, task_list)
+        list_file_path(storage_dir, old).unlink()
+
+    return renames
+
+
 def load_list(storage_dir: Path, name: str) -> TaskliList:
     """Load a list from disk, parsing its JSON file.
 
