@@ -169,6 +169,14 @@ Join names with a `.` to nest a list under another, e.g. `work.meetings`.
   deleted list 'work' and 1 sublist(s).
   ```
 
+- `--rename` on a parent **cascades** too: every descendant is renamed
+  along with it, keeping the same relative names under the new parent.
+
+  ```bash
+  $ tk work --rename job
+  renamed 'work' to 'job' and 1 sublist(s).
+  ```
+
 ### Priorities & tags
 
 Items have one of three priorities — `low`, `medium` (default), `high` —
@@ -239,9 +247,9 @@ what recolors an existing list.
 `tk [LIST] [FLAG] [MODIFIERS]` — `LIST` is an optional positional
 (defaults to `inbox`); every action, including list management, is an
 explicit flag (`-a`, `-d`, `-u`, `-rm`, `-e`, `-mv`, `--copy`, `--prune`,
-`--new`, `--delete`, `--color`, `--config`, `--lists`, `--all`), never a bare
-word — a list can be named anything, including `add` or `config`, with no
-collision risk.
+`--new`, `--delete`, `--rename`, `--color`, `--config`, `--lists`, `--all`),
+never a bare word — a list can be named anything, including `add` or
+`config`, with no collision risk.
 
 | You type | Resolves to | Why |
 |---|---|---|
@@ -254,7 +262,8 @@ collision risk.
 | `tk "buy milk"` | **error** (exit 1, list not found) | one token fills `LIST` as the literal name `buy milk`, which doesn't exist |
 
 Every command falls into exactly one of four **option groups**: list
-management (`-n/--new`, `--delete`, `-l/--lists`, `--prune`), item action
+management (`-n/--new`, `--delete`, `--rename`, `-l/--lists`, `--prune`),
+item action
 (`-a`, `-rm`, `-d`, `-u`, `-e`), config (`--config`), or the default view
 (nothing from the other three given). At most one group applies per
 call — if more than one is given, Taskli picks by fixed priority (list
@@ -299,6 +308,7 @@ starts empty.
 | `-n, --new` | Create LIST as an empty list | `tk groceries --new --color teal` |
 | `--color` | Recolor an existing LIST (or set the initial color on `--new`) | `tk work --color coral` |
 | `--delete` | Delete LIST and its sublists | `tk groceries --delete` |
+| `--rename NEW_NAME` | Rename LIST (and its sublists) to NEW_NAME | `tk work --rename job` |
 | `--config [KEY] [VALUE]` | View or edit config settings | `tk --config default_priority high` |
 | `--version` | Print the installed taskli version | `tk --version` |
 | `--path` | Print the storage directory currently in use (`$TASKLI_PATH` or `~/.taskli`) | `tk --path` |
@@ -390,6 +400,26 @@ deleted list 'work' and 1 sublist(s).
 
 $ tk --lists
 no lists yet.
+```
+
+### `--rename`
+
+Renames a list. If the list has sublists, they're renamed along with it,
+keeping the same relative names under the new parent — see
+[Sublists](#sublists). If the renamed list is the configured
+`default_list`, the config is updated to follow the new name.
+
+```
+$ tk groceries --rename shopping
+renamed 'groceries' to 'shopping'.
+
+$ tk work --rename job
+renamed 'work' to 'job' and 1 sublist(s).
+
+$ tk --lists
+job
+  meetings
+shopping
 ```
 
 ### `-a/--add`
@@ -565,6 +595,20 @@ deleted list 'work' and 2 sublist(s).
 
 $ tk --lists
 no lists yet.
+```
+
+**Renaming a list cascades to its sublists too.** `--rename` swaps the
+prefix on the list and every descendant, preserving the relative names
+underneath:
+
+```
+$ tk work --rename job
+renamed 'work' to 'job' and 2 sublist(s).
+
+$ tk --lists
+job
+  meetings
+    notes
 ```
 
 The configured `default_list` (`inbox` by default) is created
