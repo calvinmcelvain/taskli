@@ -2,7 +2,7 @@
 
 from enum import Enum, StrEnum
 
-__all__ = ["Color", "Priority"]
+__all__ = ["Color", "Priority", "Status"]
 
 
 class Priority(Enum):
@@ -25,6 +25,12 @@ class Priority(Enum):
 
     def __str__(self) -> str:
         return self.label
+
+
+class Status(StrEnum):
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
 
 
 class Color(StrEnum):
