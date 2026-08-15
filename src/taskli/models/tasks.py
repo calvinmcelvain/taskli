@@ -1,11 +1,12 @@
 """Tasks & task list models."""
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ..exceptions import ItemNotFoundError
-from .attributes import Color, Priority
+from .attributes import Color, Priority, Status
 from .config import SortBy
 
 __all__ = ["TaskliItem", "TaskliList"]
@@ -16,12 +17,36 @@ class TaskliItem(BaseModel):
 
     id: int
     text: str
-    done: bool = False
+    status: Status = Status.TODO
     priority: Priority = Priority.MEDIUM
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
     modified_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_done(cls, data: Any) -> Any:
+        """Translate a legacy ``done`` bool into ``status`` on load."""
+
+        if isinstance(data, dict) and "status" not in data and "done" in data:
+            data = dict(data)
+            done = data.pop("done")
+            data["status"] = Status.DONE if done else Status.TODO
+
+        return data
+
+    @property
+    def done(self) -> bool:
+        """Whether the item's status is ``Status.DONE``.
+
+        Returns
+        -------
+        bool
+            True if the item is done.
+        """
+
+        return self.status == Status.DONE
 
 
 class TaskliList(BaseModel):
@@ -210,14 +235,16 @@ class TaskliList(BaseModel):
 
         item = self.get_item(item_id)
         now = datetime.now()
-        item.done = True
+        item.status = Status.DONE
         item.completed_at = now
         item.modified_at = now
 
         return item
 
     def mark_undone(self, item_id: int) -> TaskliItem:
-        """Mark an item not done and clear its completion timestamp.
+        """Reset an item to todo and clear its completion timestamp.
+
+        Resets from either ``Status.DONE`` or ``Status.IN_PROGRESS``.
 
         Parameters
         ----------
@@ -231,7 +258,28 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
-        item.done = False
+        item.status = Status.TODO
+        item.completed_at = None
+        item.modified_at = datetime.now()
+
+        return item
+
+    def mark_in_progress(self, item_id: int) -> TaskliItem:
+        """Mark an item in progress and clear its completion timestamp.
+
+        Parameters
+        ----------
+        item_id : int
+            The item's id.
+
+        Returns
+        -------
+        TaskliItem
+            The updated item.
+        """
+
+        item = self.get_item(item_id)
+        item.status = Status.IN_PROGRESS
         item.completed_at = None
         item.modified_at = datetime.now()
 
