@@ -1,36 +1,34 @@
 """Task & task list attributes."""
 
+from dataclasses import dataclass
 from enum import Enum, StrEnum
 
 __all__ = ["Color", "Priority", "Status"]
 
 
-class Priority(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-    def __init__(self, label: str):
-        self.label = label
-
-    @property
-    def index(self) -> int:
-        _index = {"low": 1, "medium": 2, "high": 3}
-        return _index[self.label]
-
-    @property
-    def color(self) -> str:
-        _colors = {"low": "green", "medium": "yellow", "high": "red"}
-        return _colors[self.label]
-
-    def __str__(self) -> str:
-        return self.label
+@dataclass(frozen=True)
+class PriorityContainer:
+    label: str
+    index: int
+    color: str
 
 
-class Status(StrEnum):
-    TODO = "todo"
-    IN_PROGRESS = "in_progress"
-    DONE = "done"
+class Priority(PriorityContainer, Enum):
+    LOW = ("low", 1, "green")
+    MEDIUM = ("medium", 2, "yellow")
+    HIGH = ("high", 3, "red")
+
+
+@dataclass(frozen=True)
+class StatusContainer:
+    label: str
+    marker: str
+
+
+class Status(StatusContainer, Enum):
+    TODO = ("todo", " ")
+    IN_PROGRESS = ("in_progress", "•")
+    DONE = ("done", "x")
 
 
 class Color(StrEnum):
