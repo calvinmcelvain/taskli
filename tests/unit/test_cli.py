@@ -224,6 +224,53 @@ class TestDoneUndoneRemove:
         assert "warning:" in captured.out
         assert "no item with id 99" in captured.out
 
+    def test_marks_in_progress(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-i", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "marked #1 in progress" in captured.out
+
+    def test_marks_multiple_ids_in_progress_in_one_call(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "a"])
+        main(["work", "-a", "b"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-i", "1", "2"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "marked #1 in progress" in captured.out
+        assert "marked #2 in progress" in captured.out
+
+    def test_in_progress_bad_id_warns_and_continues(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-i", "1", "99"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "marked #1 in progress" in captured.out
+        assert "warning:" in captured.out
+        assert "no item with id 99" in captured.out
+
+    def test_undone_resets_in_progress_item(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        main(["work", "-i", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-u", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "marked #1 not done" in captured.out
+
     def test_rm_removes_item(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()

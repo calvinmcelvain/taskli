@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from taskli.models import Color, Config, Priority, TaskliList
+from taskli.models import Color, Config, Priority, Status, TaskliList
 from taskli.storage import (
     CorruptedConfigFileError,
     CorruptedListFileError,
@@ -374,6 +374,34 @@ class TestLoadList:
         reloaded = load_list(tmp_path, "work")
 
         assert reloaded.items[0].modified_at == reloaded.items[0].created_at
+
+    def test_migrates_legacy_done_bool_to_status(self, tmp_path):
+        path = tmp_path / "work.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "name": "work",
+                    "items": [
+                        {
+                            "id": 1,
+                            "text": "task",
+                            "done": True,
+                            "created_at": "2020-01-01T00:00:00",
+                        }
+                    ],
+                }
+            )
+        )
+
+        reloaded = load_list(tmp_path, "work")
+
+        assert reloaded.items[0].status == Status.DONE
+
+        save_list(tmp_path, reloaded)
+        raw = json.loads(path.read_text())
+
+        assert raw["items"][0]["status"] == "done"
+        assert "done" not in raw["items"][0]
 
     def test_auto_creates_configured_default_list(self, tmp_path):
         config = load_config(tmp_path)
