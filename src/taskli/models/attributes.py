@@ -18,6 +18,15 @@ class Priority(PriorityContainer, Enum):
     MEDIUM = ("medium", 2, "yellow")
     HIGH = ("high", 3, "red")
 
+    @classmethod
+    def _missing_(cls, value: object) -> "Priority | None":
+        if isinstance(value, dict):
+            value = value.get("label")
+        if isinstance(value, str) and value.upper() in cls.__members__:
+            return cls[value.upper()]
+
+        return None
+
 
 @dataclass(frozen=True)
 class StatusContainer:
@@ -29,6 +38,15 @@ class Status(StatusContainer, Enum):
     TODO = ("todo", " ")
     IN_PROGRESS = ("in_progress", "•")
     DONE = ("done", "x")
+
+    @classmethod
+    def _missing_(cls, value: object) -> "Status | None":
+        if isinstance(value, dict):
+            value = value.get("label")
+        if isinstance(value, str) and value.upper() in cls.__members__:
+            return cls[value.upper()]
+
+        return None
 
 
 class Color(StrEnum):
@@ -48,3 +66,10 @@ class Color(StrEnum):
     PURPLE = "#A855F7"
     MAGENTA = "#D946EF"
     PINK = "#FF4FCB"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "Color | None":
+        if isinstance(value, str) and value.upper() in cls.__members__:
+            return cls[value.upper()]
+
+        return None
