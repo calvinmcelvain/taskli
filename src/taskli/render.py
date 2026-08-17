@@ -63,7 +63,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
         text = f"[dim]{item.text}[/dim]" if item.done else item.text
         table.add_row(
             str(item.id),
-            "x" if item.done else " ",
+            item.status.marker,
             text,
             _add_color(item.priority.label, item.priority.color),
             ", ".join(item.tags),
