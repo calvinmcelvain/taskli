@@ -7,7 +7,7 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
-    field_validator,
+    field_serializer,
 )
 
 from ..exceptions import InvalidConfigValueError, UnknownConfigKeyError
@@ -32,13 +32,9 @@ class Config(BaseModel):
     default_priority: Priority = Priority.MEDIUM
     default_color: Color | None = Color.WHITE
 
-    @field_validator("default_color", mode="before")
-    @classmethod
-    def _resolve_color_name(cls, value: object) -> object:
-        if isinstance(value, str) and value.upper() in Color.__members__:
-            return Color[value.upper()]
-
-        return value
+    @field_serializer("default_priority")
+    def _serialize_priority(self, value: Priority) -> str:
+        return value.label
 
     def _has_key(self, key: str) -> None:
         if hasattr(self, key):

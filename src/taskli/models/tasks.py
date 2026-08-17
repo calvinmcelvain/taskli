@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority, Status
@@ -35,6 +35,14 @@ class TaskliItem(BaseModel):
             data["status"] = Status.DONE if done else Status.TODO
 
         return data
+
+    @field_serializer("status")
+    def _serialize_status(self, value: Status) -> str:
+        return value.label
+
+    @field_serializer("priority")
+    def _serialize_priority(self, value: Priority) -> str:
+        return value.label
 
     @property
     def done(self) -> bool:
