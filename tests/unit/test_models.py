@@ -14,6 +14,7 @@ from taskli.models import (
     Config,
     Delimters,
     Priority,
+    Status,
     TaskliItem,
     TaskliList,
 )
@@ -146,6 +147,23 @@ class TestTaskliList:
 
         assert item.modified_at == item.created_at
 
+    @pytest.mark.parametrize(
+        ("legacy_done", "expected_status"),
+        [(True, Status.DONE), (False, Status.TODO)],
+        ids=["done", "not-done"],
+    )
+    def test_legacy_done_bool_migrates_to_status(
+        self, legacy_done, expected_status
+    ):
+        item = TaskliItem(
+            id=1,
+            text="task",
+            done=legacy_done,  # type: ignore
+            created_at=datetime(2020, 1, 1),
+        )
+
+        assert item.status == expected_status
+
     def test_get_item_missing_id_raises(self):
         todo_list = TaskliList(name="work")
 
@@ -189,6 +207,44 @@ class TestTaskliList:
         todo_list.mark_undone(item.id)
 
         assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_mark_in_progress_sets_status(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+
+        todo_list.mark_in_progress(item.id)
+
+        assert item.status == Status.IN_PROGRESS
+        assert item.done is False
+
+    def test_mark_in_progress_from_done_clears_completed_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        todo_list.mark_done(item.id)
+
+        todo_list.mark_in_progress(item.id)
+
+        assert item.status == Status.IN_PROGRESS
+        assert item.completed_at is None
+
+    def test_mark_in_progress_updates_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        todo_list.mark_in_progress(item.id)
+
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_mark_undone_resets_in_progress_to_todo(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+        todo_list.mark_in_progress(item.id)
+
+        todo_list.mark_undone(item.id)
+
+        assert item.status == Status.TODO
+        assert item.completed_at is None
 
     def test_remove_item(self):
         todo_list = TaskliList(name="work")

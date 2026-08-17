@@ -82,6 +82,7 @@ class ItemActionCommands(StrEnum):
     REMOVE = "remove"
     DONE = "done"
     UNDONE = "undone"
+    IN_PROGRESS = "in_progress"
     EDIT = "edit"
     MOVE = "move"
     COPY = "copy"
@@ -166,7 +167,8 @@ def _register_config_args(parser: argparse.ArgumentParser) -> None:
 def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
     actions_group = parser.add_argument_group(
         "Item actions",
-        "Add, remove, edit, or mark item(s) done/undone for the current LIST.",
+        "Add, remove, edit, or mark item(s) done/in-progress/undone for the"
+        " current LIST.",
     )
 
     ops = actions_group.add_mutually_exclusive_group()
@@ -205,6 +207,15 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         nargs="+",
         metavar="ID",
         help="Mark an item, or items, as not done.",
+    )
+    ops.add_argument(
+        "-i",
+        "--in-progress",
+        dest="in_progress",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Mark an item, or items, as in progress.",
     )
     ops.add_argument(
         "-e",
@@ -248,7 +259,7 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
     modifiers.add_argument(
         "-p",
         "--priority",
-        choices=[p.value for p in Priority],
+        choices=[p.name.lower() for p in Priority],
         nargs="?",
         default=None,
         help=(
@@ -370,6 +381,8 @@ def _resolve_item_action_op(
         return ItemActionCommands.DONE
     if namespace.undone:
         return ItemActionCommands.UNDONE
+    if namespace.in_progress:
+        return ItemActionCommands.IN_PROGRESS
     if namespace.edit:
         return ItemActionCommands.EDIT
     if namespace.move:
@@ -472,6 +485,7 @@ def _validate(
             ItemActionCommands.REMOVE
             | ItemActionCommands.DONE
             | ItemActionCommands.UNDONE
+            | ItemActionCommands.IN_PROGRESS
         ):
             if (
                 namespace.priority
@@ -693,7 +707,9 @@ def _add_cmd(
 
     # add items first --> re-sort --> print item indexes.
     added = [
-        task_list.add_item(text, priority=Priority(priority), tags=list(tags))
+        task_list.add_item(
+            text, priority=Priority[priority.upper()], tags=list(tags)
+        )
         for text in texts
     ]
 
@@ -757,7 +773,7 @@ def _list_cmd(
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir) if include_descendants else []
-    resolved_priority = Priority(priority) if priority else None
+    resolved_priority = Priority[priority.upper()] if priority else None
 
     render_list_tree(
         _grouped_lists(
@@ -774,7 +790,7 @@ def _all_cmd(tag: str | None, priority: str | None) -> int:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir)
-    resolved_priority = Priority(priority) if priority else None
+    resolved_priority = Priority[priority.upper()] if priority else None
 
     if not all_names:
         render_list_names([])
@@ -825,6 +841,29 @@ def _undone_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
         try:
             task_list.mark_undone(item_id)
             print(f"marked #{item_id} not done in '{display_name}'.")
+        except ItemNotFoundError as e:
+            render_warning(str(e))
+            failed = True
+
+    save_list(storage_dir, task_list)
+    _print_list(task_list, config)
+
+    return 1 if failed else 0
+
+
+@_handle_errors
+def _in_progress_cmd(
+    list_name: str, item_ids: list[int], config: Config
+) -> int:
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    display_name = task_list.display_name(config.sublist_delimiter)
+
+    failed = False
+    for item_id in item_ids:
+        try:
+            task_list.mark_in_progress(item_id)
+            print(f"marked #{item_id} in progress in '{display_name}'.")
         except ItemNotFoundError as e:
             render_warning(str(e))
             failed = True
@@ -909,7 +948,7 @@ def _edit_cmd(
         task_list.edit_item(
             item_id,
             text=text,
-            priority=Priority(priority) if priority else None,
+            priority=Priority[priority.upper()] if priority else None,
             tags=list(tags) if tags else None,
         )
         if add_tag:
@@ -999,13 +1038,17 @@ def _run_item_action(
     match action:
         case ItemActionCommands.ADD:
             texts = [" ".join(words) for words in namespace.add]
-            priority = namespace.priority or config.default_priority.value
+            priority = (
+                namespace.priority or config.default_priority.name.lower()
+            )
 
             return _add_cmd(list_name, texts, namespace.tag, priority, config)
         case ItemActionCommands.DONE:
             return _done_cmd(list_name, namespace.done, config)
         case ItemActionCommands.UNDONE:
             return _undone_cmd(list_name, namespace.undone, config)
+        case ItemActionCommands.IN_PROGRESS:
+            return _in_progress_cmd(list_name, namespace.in_progress, config)
         case ItemActionCommands.REMOVE:
             return _rm_cmd(list_name, namespace.remove, config)
         case ItemActionCommands.MOVE:

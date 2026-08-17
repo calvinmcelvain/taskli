@@ -54,7 +54,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
 
     table = Table()
     table.add_column(_add_color("ID", color), justify="right")
-    table.add_column(_add_color("Done", color), justify="center")
+    table.add_column(_add_color("State", color), justify="center")
     table.add_column(_add_color("Text", color), justify="left")
     table.add_column(_add_color("Priority", color), justify="left")
     table.add_column(_add_color("Tags", color), justify="left")
@@ -63,7 +63,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
         text = f"[dim]{item.text}[/dim]" if item.done else item.text
         table.add_row(
             str(item.id),
-            "x" if item.done else " ",
+            item.status.marker,
             text,
             _add_color(item.priority.label, item.priority.color),
             ", ".join(item.tags),
