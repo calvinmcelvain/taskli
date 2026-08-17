@@ -19,17 +19,17 @@ added #1 to 'work.meetings'.
 
 $ tk work --all
 work
-┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags ┃
-┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-│  1 │      │ Finish report │ medium   │      │
-└────┴──────┴───────────────┴──────────┴──────┘
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ ID ┃ State ┃ Text          ┃ Priority ┃ Tags ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+│  1 │       │ Finish report │ medium   │      │
+└────┴───────┴───────────────┴──────────┴──────┘
 └── meetings
-    ┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-    ┃ ID ┃ Done ┃ Text           ┃ Priority ┃ Tags ┃
-    ┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-    │  1 │      │ Review roadmap │ medium   │      │
-    └────┴──────┴────────────────┴──────────┴──────┘
+    ┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+    ┃ ID ┃ State ┃ Text           ┃ Priority ┃ Tags ┃
+    ┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+    │  1 │       │ Review roadmap │ medium   │      │
+    └────┴───────┴────────────────┴──────────┴──────┘
 ```
 
 ## Table of contents
@@ -197,11 +197,11 @@ every visible sublist section too:
 ```bash
 $ tk work --tag urgent
 work
-┏━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
-┃ ID ┃ Done ┃ Text        ┃ Priority ┃ Tags            ┃
-┡━━━━╇━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
-│  1 │      │ Ship v2     │ high     │ urgent, release │
-└────┴──────┴─────────────┴──────────┴─────────────────┘
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ ID ┃ State ┃ Text        ┃ Priority ┃ Tags            ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│  1 │       │ Ship v2     │ high     │ urgent, release │
+└────┴───────┴─────────────┴──────────┴─────────────────┘
 ```
 
 `-p/--priority` works the same way — set on `-a`/`-e`, filter on the
@@ -246,10 +246,10 @@ what recolors an existing list.
 
 `tk [LIST] [FLAG] [MODIFIERS]` — `LIST` is an optional positional
 (defaults to `inbox`); every action, including list management, is an
-explicit flag (`-a`, `-d`, `-u`, `-rm`, `-e`, `-mv`, `--copy`, `--prune`,
-`--new`, `--delete`, `--rename`, `--color`, `--config`, `--lists`, `--all`),
-never a bare word — a list can be named anything, including `add` or
-`config`, with no collision risk.
+explicit flag (`-a`, `-d`, `-u`, `-i`, `-rm`, `-e`, `-mv`, `--copy`,
+`--prune`, `--new`, `--delete`, `--rename`, `--color`, `--config`,
+`--lists`, `--all`), never a bare word — a list can be named anything,
+including `add` or `config`, with no collision risk.
 
 | You type | Resolves to | Why |
 |---|---|---|
@@ -264,7 +264,7 @@ never a bare word — a list can be named anything, including `add` or
 Every command falls into exactly one of four **option groups**: list
 management (`-n/--new`, `--delete`, `--rename`, `-l/--lists`, `--prune`),
 item action
-(`-a`, `-rm`, `-d`, `-u`, `-e`), config (`--config`), or the default view
+(`-a`, `-rm`, `-d`, `-u`, `-i`, `-e`), config (`--config`), or the default view
 (nothing from the other three given). At most one group applies per
 call — if more than one is given, Taskli picks by fixed priority (list
 management, then item action, then config, then the view) and prints a
@@ -276,10 +276,10 @@ $ tk groceries --new -a "buy milk"
 warning: multiple option groups given; using list management ('new'), ignoring item action.
 created list 'groceries'.
 groceries
-┏━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-┃ ID ┃ Done ┃ Text ┃ Priority ┃ Tags ┃
-┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-└────┴──────┴──────┴──────────┴──────┘
+┏━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ ID ┃ State ┃ Text ┃ Priority ┃ Tags ┃
+┡━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+└────┴───────┴──────┴──────────┴──────┘
 ```
 
 The list is created but "buy milk" is never added — run the two as
@@ -297,7 +297,8 @@ starts empty.
 |---|---|---|
 | `-a, --add TEXT` | Add an item to a list (repeatable) | `tk work -a "Ship v2" -p high` |
 | `-d, --done ID...` | Mark one or more items done | `tk work -d 1 2` |
-| `-u, --undone ID...` | Mark one or more items not done | `tk work -u 1 2` |
+| `-u, --undone ID...` | Mark one or more items not done (resets from done or in-progress) | `tk work -u 1 2` |
+| `-i, --in-progress ID...` | Mark one or more items in progress | `tk work -i 1 2` |
 | `-e, --edit ID` | Change an item's text, priority, or tags | `tk work -e 1 --text "Ship v2.1"` |
 | `-mv, --move TARGET_LIST [ID...]` | Move item(s) from `LIST` to `TARGET_LIST` (creates `TARGET_LIST` if missing) | `tk work -mv groceries 1 2` |
 | `--copy TARGET_LIST [ID...]` | Copy item(s) from `LIST` to `TARGET_LIST`, leaving `LIST` unchanged | `tk work --copy groceries 1 2` |
@@ -322,7 +323,7 @@ omitted; every other flag runs against `LIST`, which defaults to
 entirely, printing their info and exiting immediately, the same as
 `--help`.
 
-A batch of ids (`-d`/`-u`/`-rm`/`-mv`/`--copy`) uses **partial success**: a
+A batch of ids (`-d`/`-u`/`-i`/`-rm`/`-mv`/`--copy`) uses **partial success**: a
 missing id prints its own warning and the rest of the batch still runs,
 and the whole call exits 1 if any id failed —
 
@@ -349,10 +350,10 @@ marked #1 done in 'inbox'.
 
 $ tk inbox --tag urgent
 inbox
-┏━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-┃ ID ┃ Done ┃ Text ┃ Priority ┃ Tags ┃
-┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-└────┴──────┴──────┴──────────┴──────┘
+┏━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ ID ┃ State ┃ Text ┃ Priority ┃ Tags ┃
+┡━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+└────┴───────┴──────┴──────────┴──────┘
 
 $ tk --prune
 pruned 1 item(s) from 'inbox'.
@@ -447,20 +448,34 @@ with it.
 ```
 $ tk work
 work
-┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
-┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags   ┃
-┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│  1 │      │ finish report │ high     │ urgent │
-│  2 │      │ buy milk      │ medium   │ errand │
-└────┴──────┴───────────────┴──────────┴────────┘
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
+┃ ID ┃ State ┃ Text          ┃ Priority ┃ Tags   ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
+│  1 │       │ finish report │ high     │ urgent │
+│  2 │       │ buy milk      │ medium   │ errand │
+└────┴───────┴───────────────┴──────────┴────────┘
 ```
 
-### `-d/--done` / `-u/--undone`
+### `-d/--done` / `-i/--in-progress` / `-u/--undone`
 
-Marks one or more items done or not done by their `ID` (the leftmost
-column in the table above); both are repeatable in a single call.
+Marks one or more items done, in progress, or not started by their `ID`
+(the leftmost column in the table above); all three are repeatable in a
+single call. The `State` column shows the result: `x` for done, `•` for
+in progress, blank for not started. `-u/--undone` resets an item to not
+started from either `-d` or `-i`.
 
 ```bash
+$ tk work -i 1
+marked #1 in progress in 'work'.
+
+$ tk work
+work
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ ID ┃ State ┃ Text          ┃ Priority ┃ Tags ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+│  1 │   •   │ finish report │ medium   │      │
+└────┴───────┴───────────────┴──────────┴──────┘
+
 $ tk work -d 1
 marked #1 done in 'work'.
 
@@ -469,10 +484,10 @@ pruned 1 item(s) from 'work'.
 
 $ tk work
 work
-┏━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-┃ ID ┃ Done ┃ Text ┃ Priority ┃ Tags ┃
-┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-└────┴──────┴──────┴──────────┴──────┘
+┏━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ ID ┃ State ┃ Text ┃ Priority ┃ Tags ┃
+┡━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+└────┴───────┴──────┴──────────┴──────┘
 ```
 
 ### `-mv/--move` / `--copy`
@@ -491,7 +506,7 @@ $ tk work --copy errands
 copied #1 from 'work' to 'errands'.
 ```
 
-Both share the same partial-success batch semantics as `-d`/`-u`/`-rm` —
+Both share the same partial-success batch semantics as `-d`/`-u`/`-i`/`-rm` —
 see [Routing grammar](#routing-grammar).
 
 A copied or moved item keeps its original creation time rather than
@@ -530,7 +545,8 @@ given. Omitting an item-action flag defaults to the view action.
 |---|---|---|
 | `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation. |
 | `-d, --done ID...` | — | One or more integer ids; partial success on a bad id (see [Routing grammar](#routing-grammar)). |
-| `-u, --undone ID...` | — | Same batch behavior as `-d`. |
+| `-u, --undone ID...` | — | Same batch behavior as `-d`. Resets an item to not started from either `-d` or `-i`. |
+| `-i, --in-progress ID...` | — | Same batch behavior as `-d`. |
 | `-rm, --remove ID...` | — | Same batch behavior as `-d`. Remaining items are renumbered starting from 1. |
 | `-e, --edit ID` | `-t, --text TEXT` · `-p, --priority {low,medium,high}` · `--tag TAG` (repeatable, replaces) · `--add-tag TAG` (repeatable, appends) | Only the flags you pass are changed. `--tag` and `--add-tag` can't be combined in the same call. |
 | `-mv, --move TARGET_LIST [ID...]` | — | Moves item(s) into `TARGET_LIST`, auto-creating it (and missing ancestors) if needed. Omit `ID` to move every item. Same batch/partial-success behavior as `-d`. |
@@ -546,17 +562,17 @@ render each descendant as its own titled section:
 ```
 $ tk work --all
 work
-┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
-┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags   ┃
-┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│  1 │      │ finish report │ high     │ urgent │
-└────┴──────┴───────────────┴──────────┴────────┘
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
+┃ ID ┃ State ┃ Text          ┃ Priority ┃ Tags   ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
+│  1 │       │ finish report │ high     │ urgent │
+└────┴───────┴───────────────┴──────────┴────────┘
 └── meetings
-    ┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-    ┃ ID ┃ Done ┃ Text             ┃ Priority ┃ Tags ┃
-    ┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-    │  1 │      │ sync with design │ high     │      │
-    └────┴──────┴──────────────────┴──────────┴──────┘
+    ┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+    ┃ ID ┃ State ┃ Text             ┃ Priority ┃ Tags ┃
+    ┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+    │  1 │       │ sync with design │ high     │      │
+    └────┴───────┴──────────────────┴──────────┴──────┘
 ```
 
 Section headers show the **full dotted name** (`work.meetings`, not just
@@ -573,16 +589,16 @@ shown:
 ```
 $ tk work --all --tag urgent
 work
-┏━━━━┳━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
-┃ ID ┃ Done ┃ Text          ┃ Priority ┃ Tags   ┃
-┡━━━━╇━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│  1 │      │ finish report │ high     │ urgent │
-└────┴──────┴───────────────┴──────────┴────────┘
+┏━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
+┃ ID ┃ State ┃ Text          ┃ Priority ┃ Tags   ┃
+┡━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
+│  1 │       │ finish report │ high     │ urgent │
+└────┴───────┴───────────────┴──────────┴────────┘
 └── meetings
-    ┏━━━━┳━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
-    ┃ ID ┃ Done ┃ Text ┃ Priority ┃ Tags ┃
-    ┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
-    └────┴──────┴──────┴──────────┴──────┘
+    ┏━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+    ┃ ID ┃ State ┃ Text ┃ Priority ┃ Tags ┃
+    ┡━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+    └────┴───────┴──────┴──────────┴──────┘
 ```
 
 **Deleting a list cascades to its sublists.** `--delete` lists any
