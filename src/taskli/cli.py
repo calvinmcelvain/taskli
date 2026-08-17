@@ -259,7 +259,7 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
     modifiers.add_argument(
         "-p",
         "--priority",
-        choices=[p.value for p in Priority],
+        choices=[p.name.lower() for p in Priority],
         nargs="?",
         default=None,
         help=(
@@ -707,7 +707,9 @@ def _add_cmd(
 
     # add items first --> re-sort --> print item indexes.
     added = [
-        task_list.add_item(text, priority=Priority(priority), tags=list(tags))
+        task_list.add_item(
+            text, priority=Priority[priority.upper()], tags=list(tags)
+        )
         for text in texts
     ]
 
@@ -771,7 +773,7 @@ def _list_cmd(
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir) if include_descendants else []
-    resolved_priority = Priority(priority) if priority else None
+    resolved_priority = Priority[priority.upper()] if priority else None
 
     render_list_tree(
         _grouped_lists(
@@ -788,7 +790,7 @@ def _all_cmd(tag: str | None, priority: str | None) -> int:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir)
-    resolved_priority = Priority(priority) if priority else None
+    resolved_priority = Priority[priority.upper()] if priority else None
 
     if not all_names:
         render_list_names([])
@@ -946,7 +948,7 @@ def _edit_cmd(
         task_list.edit_item(
             item_id,
             text=text,
-            priority=Priority(priority) if priority else None,
+            priority=Priority[priority.upper()] if priority else None,
             tags=list(tags) if tags else None,
         )
         if add_tag:
@@ -1036,7 +1038,9 @@ def _run_item_action(
     match action:
         case ItemActionCommands.ADD:
             texts = [" ".join(words) for words in namespace.add]
-            priority = namespace.priority or config.default_priority.value
+            priority = (
+                namespace.priority or config.default_priority.name.lower()
+            )
 
             return _add_cmd(list_name, texts, namespace.tag, priority, config)
         case ItemActionCommands.DONE:
