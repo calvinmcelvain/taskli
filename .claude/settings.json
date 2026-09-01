@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "GH_REPO": "calvinmcelvain/taskli"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git commit)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "PowerShell(git commit)",
+      "PowerShell(git commit *)",
+      "PowerShell(git push)",
+      "PowerShell(git push *)"
+    ],
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(gh issue list*)",
+      "Bash(gh issue view*)",
+      "Bash(gh issue status*)",
+      "Bash(gh search issues*)",
+      "Bash(gh issue create*)",
+      "Bash(gh issue edit*)",
+      "Bash(ruff*)",
+      "Bash(black*)",
+      "Bash(isort*)",
+      "Bash(mypy*)",
+      "Bash(pytest*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\"",
+            "timeout": 15,
+            "statusMessage": "Checking issue gate...",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\" --session-start || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\" --session-start",
+            "timeout": 15,
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/doc_drift.py\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/doc_drift.py\"",
+            "timeout": 20,
+            "statusMessage": "Checking .claude/CLAUDE.md drift...",
+            "shell": "bash"
+          }
+        ]
+      }
+    ]
+  }
+}

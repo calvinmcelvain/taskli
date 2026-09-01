@@ -51,3 +51,11 @@ dmypy.json
 .env
 *venv*/
 *env*/
+
+# issue-gated workflow runtime state.
+.claude/.current-issue
+.claude/.last-check
+.claude/.pr-body.md
+.claude/.doc-drift-ack
+.claude/worktrees/
+.claude/hooks/__pycache__/
