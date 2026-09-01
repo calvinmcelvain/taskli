@@ -11,19 +11,15 @@ from taskli.storage import (
     ListAlreadyExistsError,
     ListNotFoundError,
     TooManyAncestorListsError,
-    ancestor_chain,
-    child_list_names,
     config_file_path,
     create_list,
     delete_list,
-    descendant_list_names,
     list_all_lists,
     list_exists,
     list_file_path,
     load_config,
     load_list,
     load_or_create_list,
-    parent_list_name,
     rename_list,
     resolve_storage_dir,
     resort_all_lists,
@@ -77,54 +73,6 @@ class TestConfigLifecycle:
 
         with pytest.raises(CorruptedConfigFileError):
             load_config(tmp_path)
-
-
-class TestListHierarchyHelpers:
-    @pytest.mark.parametrize(
-        ("name", "expected"),
-        [
-            ("work", None),
-            ("work.meetings", "work"),
-            ("work.meetings.notes", "work.meetings"),
-        ],
-        ids=["top-level", "nested", "deeply-nested"],
-    )
-    def test_parent_list_name(self, name, expected):
-        assert parent_list_name(name) == expected
-
-    def test_child_list_names_excludes_grandchildren(self):
-        names = [
-            "work",
-            "work.meetings",
-            "work.meetings.notes",
-            "personal",
-        ]
-
-        assert child_list_names("work", names) == ["work.meetings"]
-
-    def test_descendant_list_names_includes_all_depths(self):
-        names = [
-            "work",
-            "work.meetings",
-            "work.meetings.notes",
-            "personal",
-        ]
-
-        assert descendant_list_names("work", names) == [
-            "work.meetings",
-            "work.meetings.notes",
-        ]
-
-    def test_descendant_list_names_excludes_unrelated_sibling(self):
-        names = ["work", "workshop"]
-
-        assert descendant_list_names("work", names) == []
-
-    def test_ancestor_chain_nested(self):
-        assert ancestor_chain("a.b.c") == ["a", "a.b"]
-
-    def test_ancestor_chain_top_level(self):
-        assert ancestor_chain("a") == []
 
 
 class TestListLifecycle:

@@ -104,7 +104,8 @@ target-version = ["py312"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  \.eggs
+  \.claude
+  | \.eggs
   | \.git
   | \.hatch
   | \.pytest_cache
@@ -115,12 +116,14 @@ extend-exclude = '''
 [tool.isort]
 profile = "black"
 line_length = 79
+extend_skip_glob = [".claude/*"]
 
 [tool.ruff]
 line-length = 79
 target-version = "py312"
 src = ["src", "tests"]
 exclude = [
+    ".claude",
     ".eggs",
     ".git",
     ".hg",
