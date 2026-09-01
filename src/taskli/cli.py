@@ -5,10 +5,10 @@ import functools
 import sys
 from collections.abc import Callable
 from enum import StrEnum
-from pathlib import Path
 
+from . import logic
 from .__version__ import __version__
-from .exceptions import ItemNotFoundError, TaskliError
+from .exceptions import TaskliError
 from .models import Color, Config, Priority, TaskliList
 from .render import (
     render_config,
@@ -16,22 +16,11 @@ from .render import (
     render_items,
     render_list_names,
     render_list_tree,
+    render_message,
+    render_value,
     render_warning,
 )
-from .storage import (
-    create_list,
-    delete_list,
-    descendant_list_names,
-    list_all_lists,
-    load_config,
-    load_list,
-    load_or_create_list,
-    rename_list,
-    resolve_storage_dir,
-    resort_all_lists,
-    save_config,
-    save_list,
-)
+from .storage import load_config, resolve_storage_dir
 
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
@@ -61,6 +50,22 @@ def _print_list(task_list: TaskliList, config: Config) -> None:
     )
 
     return None
+
+
+def _emit(result: logic.CommandResult, config: Config) -> int:
+    """Render a command result: messages, warnings, then any list view."""
+
+    for message in result.messages:
+        render_message(message)
+    for warning in result.warnings:
+        render_warning(warning)
+
+    if result.item_view is not None:
+        _print_list(result.item_view, config)
+    if result.tree_view is not None:
+        render_list_tree(result.tree_view, config.sublist_delimiter)
+
+    return result.exit_code
 
 
 class ListCommands(StrEnum):
@@ -537,504 +542,12 @@ def _validate(
     return None
 
 
-def _mutate_cmd(
-    list_name: str, config: Config, mutate: Callable[[TaskliList], str]
-) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    message = mutate(task_list)
-
-    save_list(storage_dir, task_list)
-    print(message)
-    _print_list(task_list, config)
-
-    return 0
-
-
-@_handle_errors
-def _lists_cmd(config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-
-    entries: list[tuple[str, Color | None]] = []
-    for name in list_all_lists(storage_dir):
-        try:
-            entries.append((name, load_list(storage_dir, name).color))
-        except TaskliError:
-            entries.append((name, None))
-
-    default_name = config.default_list.replace(config.sublist_delimiter, ".")
-    render_list_names(entries, default_name)
-
-    return 0
-
-
-@_handle_errors
-def _new_list_cmd(name: str, color: str | None, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    resolved_color = Color[color.upper()] if color else config.default_color
-
-    task_list = create_list(storage_dir, name, color=resolved_color)
-
-    display_name = task_list.display_name(config.sublist_delimiter)
-    print(f"created list '{display_name}'.")
-    _print_list(task_list, config)
-
-    return 0
-
-
-@_handle_errors
-def _color_cmd(name: str, color: str, config: Config) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        task_list.set_color(Color[color.upper()])
-        display_name = task_list.display_name(config.sublist_delimiter)
-
-        return f"updated color of '{display_name}' to '{color}'."
-
-    return _mutate_cmd(name, config, mutate)
-
-
-@_handle_errors
-def _rm_list_cmd(name: str, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    descendants = descendant_list_names(name, list_all_lists(storage_dir))
-    display_name = TaskliList(name=name).display_name(config.sublist_delimiter)
-
-    prompt = f"delete list '{display_name}' and all its items?"
-    if descendants:
-        display_descendants = [
-            TaskliList(name=d).display_name(config.sublist_delimiter)
-            for d in descendants
-        ]
-        prompt = (
-            f"delete list '{display_name}' and its {len(descendants)} "
-            f"sublist(s) ({', '.join(display_descendants)}) and all "
-            "their items?"
-        )
-
-    if not _confirm(prompt):
-        print("aborted.")
-
-        return 1
-
-    deleted_descendants = delete_list(storage_dir, name)
-
-    # no list left to print back after deletion.
-    if deleted_descendants:
-        print(
-            f"deleted list '{display_name}' and {len(deleted_descendants)} "
-            "sublist(s)."
-        )
-    else:
-        print(f"deleted list '{display_name}'.")
-
-    return 0
-
-
-@_handle_errors
-def _rename_list_cmd(old_name: str, new_name: str, config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    old_display = TaskliList(name=old_name).display_name(
-        config.sublist_delimiter
-    )
-    new_display = TaskliList(name=new_name).display_name(
-        config.sublist_delimiter
-    )
-
-    renamed = rename_list(storage_dir, old_name, new_name)
-
-    if not renamed:
-        print(f"'{old_display}' is already named '{old_display}'.")
-
-        return 0
-
-    if len(renamed) > 1:
-        print(
-            f"renamed '{old_display}' to '{new_display}' and "
-            f"{len(renamed) - 1} sublist(s)."
-        )
-    else:
-        print(f"renamed '{old_display}' to '{new_display}'.")
-
-    canonical_default = config.default_list.replace(
-        config.sublist_delimiter, "."
-    )
-    for old, new in renamed:
-        if canonical_default == old:
-            config.default_list = new.replace(".", config.sublist_delimiter)
-            save_config(storage_dir, config)
-            break
-
-    return 0
-
-
-@_handle_errors
-def _config_cmd(key: str | None, value: str | None) -> int:
-    storage_dir = resolve_storage_dir()
-    config = load_config(storage_dir)
-
-    if key is None:
-        render_config(config)
-
-        return 0
-
-    if value is None:
-        print(config.get_value(key))
-
-        return 0
-
-    config.set_value(key, value)
-    save_config(storage_dir, config)
-
-    if key == "default_sort":
-        resort_all_lists(storage_dir, config.default_sort)
-
-    print(f"set '{key}' to '{value}'.")
-
-    return 0
-
-
-@_handle_errors
-def _add_cmd(
-    list_name: str,
-    texts: list[str],
-    tags: list[str],
-    priority: str,
-    config: Config,
-) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_or_create_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    # add items first --> re-sort --> print item indexes.
-    added = [
-        task_list.add_item(
-            text, priority=Priority[priority.upper()], tags=list(tags)
-        )
-        for text in texts
-    ]
-
-    task_list.resort(config.default_sort)
-
-    for item in added:
-        print(f"added #{item.id} to '{display_name}'.")
-
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 0
-
-
-def _grouped_lists(
-    storage_dir: Path,
-    list_name: str,
-    all_names: list[str],
-    tag: str | None,
-    priority: Priority | None,
-    config: Config,
-) -> list[TaskliList]:
-    task_list = load_list(storage_dir, list_name)
-    if config.auto_prune and task_list.prune():
-        save_list(storage_dir, task_list)
-
-    lists = [
-        TaskliList(
-            name=list_name,
-            color=task_list.color,
-            items=task_list.filtered_items(tag=tag, priority=priority),
-        )
-    ]
-
-    # filter each descendant list by tag/priority if given to parent.
-    for descendant_name in descendant_list_names(list_name, all_names):
-        descendant_list = load_list(storage_dir, descendant_name)
-        if config.auto_prune and descendant_list.prune():
-            save_list(storage_dir, descendant_list)
-
-        lists.append(
-            TaskliList(
-                name=descendant_name,
-                color=descendant_list.color,
-                items=descendant_list.filtered_items(
-                    tag=tag, priority=priority
-                ),
-            )
-        )
-
-    return lists
-
-
-@_handle_errors
-def _list_cmd(
-    list_name: str,
-    tag: str | None,
-    priority: str | None,
-    include_descendants: bool,
-) -> int:
-    storage_dir = resolve_storage_dir()
-    config = load_config(storage_dir)
-    all_names = list_all_lists(storage_dir) if include_descendants else []
-    resolved_priority = Priority[priority.upper()] if priority else None
-
-    render_list_tree(
-        _grouped_lists(
-            storage_dir, list_name, all_names, tag, resolved_priority, config
-        ),
-        config.sublist_delimiter,
-    )
-
-    return 0
-
-
-@_handle_errors
-def _all_cmd(tag: str | None, priority: str | None) -> int:
-    storage_dir = resolve_storage_dir()
-    config = load_config(storage_dir)
-    all_names = list_all_lists(storage_dir)
-    resolved_priority = Priority[priority.upper()] if priority else None
-
-    if not all_names:
-        render_list_names([])
-
-        return 0
-
-    roots = [name for name in all_names if "." not in name]
-    for root in roots:
-        render_list_tree(
-            _grouped_lists(
-                storage_dir, root, all_names, tag, resolved_priority, config
-            ),
-            config.sublist_delimiter,
-        )
-
-    return 0
-
-
-@_handle_errors
-def _done_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    failed = False
-    for item_id in item_ids:
-        try:
-            task_list.mark_done(item_id)
-            print(f"marked #{item_id} done in '{display_name}'.")
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if failed else 0
-
-
-@_handle_errors
-def _undone_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    failed = False
-    for item_id in item_ids:
-        try:
-            task_list.mark_undone(item_id)
-            print(f"marked #{item_id} not done in '{display_name}'.")
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if failed else 0
-
-
-@_handle_errors
-def _in_progress_cmd(
-    list_name: str, item_ids: list[int], config: Config
-) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    failed = False
-    for item_id in item_ids:
-        try:
-            task_list.mark_in_progress(item_id)
-            print(f"marked #{item_id} in progress in '{display_name}'.")
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if failed else 0
-
-
-@_handle_errors
-def _rm_cmd(list_name: str, item_ids: list[int], config: Config) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    failed = False
-    # remove_item reindexes on every call, which renumbers ids positioned
-    # after the removed one; working id-descending keeps not-yet-processed
-    # ids stable.
-    for item_id in sorted(item_ids, reverse=True):
-        try:
-            task_list.remove_item(item_id)
-            print(f"removed #{item_id} from '{display_name}'.")
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    save_list(storage_dir, task_list)
-    _print_list(task_list, config)
-
-    return 1 if failed else 0
-
-
-@_handle_errors
-def _prune_cmd(
-    list_name: str, all: bool, target_given: bool, config: Config
-) -> int:
-    storage_dir = resolve_storage_dir()
-
-    # an explicit LIST scopes --all to LIST + its descendants (a missing
-    # LIST still raises, same as without --all); no LIST (falls back to
-    # default_list) prunes every list instead, same as the default view's
-    # --all fallback.
-    lists: list[TaskliList] = [load_list(storage_dir, list_name)]
-    if all:
-        all_lists = list_all_lists(storage_dir)
-        if target_given:
-            lists.extend(
-                [
-                    load_list(storage_dir, lst)
-                    for lst in descendant_list_names(list_name, all_lists)
-                ]
-            )
-        else:
-            lists.extend([load_list(storage_dir, lst) for lst in all_lists])
-
-    for lst in lists:
-        removed = lst.prune()
-        save_list(storage_dir, lst)
-
-        display_name = lst.display_name(config.sublist_delimiter)
-
-        print(f"pruned {len(removed)} item(s) from '{display_name}'.")
-
-    render_list_tree(lists, config.sublist_delimiter)
-
-    return 0
-
-
-@_handle_errors
-def _edit_cmd(
-    list_name: str,
-    item_id: int,
-    text: str | None,
-    priority: str | None,
-    tags: list[str],
-    add_tag: list[str],
-    config: Config,
-) -> int:
-    def mutate(task_list: TaskliList) -> str:
-        task_list.edit_item(
-            item_id,
-            text=text,
-            priority=Priority[priority.upper()] if priority else None,
-            tags=list(tags) if tags else None,
-        )
-        if add_tag:
-            task_list.add_tags(item_id, add_tag)
-
-        display_name = task_list.display_name(config.sublist_delimiter)
-
-        return f"updated #{item_id} in '{display_name}'."
-
-    return _mutate_cmd(list_name, config, mutate)
-
-
-@_handle_errors
-def _move_cmd(
-    list_name: str, target_name: str, item_ids: list[int], config: Config
-) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    target_list = load_or_create_list(storage_dir, target_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-    target_display_name = target_list.display_name(config.sublist_delimiter)
-
-    ids = item_ids or [item.id for item in task_list.items]
-
-    # move_item reindexes the source on every call, renumbering ids
-    # positioned after the one just moved; id-descending order keeps
-    # not-yet-processed ids stable, same reasoning as -rm's batch loop.
-    failed = False
-    for item_id in sorted(ids, reverse=True):
-        try:
-            task_list.move_item(item_id, target_list)
-            print(
-                f"moved #{item_id} from '{display_name}' to "
-                f"'{target_display_name}'."
-            )
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    target_list.resort(config.default_sort)
-
-    save_list(storage_dir, task_list)
-    save_list(storage_dir, target_list)
-    _print_list(target_list, config)
-
-    return 1 if failed else 0
-
-
-@_handle_errors
-def _copy_cmd(
-    list_name: str, target_name: str, item_ids: list[int], config: Config
-) -> int:
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    target_list = load_or_create_list(storage_dir, target_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-    target_display_name = target_list.display_name(config.sublist_delimiter)
-
-    ids = item_ids or [item.id for item in task_list.items]
-
-    failed = False
-    for item_id in ids:
-        try:
-            task_list.copy_item(item_id, target_list)
-            print(
-                f"copied #{item_id} from '{display_name}' to "
-                f"'{target_display_name}'."
-            )
-        except ItemNotFoundError as e:
-            render_warning(str(e))
-            failed = True
-
-    target_list.resort(config.default_sort)
-
-    save_list(storage_dir, target_list)
-    _print_list(target_list, config)
-
-    return 1 if failed else 0
-
-
 def _run_item_action(
     action: ItemActionCommands,
     list_name: str,
     namespace: argparse.Namespace,
     config: Config,
-) -> int:
+) -> logic.CommandResult:
     match action:
         case ItemActionCommands.ADD:
             texts = [" ".join(words) for words in namespace.add]
@@ -1042,32 +555,34 @@ def _run_item_action(
                 namespace.priority or config.default_priority.name.lower()
             )
 
-            return _add_cmd(list_name, texts, namespace.tag, priority, config)
+            return logic.add(list_name, texts, namespace.tag, priority, config)
         case ItemActionCommands.DONE:
-            return _done_cmd(list_name, namespace.done, config)
+            return logic.mark_done(list_name, namespace.done, config)
         case ItemActionCommands.UNDONE:
-            return _undone_cmd(list_name, namespace.undone, config)
+            return logic.mark_undone(list_name, namespace.undone, config)
         case ItemActionCommands.IN_PROGRESS:
-            return _in_progress_cmd(list_name, namespace.in_progress, config)
+            return logic.mark_in_progress(
+                list_name, namespace.in_progress, config
+            )
         case ItemActionCommands.REMOVE:
-            return _rm_cmd(list_name, namespace.remove, config)
+            return logic.remove_items(list_name, namespace.remove, config)
         case ItemActionCommands.MOVE:
             target, *ids = namespace.move
             target_name = target.replace(config.sublist_delimiter, ".")
 
-            return _move_cmd(
+            return logic.move(
                 list_name, target_name, [int(i) for i in ids], config
             )
         case ItemActionCommands.COPY:
             target, *ids = namespace.copy
             target_name = target.replace(config.sublist_delimiter, ".")
 
-            return _copy_cmd(
+            return logic.copy(
                 list_name, target_name, [int(i) for i in ids], config
             )
 
     # only EDIT is left once the match above didn't return.
-    return _edit_cmd(
+    return logic.edit(
         list_name,
         namespace.edit[0],
         namespace.text,
@@ -1078,6 +593,7 @@ def _run_item_action(
     )
 
 
+@_handle_errors
 def _dispatch(
     namespace: argparse.Namespace,
     config: Config,
@@ -1090,38 +606,87 @@ def _dispatch(
 
     match op:
         case ListCommands.LISTS:
-            return _lists_cmd(config)
+            default_name = config.default_list.replace(
+                config.sublist_delimiter, "."
+            )
+            render_list_names(logic.list_entries(), default_name)
+
+            return 0
         case ConfigCommands.CONFIG:
             key = namespace.config[0] if namespace.config else None
             value = namespace.config[1] if len(namespace.config) > 1 else None
 
-            return _config_cmd(key, value)
+            if key is None:
+                render_config(config)
+
+                return 0
+            if value is None:
+                render_value(str(config.get_value(key)))
+
+                return 0
+
+            return _emit(logic.set_config(key, value), config)
         case ListCommands.NEW:
-            return _new_list_cmd(list_name, namespace.color, config)
+            return _emit(
+                logic.new_list(list_name, namespace.color, config), config
+            )
         case ListCommands.DELETE:
-            return _rm_list_cmd(list_name, config)
+            prompt = logic.delete_prompt(list_name, config)
+            if not _confirm(prompt):
+                render_message("aborted.")
+
+                return 1
+
+            return _emit(logic.delete_confirmed(list_name, config), config)
         case ListCommands.COLOR:
-            return _color_cmd(list_name, namespace.color, config)
+            return _emit(
+                logic.set_list_color(list_name, namespace.color, config),
+                config,
+            )
         case ListCommands.PRUNE:
-            return _prune_cmd(
-                list_name, namespace.all, bool(namespace.list), config
+            return _emit(
+                logic.prune(
+                    list_name,
+                    namespace.all,
+                    bool(namespace.list),
+                    config,
+                ),
+                config,
             )
         case ListCommands.RENAME:
             new_name = namespace.rename.replace(config.sublist_delimiter, ".")
 
-            return _rename_list_cmd(list_name, new_name, config)
+            return _emit(logic.rename(list_name, new_name, config), config)
         case ItemActionCommands():
-            return _run_item_action(op, list_name, namespace, config)
+            return _emit(
+                _run_item_action(op, list_name, namespace, config), config
+            )
         case _:
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
             tag_filter = namespace.tag[0] if namespace.tag else None
             if not namespace.list and namespace.all:
-                return _all_cmd(tag_filter, namespace.priority)
+                groups = logic.all_views(tag_filter, namespace.priority)
+                if not groups:
+                    render_list_names([])
 
-            return _list_cmd(
-                list_name, tag_filter, namespace.priority, namespace.all
+                    return 0
+                for group in groups:
+                    render_list_tree(group, config.sublist_delimiter)
+
+                return 0
+
+            render_list_tree(
+                logic.list_view(
+                    list_name,
+                    tag_filter,
+                    namespace.priority,
+                    namespace.all,
+                ),
+                config.sublist_delimiter,
             )
+
+            return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1132,7 +697,7 @@ def main(argv: list[str] | None = None) -> int:
         namespace = parser.parse_args(raw_argv)
 
         if namespace.path:
-            print(resolve_storage_dir())
+            render_value(str(logic.storage_path()))
 
             return 0
 

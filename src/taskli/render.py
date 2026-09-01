@@ -4,14 +4,16 @@ from rich.console import Console, Group
 from rich.table import Table
 from rich.tree import Tree
 
+from .hierarchy import ancestor_chain
 from .models import Color, Config, TaskliItem, TaskliList
-from .storage import ancestor_chain
 
 __all__ = [
     "render_items",
     "render_list_tree",
     "render_list_names",
     "render_config",
+    "render_message",
+    "render_value",
     "render_error",
     "render_warning",
 ]
@@ -207,6 +209,34 @@ def render_config(config: Config) -> None:
         table.add_row(key, str(config.get_value(key)))
 
     _console.print(table)
+
+    return None
+
+
+def render_message(message: str) -> None:
+    """Print a plain status message.
+
+    Parameters
+    ----------
+    message : str
+        The message text.
+    """
+
+    _console.print(message)
+
+    return None
+
+
+def render_value(value: str) -> None:
+    """Print a raw value verbatim, without markup or line wrapping.
+
+    Parameters
+    ----------
+    value : str
+        The value to print (e.g. a storage path or a config value).
+    """
+
+    _console.print(value, markup=False, highlight=False, soft_wrap=True)
 
     return None
 
