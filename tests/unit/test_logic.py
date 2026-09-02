@@ -9,6 +9,7 @@ from taskli.logic import (
     delete_prompt,
     edit,
     list_entries,
+    list_names,
     list_view,
     mark_done,
     mark_in_progress,
@@ -232,6 +233,19 @@ class TestListEntries:
         entries = list_entries()
 
         assert entries == [("work", Color.TEAL)]
+
+
+class TestListNames:
+    def test_returns_names_sorted(self, taskli_env, config):
+        add("work", ["a"], [], "medium", config)
+        add("home", ["b"], [], "medium", config)
+
+        names = list_names()
+
+        assert names == ["home", "work"]
+
+    def test_empty_when_no_lists(self, taskli_env):
+        assert list_names() == []
 
 
 class TestListView:

@@ -1,3 +1,5 @@
+import argparse
+
 import pytest
 
 from taskli.__version__ import __version__
@@ -1310,3 +1312,18 @@ class TestPath:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert captured.out.strip() == str(tmp_path)
+
+
+class TestCompletion:
+    def test_autocomplete_invoked(self, taskli_env, monkeypatch, capsys):
+        calls = []
+        monkeypatch.setattr(
+            "taskli.cli.argcomplete.autocomplete",
+            lambda parser, *a, **kw: calls.append(parser),
+        )
+
+        main(["--version"])
+
+        capsys.readouterr()
+        assert len(calls) == 1
+        assert isinstance(calls[0], argparse.ArgumentParser)
