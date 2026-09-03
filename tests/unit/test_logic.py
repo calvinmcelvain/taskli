@@ -245,8 +245,8 @@ class TestHasAnyLists:
         add("work", ["a"], [], "medium", config)
 
         assert has_any_lists() is True
-        
-        
+
+
 class TestListNames:
     def test_returns_names_sorted(self, taskli_env, config):
         add("work", ["a"], [], "medium", config)
