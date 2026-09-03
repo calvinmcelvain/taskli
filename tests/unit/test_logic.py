@@ -8,12 +8,14 @@ from taskli.logic import (
     delete_confirmed,
     delete_prompt,
     edit,
+    has_any_lists,
     list_entries,
     list_view,
     mark_done,
     mark_in_progress,
     mark_undone,
     move,
+    new_list,
     prune,
     remove_items,
     rename,
@@ -234,6 +236,16 @@ class TestListEntries:
         assert entries == [("work", Color.TEAL)]
 
 
+class TestHasAnyLists:
+    def test_false_on_fresh_env(self, taskli_env):
+        assert has_any_lists() is False
+
+    def test_true_once_a_list_exists(self, taskli_env, config):
+        add("work", ["a"], [], "medium", config)
+
+        assert has_any_lists() is True
+
+
 class TestListView:
     def test_returns_single_list_without_descendants(self, taskli_env, config):
         add("work", ["a"], [], "medium", config)
@@ -259,6 +271,66 @@ class TestListView:
 
         assert [i.text for i in views[0].items] == ["tagged"]
 
+    def test_descendants_filter_drops_empty_keeps_ancestors_by_tag(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+        add("work.a", ["hit"], ["urgent"], "medium", config)
+        add("work.b", ["miss"], [], "medium", config)
+
+        views = list_view("work", "urgent", None, True)
+
+        assert [v.name for v in views] == ["work", "work.a"]
+
+    def test_descendants_filter_drops_empty_keeps_ancestors_by_priority(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+        add("work.a", ["hit"], [], "high", config)
+        add("work.b", ["miss"], [], "medium", config)
+
+        views = list_view("work", None, "high", True)
+
+        assert [v.name for v in views] == ["work", "work.a"]
+
+    def test_descendants_filter_no_matches_returns_empty_by_tag(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+        add("work.sub", ["also plain"], [], "medium", config)
+
+        views = list_view("work", "ghost", None, True)
+
+        assert views == []
+
+    def test_descendants_filter_no_matches_returns_empty_by_priority(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+        add("work.sub", ["also plain"], [], "medium", config)
+
+        views = list_view("work", None, "high", True)
+
+        assert views == []
+
+    def test_without_descendants_keeps_single_list_by_tag(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+
+        views = list_view("work", "ghost", None, False)
+
+        assert [v.name for v in views] == ["work"]
+
+    def test_without_descendants_keeps_single_list_by_priority(
+        self, taskli_env, config
+    ):
+        add("work", ["plain"], [], "medium", config)
+
+        views = list_view("work", None, "high", False)
+
+        assert [v.name for v in views] == ["work"]
+
 
 class TestAllViews:
     def test_one_group_per_root(self, taskli_env, config):
@@ -271,6 +343,48 @@ class TestAllViews:
 
     def test_empty_when_no_lists(self, taskli_env):
         assert all_views(None, None) == []
+
+    def test_tag_drops_root_with_no_matches(self, taskli_env, config):
+        add("alpha", ["hit"], ["urgent"], "medium", config)
+        add("alpha.sub", ["nope"], [], "medium", config)
+        add("beta", ["miss"], [], "medium", config)
+        add("beta.sub", ["miss too"], [], "medium", config)
+
+        groups = all_views("urgent", None)
+
+        names = [tl.name for group in groups for tl in group]
+        assert "alpha" in names
+        assert "alpha.sub" not in names
+        assert "beta" not in names
+        assert "beta.sub" not in names
+
+    def test_tag_keeps_ancestor_chain_for_deep_match(self, taskli_env, config):
+        add("proj", ["top plain"], [], "medium", config)
+        add("proj.mid", ["mid plain"], [], "medium", config)
+        add("proj.mid.leaf", ["deep hit"], ["urgent"], "medium", config)
+
+        groups = all_views("urgent", None)
+
+        names = [tl.name for group in groups for tl in group]
+        assert names == ["proj", "proj.mid", "proj.mid.leaf"]
+
+    def test_priority_drops_root_with_no_matches(self, taskli_env, config):
+        add("alpha", ["hit"], [], "high", config)
+        add("beta", ["miss"], [], "medium", config)
+
+        groups = all_views(None, "high")
+
+        names = [tl.name for group in groups for tl in group]
+        assert names == ["alpha"]
+
+    def test_no_filter_keeps_empty_descendant(self, taskli_env, config):
+        add("work", ["a"], [], "medium", config)
+        new_list("work.sub", None, config)
+
+        groups = all_views(None, None)
+
+        names = [tl.name for group in groups for tl in group]
+        assert "work.sub" in names
 
 
 class TestStoragePath:
