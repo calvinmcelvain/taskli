@@ -10,6 +10,7 @@ from taskli.logic import (
     edit,
     has_any_lists,
     list_entries,
+    list_names,
     list_view,
     mark_done,
     mark_in_progress,
@@ -244,6 +245,19 @@ class TestHasAnyLists:
         add("work", ["a"], [], "medium", config)
 
         assert has_any_lists() is True
+        
+        
+class TestListNames:
+    def test_returns_names_sorted(self, taskli_env, config):
+        add("work", ["a"], [], "medium", config)
+        add("home", ["b"], [], "medium", config)
+
+        names = list_names()
+
+        assert names == ["home", "work"]
+
+    def test_empty_when_no_lists(self, taskli_env):
+        assert list_names() == []
 
 
 class TestListView:

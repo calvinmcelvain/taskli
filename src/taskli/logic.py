@@ -689,6 +689,18 @@ def set_config(key: str, value: str) -> CommandResult:
     return CommandResult(messages=[f"set '{key}' to '{value}'."])
 
 
+def list_names() -> list[str]:
+    """Return every list name currently on disk.
+
+    Returns
+    -------
+    list[str]
+        Sorted list names.
+    """
+
+    return list_all_lists(resolve_storage_dir())
+
+
 def list_entries() -> list[tuple[str, Color | None]]:
     """Return every list name paired with its color.
 

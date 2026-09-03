@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 """Command-line interface and argument routing."""
 
 import argparse
@@ -5,6 +6,8 @@ import functools
 import sys
 from collections.abc import Callable
 from enum import StrEnum
+
+import argcomplete
 
 from . import logic
 from .__version__ import __version__
@@ -322,6 +325,14 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _complete_list_names(
+    prefix: str, parsed_args: argparse.Namespace, **kwargs: object
+) -> list[str]:
+    """argcomplete callback: existing list names for the LIST positional."""
+
+    return logic.list_names()
+
+
 def _compose_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="taskli[tk]",
@@ -330,13 +341,14 @@ def _compose_parser() -> argparse.ArgumentParser:
         ),
         epilog="Example: tk groceries --new --color teal",
     )
-    parser.add_argument(
+    list_action = parser.add_argument(
         "list",
         nargs="?",
         default=None,
         metavar="LIST",
         help="Name of the list to act on (default: configured default_list).",
     )
+    list_action.completer = _complete_list_names  # type: ignore[attr-defined]
     parser.add_argument(
         "--version",
         action="version",
@@ -708,6 +720,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = _compose_parser()
     try:
+        argcomplete.autocomplete(parser)
         namespace = parser.parse_args(raw_argv)
 
         if namespace.path:

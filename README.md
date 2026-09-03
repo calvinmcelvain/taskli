@@ -36,6 +36,7 @@ work
 
 - [Why Taskli](#why-Taskli)
 - [Installation](#installation)
+- [Shell completion](#shell-completion)
 - [Usage](#usage)
 - [Commands overview](#commands-overview)
 - [Routing grammar](#routing-grammar)
@@ -95,6 +96,40 @@ For a "global" install (i.e., ability to use `tk` in the terminal across local e
 # after doing the above...
 pip install pipx
 pipx install . --force
+```
+
+## Shell completion
+
+**Taskli** ships [`argcomplete`](https://github.com/kislyuk/argcomplete)-based
+tab-completion for subcommands, flags, flag values (`--color`, `--priority`),
+and the names of lists you've already created. It needs a one-time shell
+registration.
+
+### Global (all argcomplete scripts)
+
+```bash
+activate-global-python-argcomplete
+```
+
+This enables completion for every `argcomplete`-enabled script on your system.
+Start a new shell afterwards for it to take effect.
+
+### Per-shell (bash/zsh)
+
+Alternatively, add the following to your `~/.bashrc` / `~/.zshrc`:
+
+```bash
+eval "$(register-python-argcomplete tk)"
+eval "$(register-python-argcomplete taskli)"
+```
+
+Once registered, completion works as you'd expect:
+
+```bash
+tk gro<TAB>                   # -> tk groceries
+tk groceries --c<TAB>         # -> tk groceries --color
+tk groceries --color t<TAB>   # -> teal
+tk work --pri<TAB>            # -> tk work --priority
 ```
 
 ## Usage
