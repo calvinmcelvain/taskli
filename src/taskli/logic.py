@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .exceptions import ItemNotFoundError, TaskliError
-from .hierarchy import descendant_list_names
+from .hierarchy import ancestor_chain, descendant_list_names
 from .models import Color, Config, Priority, TaskliList
 from .storage import (
     create_list,
@@ -723,6 +723,18 @@ def list_entries() -> list[tuple[str, Color | None]]:
     return entries
 
 
+def has_any_lists() -> bool:
+    """Return whether any list exists on disk.
+
+    Returns
+    -------
+    bool
+        True if at least one list file is present.
+    """
+
+    return bool(list_all_lists(resolve_storage_dir()))
+
+
 def _grouped_lists(
     storage_dir: Path,
     list_name: str,
@@ -764,6 +776,31 @@ def _grouped_lists(
     return lists
 
 
+def _drop_unmatched_lists(lists: list[TaskliList]) -> list[TaskliList]:
+    """Drop empty lists, keeping in-group ancestors of any non-empty one.
+
+    Ancestor retention only sees names present in ``lists``, so callers
+    must pass a full group (as ``_grouped_lists`` builds it).
+    """
+
+    present = {tl.name for tl in lists}
+    keep: set[str] = set()
+    for tl in lists:
+        if tl.items:
+            keep.add(tl.name)
+            # keep the empty ancestors too, so render_list_tree can still
+            # parent this list under its chain.
+            keep.update(a for a in ancestor_chain(tl.name) if a in present)
+
+    return [tl for tl in lists if tl.name in keep]
+
+
+def _filter_active(tag: str | None, priority: Priority | None) -> bool:
+    """Return whether a tag and/or priority filter is in effect."""
+
+    return tag is not None or priority is not None
+
+
 def list_view(
     list_name: str,
     tag: str | None,
@@ -786,7 +823,10 @@ def list_view(
     Returns
     -------
     list[TaskliList]
-        The list plus, optionally, its descendants — filtered.
+        The list, then any descendants, each filtered. When descendants
+        are included and a filter is active, lists left empty by the
+        filter are dropped (ancestors of a kept list are retained for
+        tree connectivity); an all-empty result is ``[]``.
     """
 
     storage_dir = resolve_storage_dir()
@@ -794,9 +834,13 @@ def list_view(
     all_names = list_all_lists(storage_dir) if include_descendants else []
     resolved_priority = Priority[priority.upper()] if priority else None
 
-    return _grouped_lists(
+    groups = _grouped_lists(
         storage_dir, list_name, all_names, tag, resolved_priority, config
     )
+    if include_descendants and _filter_active(tag, resolved_priority):
+        return _drop_unmatched_lists(groups)
+
+    return groups
 
 
 def all_views(tag: str | None, priority: str | None) -> list[list[TaskliList]]:
@@ -812,7 +856,10 @@ def all_views(tag: str | None, priority: str | None) -> list[list[TaskliList]]:
     Returns
     -------
     list[list[TaskliList]]
-        One group per root list; empty when no lists exist.
+        One group per root list. With a filter active, groups left with
+        no surviving lists are omitted, so the result may be shorter
+        than the number of roots (or empty); empty too when no lists
+        exist.
     """
 
     storage_dir = resolve_storage_dir()
@@ -822,9 +869,19 @@ def all_views(tag: str | None, priority: str | None) -> list[list[TaskliList]]:
 
     roots = [name for name in all_names if "." not in name]
 
-    return [
+    groups = [
         _grouped_lists(
             storage_dir, root, all_names, tag, resolved_priority, config
         )
         for root in roots
     ]
+    if _filter_active(tag, resolved_priority):
+        kept: list[list[TaskliList]] = []
+        for group in groups:
+            pruned = _drop_unmatched_lists(group)
+            if pruned:
+                kept.append(pruned)
+
+        return kept
+
+    return groups

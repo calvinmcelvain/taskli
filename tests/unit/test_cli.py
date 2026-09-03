@@ -748,6 +748,111 @@ class TestAllCommand:
         assert "groceries" not in captured.out
         assert "buy milk" not in captured.out
 
+    def test_tag_filter_hides_lists_without_matches(self, taskli_env, capsys):
+        main(["alpha", "-a", "keep me", "--tag", "urgent"])
+        main(["beta", "-a", "drop me"])
+        capsys.readouterr()
+
+        main(["--all", "--tag", "urgent"])
+
+        captured = capsys.readouterr()
+        assert "keep me" in captured.out
+        assert "drop me" not in captured.out
+        assert "beta" not in captured.out
+
+    def test_priority_filter_hides_lists_without_matches(
+        self, taskli_env, capsys
+    ):
+        main(["alpha", "-a", "keep me", "--priority", "high"])
+        main(["beta", "-a", "drop me", "--priority", "medium"])
+        capsys.readouterr()
+
+        main(["--all", "--priority", "high"])
+
+        captured = capsys.readouterr()
+        assert "keep me" in captured.out
+        assert "drop me" not in captured.out
+        assert "beta" not in captured.out
+
+    def test_target_all_with_tag_prunes_to_matching_subtree(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "plain top", "--tag", "later"])
+        main(["work.meetings", "-a", "standup", "--tag", "urgent"])
+        main(["work.other", "-a", "plain other", "--tag", "later"])
+        capsys.readouterr()
+
+        main(["work", "--all", "--tag", "urgent"])
+
+        captured = capsys.readouterr()
+        assert "meetings" in captured.out
+        assert "standup" in captured.out
+        assert "work" in captured.out
+        assert "plain top" not in captured.out
+        assert "plain other" not in captured.out
+
+    def test_target_all_filter_matching_nothing_reports_by_tag(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "task", "--priority", "medium"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--all", "--tag", "ghost"])
+
+        captured = capsys.readouterr()
+        assert "no items match the given filter." in captured.out
+        assert exit_code == 0
+
+    def test_target_all_filter_matching_nothing_reports_by_priority(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "task", "--priority", "medium"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--all", "--priority", "low"])
+
+        captured = capsys.readouterr()
+        assert "no items match the given filter." in captured.out
+        assert exit_code == 0
+
+    def test_all_filter_matching_nothing_reports_by_tag(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "task", "--priority", "medium"])
+        main(["home", "-a", "chore", "--priority", "medium"])
+        capsys.readouterr()
+
+        exit_code = main(["--all", "--tag", "ghost"])
+
+        captured = capsys.readouterr()
+        assert "no items match the given filter." in captured.out
+        assert "no lists yet" not in captured.out
+        assert exit_code == 0
+
+    def test_all_filter_matching_nothing_reports_by_priority(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "task", "--priority", "medium"])
+        main(["home", "-a", "chore", "--priority", "medium"])
+        capsys.readouterr()
+
+        exit_code = main(["--all", "--priority", "low"])
+
+        captured = capsys.readouterr()
+        assert "no items match the given filter." in captured.out
+        assert "no lists yet" not in captured.out
+        assert exit_code == 0
+
+    def test_all_filter_on_empty_storage_reports_no_lists(
+        self, taskli_env, capsys
+    ):
+        exit_code = main(["--all", "--tag", "ghost"])
+
+        captured = capsys.readouterr()
+        assert "no lists yet" in captured.out
+        assert "no items match" not in captured.out
+        assert exit_code == 0
+
 
 class TestNewList:
     def test_creates_empty_list(self, taskli_env, capsys):

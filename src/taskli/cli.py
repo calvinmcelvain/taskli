@@ -677,10 +677,17 @@ def _dispatch(
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
             tag_filter = namespace.tag[0] if namespace.tag else None
+
             if not namespace.list and namespace.all:
                 groups = logic.all_views(tag_filter, namespace.priority)
                 if not groups:
-                    render_list_names([])
+                    # all_views returns [] either for a filter that
+                    # matched nothing or for genuinely-empty storage;
+                    # has_any_lists tells the two apart.
+                    if logic.has_any_lists():
+                        render_message("no items match the given filter.")
+                    else:
+                        render_list_names([])
 
                     return 0
                 for group in groups:
@@ -688,15 +695,22 @@ def _dispatch(
 
                 return 0
 
-            render_list_tree(
-                logic.list_view(
-                    list_name,
-                    tag_filter,
-                    namespace.priority,
-                    namespace.all,
-                ),
-                config.sublist_delimiter,
+            views = logic.list_view(
+                list_name,
+                tag_filter,
+                namespace.priority,
+                namespace.all,
             )
+            if not views:
+                # no empty-storage case to disambiguate here (unlike the
+                # --all branch): a missing target raises before list_view
+                # can return [], so [] always means the filter pruned
+                # every list from a --all view.
+                render_message("no items match the given filter.")
+
+                return 0
+
+            render_list_tree(views, config.sublist_delimiter)
 
             return 0
 
