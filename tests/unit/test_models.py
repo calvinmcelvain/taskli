@@ -458,6 +458,53 @@ class TestTaskliList:
         with pytest.raises(ItemNotFoundError):
             source.move_item(1, target)
 
+    def test_remove_item_ref_drops_and_reindexes(self):
+        todo_list = TaskliList(name="work")
+        first = todo_list.add_item("first")
+        second = todo_list.add_item("second")
+
+        todo_list.remove_item_ref(first)
+
+        assert todo_list.items == [second]
+        assert second.id == 1
+
+    def test_mark_done_ref_updates_item(self):
+        todo_list = TaskliList(name="work")
+        item = todo_list.add_item("task")
+
+        result = todo_list.mark_done_ref(item)
+
+        assert isinstance(result, TaskliItem)
+        assert result is item
+        assert item.status == Status.DONE
+        assert item.completed_at is not None
+
+    def test_copy_item_ref_adds_to_target(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task", priority=Priority.HIGH, tags=["a"])
+
+        copied = source.copy_item_ref(item, target)
+
+        assert isinstance(copied, TaskliItem)
+        assert copied.id == 1
+        assert copied.text == "task"
+        assert copied.priority == Priority.HIGH
+        assert copied in target.items
+        assert item in source.items
+
+    def test_move_item_ref_removes_from_source(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = source.add_item("task")
+
+        moved = source.move_item_ref(item, target)
+
+        assert isinstance(moved, TaskliItem)
+        assert source.items == []
+        assert moved in target.items
+        assert moved.text == "task"
+
     def test_color_defaults(self):
         todo_list = TaskliList(name="work")
 
