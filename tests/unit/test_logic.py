@@ -119,6 +119,28 @@ class TestRemoveItems:
         assert result.exit_code == 1
         assert len(result.warnings) == 1
 
+    def test_non_adjacent_ids_keep_user_order(self, taskli_env, config):
+        add("work", ["a", "b", "c", "d"], [], "medium", config)
+
+        result = remove_items("work", [1, 3], config)
+
+        assert result.exit_code == 0
+        assert [item.text for item in result.item_view.items] == ["b", "d"]
+        assert result.messages == [
+            "removed #1 from 'work'.",
+            "removed #3 from 'work'.",
+        ]
+
+    def test_duplicate_id_acts_once(self, taskli_env, config):
+        add("work", ["a", "b", "c"], [], "medium", config)
+
+        result = remove_items("work", [1, 1], config)
+
+        assert result.exit_code == 0
+        assert [item.text for item in result.item_view.items] == ["b", "c"]
+        assert len(result.messages) == 1
+        assert result.warnings == []
+
 
 class TestMove:
     def test_moves_and_returns_target_view(self, taskli_env, config):
@@ -130,6 +152,24 @@ class TestMove:
         assert [i.text for i in result.item_view.items] == ["task"]
         assert load_list(taskli_env, "src").items == []
 
+    def test_missing_id_taints_exit_and_moves_rest(self, taskli_env, config):
+        add("src", ["task"], [], "medium", config)
+
+        result = move("src", "dst", [1, 99], config)
+
+        assert result.exit_code == 1
+        assert len(result.messages) == 1
+        assert len(result.warnings) == 1
+        assert load_list(taskli_env, "src").items == []
+
+    def test_duplicate_id_moves_once(self, taskli_env, config):
+        add("src", ["a", "b"], [], "medium", config)
+
+        result = move("src", "dst", [1, 1], config)
+
+        assert len(result.messages) == 1
+        assert len(load_list(taskli_env, "dst").items) == 1
+
 
 class TestCopy:
     def test_copies_leaving_source_intact(self, taskli_env, config):
@@ -139,6 +179,14 @@ class TestCopy:
 
         assert [i.text for i in result.item_view.items] == ["task"]
         assert len(load_list(taskli_env, "src").items) == 1
+
+    def test_duplicate_id_copies_once(self, taskli_env, config):
+        add("src", ["a", "b"], [], "medium", config)
+
+        result = copy("src", "dst", [1, 1], config)
+
+        assert len(result.messages) == 1
+        assert len(load_list(taskli_env, "dst").items) == 1
 
 
 class TestPrune:

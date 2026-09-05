@@ -227,6 +227,27 @@ class TaskliList(BaseModel):
                 f"no item with id {item_id} in list '{self.name}'."
             ) from e
 
+    def mark_done_ref(self, item: TaskliItem) -> TaskliItem:
+        """Mark a resolved item done and set its completion timestamp.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to mark done.
+
+        Returns
+        -------
+        TaskliItem
+            The updated item.
+        """
+
+        now = datetime.now()
+        item.status = Status.DONE
+        item.completed_at = now
+        item.modified_at = now
+
+        return item
+
     def mark_done(self, item_id: int) -> TaskliItem:
         """Mark an item done and set its completion timestamp.
 
@@ -241,11 +262,27 @@ class TaskliList(BaseModel):
             The updated item.
         """
 
-        item = self.get_item(item_id)
-        now = datetime.now()
-        item.status = Status.DONE
-        item.completed_at = now
-        item.modified_at = now
+        return self.mark_done_ref(self.get_item(item_id))
+
+    def mark_undone_ref(self, item: TaskliItem) -> TaskliItem:
+        """Reset a resolved item to todo and clear its completion timestamp.
+
+        Resets from either ``Status.DONE`` or ``Status.IN_PROGRESS``.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to reset.
+
+        Returns
+        -------
+        TaskliItem
+            The updated item.
+        """
+
+        item.status = Status.TODO
+        item.completed_at = None
+        item.modified_at = datetime.now()
 
         return item
 
@@ -265,8 +302,23 @@ class TaskliList(BaseModel):
             The updated item.
         """
 
-        item = self.get_item(item_id)
-        item.status = Status.TODO
+        return self.mark_undone_ref(self.get_item(item_id))
+
+    def mark_in_progress_ref(self, item: TaskliItem) -> TaskliItem:
+        """Mark a resolved item in progress; clear its completion timestamp.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to mark in progress.
+
+        Returns
+        -------
+        TaskliItem
+            The updated item.
+        """
+
+        item.status = Status.IN_PROGRESS
         item.completed_at = None
         item.modified_at = datetime.now()
 
@@ -286,12 +338,19 @@ class TaskliList(BaseModel):
             The updated item.
         """
 
-        item = self.get_item(item_id)
-        item.status = Status.IN_PROGRESS
-        item.completed_at = None
-        item.modified_at = datetime.now()
+        return self.mark_in_progress_ref(self.get_item(item_id))
 
-        return item
+    def remove_item_ref(self, item: TaskliItem) -> None:
+        """Remove a resolved item from the list, then reindex.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to remove.
+        """
+
+        self.items.remove(item)
+        self.reindex()
 
     def remove_item(self, item_id: int) -> None:
         """Remove an item from the list.
@@ -302,9 +361,7 @@ class TaskliList(BaseModel):
             The item's id.
         """
 
-        item = self.get_item(item_id)
-        self.items.remove(item)
-        self.reindex()
+        self.remove_item_ref(self.get_item(item_id))
 
     def prune(self) -> list[TaskliItem]:
         """Remove all done items from the list.
@@ -417,6 +474,35 @@ class TaskliList(BaseModel):
 
         return item
 
+    def copy_item_ref(
+        self, item: TaskliItem, target: "TaskliList"
+    ) -> TaskliItem:
+        """Copy a resolved item into another list as a fresh, undone item.
+
+        The copy keeps the source item's ``created_at``; only
+        ``modified_at`` is stamped with the time of copy.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to copy.
+        target : TaskliList
+            The list to copy the item into.
+
+        Returns
+        -------
+        TaskliItem
+            The newly created item in ``target``.
+        """
+
+        return target.add_item(
+            item.text,
+            priority=item.priority,
+            tags=list(item.tags),
+            created_at=item.created_at,
+            modified_at=datetime.now(),
+        )
+
     def copy_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
         """Copy an item into another list as a fresh, undone item.
 
@@ -436,15 +522,30 @@ class TaskliList(BaseModel):
             The newly created item in ``target``.
         """
 
-        item = self.get_item(item_id)
+        return self.copy_item_ref(self.get_item(item_id), target)
 
-        return target.add_item(
-            item.text,
-            priority=item.priority,
-            tags=list(item.tags),
-            created_at=item.created_at,
-            modified_at=datetime.now(),
-        )
+    def move_item_ref(
+        self, item: TaskliItem, target: "TaskliList"
+    ) -> TaskliItem:
+        """Move a resolved item into another list, removing it from ``self``.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to move.
+        target : TaskliList
+            The list to move the item into.
+
+        Returns
+        -------
+        TaskliItem
+            The newly created item in ``target``.
+        """
+
+        moved = self.copy_item_ref(item, target)
+        self.remove_item_ref(item)
+
+        return moved
 
     def move_item(self, item_id: int, target: "TaskliList") -> TaskliItem:
         """Move an item into another list, removing it from ``self``.
@@ -462,7 +563,4 @@ class TaskliList(BaseModel):
             The newly created item in ``target``.
         """
 
-        moved = self.copy_item(item_id, target)
-        self.remove_item(item_id)
-
-        return moved
+        return self.move_item_ref(self.get_item(item_id), target)

@@ -314,6 +314,36 @@ class TestDoneUndoneRemove:
         task_list = load_list(taskli_env, "work")
         assert [item.text for item in task_list.items] == ["a", "c"]
 
+    def test_rm_duplicate_id_deduped(self, taskli_env, capsys):
+        main(["work", "-a", "a"])
+        main(["work", "-a", "b"])
+        main(["work", "-a", "c"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-rm", "1", "1"])
+
+        capsys.readouterr()
+        assert exit_code == 0
+        task_list = load_list(taskli_env, "work")
+        assert [item.text for item in task_list.items] == ["b", "c"]
+
+    def test_rm_non_adjacent_ids(self, taskli_env, capsys):
+        main(["work", "-a", "a"])
+        main(["work", "-a", "b"])
+        main(["work", "-a", "c"])
+        main(["work", "-a", "d"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-rm", "1", "3"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.out.index("removed #1") < captured.out.index(
+            "removed #3"
+        )
+        task_list = load_list(taskli_env, "work")
+        assert [item.text for item in task_list.items] == ["b", "d"]
+
 
 class TestEdit:
     def test_edit_updates_text(self, taskli_env, capsys):

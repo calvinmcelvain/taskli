@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .exceptions import ItemNotFoundError, TaskliError
 from .hierarchy import ancestor_chain, descendant_list_names
-from .models import Color, Config, Priority, TaskliList
+from .models import Color, Config, Priority, TaskliItem, TaskliList
 from .storage import (
     create_list,
     delete_list,
@@ -218,7 +218,7 @@ def mark_done(
     """
 
     return _batch_mark(
-        list_name, item_ids, config, TaskliList.mark_done, "done"
+        list_name, item_ids, config, TaskliList.mark_done_ref, "done"
     )
 
 
@@ -243,7 +243,7 @@ def mark_undone(
     """
 
     return _batch_mark(
-        list_name, item_ids, config, TaskliList.mark_undone, "not done"
+        list_name, item_ids, config, TaskliList.mark_undone_ref, "not done"
     )
 
 
@@ -271,33 +271,53 @@ def mark_in_progress(
         list_name,
         item_ids,
         config,
-        TaskliList.mark_in_progress,
+        TaskliList.mark_in_progress_ref,
         "in progress",
     )
+
+
+def _resolve_items(
+    task_list: TaskliList, item_ids: list[int]
+) -> tuple[list[tuple[int, TaskliItem]], list[str]]:
+    """Resolve ids to items once, deduped by identity, with per-id warnings."""
+
+    resolved: list[tuple[int, TaskliItem]] = []
+    seen: set[int] = set()
+    warnings: list[str] = []
+    for item_id in item_ids:
+        try:
+            item = task_list.get_item(item_id)
+        except ItemNotFoundError as e:
+            warnings.append(str(e))
+            continue
+        if id(item) in seen:
+            continue
+        seen.add(id(item))
+        resolved.append((item_id, item))
+
+    return resolved, warnings
 
 
 def _batch_mark(
     list_name: str,
     item_ids: list[int],
     config: Config,
-    mark: Callable[[TaskliList, int], object],
+    mark: Callable[[TaskliList, TaskliItem], object],
     label: str,
 ) -> CommandResult:
-    """Apply ``mark`` to each id, collecting messages and per-id warnings."""
+    """Apply ``mark`` to each resolved item, collecting messages/warnings."""
 
     storage_dir = resolve_storage_dir()
     task_list = load_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
     result = CommandResult()
-    for item_id in item_ids:
-        try:
-            mark(task_list, item_id)
-            result.messages.append(
-                f"marked #{item_id} {label} in '{display_name}'."
-            )
-        except ItemNotFoundError as e:
-            result.warnings.append(str(e))
+    resolved, result.warnings = _resolve_items(task_list, item_ids)
+    for item_id, item in resolved:
+        mark(task_list, item)
+        result.messages.append(
+            f"marked #{item_id} {label} in '{display_name}'."
+        )
 
     save_list(storage_dir, task_list)
     result.item_view = task_list
@@ -331,16 +351,10 @@ def remove_items(
     display_name = task_list.display_name(config.sublist_delimiter)
 
     result = CommandResult()
-    # remove_item reindexes on every call, renumbering ids after the one
-    # removed; working id-descending keeps not-yet-processed ids stable.
-    for item_id in sorted(item_ids, reverse=True):
-        try:
-            task_list.remove_item(item_id)
-            result.messages.append(
-                f"removed #{item_id} from '{display_name}'."
-            )
-        except ItemNotFoundError as e:
-            result.warnings.append(str(e))
+    resolved, result.warnings = _resolve_items(task_list, item_ids)
+    for item_id, item in resolved:
+        task_list.remove_item_ref(item)
+        result.messages.append(f"removed #{item_id} from '{display_name}'.")
 
     save_list(storage_dir, task_list)
     result.item_view = task_list
@@ -384,17 +398,13 @@ def move(
     ids = item_ids or [item.id for item in task_list.items]
 
     result = CommandResult()
-    # move_item reindexes the source on every call; id-descending keeps
-    # not-yet-processed ids stable, same reasoning as remove_items.
-    for item_id in sorted(ids, reverse=True):
-        try:
-            task_list.move_item(item_id, target_list)
-            result.messages.append(
-                f"moved #{item_id} from '{display_name}' to "
-                f"'{target_display_name}'."
-            )
-        except ItemNotFoundError as e:
-            result.warnings.append(str(e))
+    resolved, result.warnings = _resolve_items(task_list, ids)
+    for item_id, item in resolved:
+        task_list.move_item_ref(item, target_list)
+        result.messages.append(
+            f"moved #{item_id} from '{display_name}' to "
+            f"'{target_display_name}'."
+        )
 
     target_list.resort(config.default_sort)
 
@@ -441,15 +451,13 @@ def copy(
     ids = item_ids or [item.id for item in task_list.items]
 
     result = CommandResult()
-    for item_id in ids:
-        try:
-            task_list.copy_item(item_id, target_list)
-            result.messages.append(
-                f"copied #{item_id} from '{display_name}' to "
-                f"'{target_display_name}'."
-            )
-        except ItemNotFoundError as e:
-            result.warnings.append(str(e))
+    resolved, result.warnings = _resolve_items(task_list, ids)
+    for item_id, item in resolved:
+        task_list.copy_item_ref(item, target_list)
+        result.messages.append(
+            f"copied #{item_id} from '{display_name}' to "
+            f"'{target_display_name}'."
+        )
 
     target_list.resort(config.default_sort)
 
