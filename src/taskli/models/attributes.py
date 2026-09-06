@@ -1,9 +1,11 @@
 """Task & task list attributes."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, StrEnum
+from typing import assert_never
 
-__all__ = ["Color", "Priority", "Status"]
+__all__ = ["Color", "Operator", "Priority", "Status"]
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,44 @@ class Status(StatusContainer, Enum):
             return cls[value.upper()]
 
         return None
+
+
+class Operator(Enum):
+    EQ = "eq"
+    CONTAINS = "contains"
+
+    def compare(self, value: object, operand: object) -> bool:
+        """Test ``value`` against ``operand`` under this operator.
+
+        Parameters
+        ----------
+        value : object
+            The item attribute value to test.
+        operand : object
+            The value the criterion holds to test against.
+
+        Returns
+        -------
+        bool
+            Whether ``value`` satisfies ``operand`` under this operator.
+        """
+
+        if self is Operator.EQ:
+            return value == operand
+
+        if self is Operator.CONTAINS:
+            # case-insensitive containment: substring for a plain string,
+            # exact membership for any other iterable (reproduces the old
+            # ``needle in (t.lower() for t in item.tags)`` on tags).
+            needle = str(operand).lower()
+            if isinstance(value, str):
+                return needle in value.lower()
+            if isinstance(value, Iterable):
+                return needle in (str(v).lower() for v in value)
+
+            return False
+
+        assert_never(self)
 
 
 class Color(StrEnum):

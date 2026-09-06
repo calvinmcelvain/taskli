@@ -3,8 +3,8 @@ import argparse
 import pytest
 
 from taskli.__version__ import __version__
-from taskli.cli import main
-from taskli.models import Color, Priority
+from taskli.cli import MODIFIER_FLAGS, main
+from taskli.models import Color, Priority, registry
 from taskli.storage import load_config, load_list
 
 
@@ -136,6 +136,19 @@ class TestView:
         captured = capsys.readouterr()
         assert "a" in captured.out
         assert "b" not in captured.out
+
+    def test_filters_by_tag_and_priority(self, taskli_env, capsys):
+        main(["work", "-a", "both", "--tag", "urgent", "-p", "high"])
+        main(["work", "-a", "tag only", "--tag", "urgent", "-p", "low"])
+        main(["work", "-a", "prio only", "--tag", "later", "-p", "high"])
+        capsys.readouterr()
+
+        main(["work", "--tag", "urgent", "-p", "high"])
+
+        captured = capsys.readouterr()
+        assert "both" in captured.out
+        assert "tag only" not in captured.out
+        assert "prio only" not in captured.out
 
     def test_sorts_by_configured_default_sort(self, taskli_env, capsys):
         main(["-a", "z-task", "-p", "high"])
@@ -1447,6 +1460,17 @@ class TestPath:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert captured.out.strip() == str(tmp_path)
+
+
+class TestModifierRegistryParity:
+    def test_flags_are_registry_attributes(self):
+        assert set(MODIFIER_FLAGS) <= set(registry.ATTRIBUTES)
+
+    def test_every_filterable_attr_has_a_flag_dest(self):
+        # _dispatch indexes MODIFIER_FLAGS[name].filter_dest for every
+        # registry.filterable() name; a gap would KeyError at runtime.
+        for name in registry.filterable():
+            assert MODIFIER_FLAGS[name].filter_dest is not None
 
 
 class TestCompletion:

@@ -1,10 +1,4 @@
-"""Per-command orchestration between the CLI and storage/models.
-
-Each function loads through :mod:`taskli.storage`, mutates via model
-methods, saves, and returns plain data or a :class:`CommandResult`. Nothing
-here imports :mod:`taskli.render` or prints — the CLI layer turns these
-results into console output.
-"""
+"""Per-command orchestration between the CLI and storage/models."""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -38,12 +32,6 @@ from .storage import (
 
 @dataclass
 class CommandResult:
-    """Outcome of a mutating command, ready for the CLI to render.
-
-    At most one of ``item_view`` / ``tree_view`` is set — a command
-    echoes back either a single list (flat table) or a nested tree.
-    """
-
     messages: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     exit_code: int = 0
@@ -71,6 +59,7 @@ def _mutate(
     storage_dir = resolve_storage_dir()
     task_list = load_list(storage_dir, list_name)
     message = mutate_fn(task_list)
+
     save_list(storage_dir, task_list)
 
     return CommandResult(messages=[message], item_view=task_list)
