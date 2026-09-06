@@ -15,6 +15,7 @@ from taskli.logic import (
     mark_done,
     mark_in_progress,
     mark_undone,
+    migrate,
     move,
     new_list,
     prune,
@@ -26,7 +27,7 @@ from taskli.logic import (
 )
 from taskli.models import Color, Filter, Priority, Status, TaskliList
 from taskli.storage import load_config, load_list
-from utils import priority_criterion, tag_criterion
+from utils import priority_criterion, resource_text, tag_criterion
 
 
 @pytest.fixture
@@ -454,6 +455,25 @@ class TestAllViews:
 
         names = [tl.name for group in groups for tl in group]
         assert "work.sub" in names
+
+
+class TestMigrate:
+    def test_migrates_stale_list_and_reloads(self, taskli_env):
+        (taskli_env / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+
+        result = migrate()
+
+        assert result.exit_code == 0
+        assert "migrated 'inbox'." in result.messages
+        assert isinstance(load_list(taskli_env, "inbox"), TaskliList)
+
+    def test_all_current_reports_no_change(self, taskli_env, config):
+        result = migrate()
+
+        assert result.exit_code == 0
+        assert result.messages == ["'config' already current."]
 
 
 class TestStoragePath:

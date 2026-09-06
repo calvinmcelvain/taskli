@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from taskli.migrations import CURRENT_CONFIG_VERSION, CURRENT_LIST_VERSION
 from taskli.models import Color, Config, Priority, Status, TaskliList
 from taskli.storage import (
     CorruptedConfigFileError,
@@ -10,6 +11,8 @@ from taskli.storage import (
     InvalidListNameError,
     ListAlreadyExistsError,
     ListNotFoundError,
+    OutdatedConfigFileError,
+    OutdatedListFileError,
     TooManyAncestorListsError,
     config_file_path,
     create_list,
@@ -20,13 +23,14 @@ from taskli.storage import (
     load_config,
     load_list,
     load_or_create_list,
+    migrate_all,
     rename_list,
     resolve_storage_dir,
     resort_all_lists,
     save_config,
     save_list,
 )
-from utils import sort
+from utils import resource_text, sort
 
 
 class TestResolveStorageDir:
@@ -75,13 +79,39 @@ class TestConfigLifecycle:
         with pytest.raises(CorruptedConfigFileError):
             load_config(tmp_path)
 
+    def test_load_config_raises_for_non_dict_json(self, tmp_path):
+        config_file_path(tmp_path).write_text("null")
+
+        with pytest.raises(CorruptedConfigFileError):
+            load_config(tmp_path)
+
     def test_load_config_raises_for_bad_default_sort(self, tmp_path):
         config_file_path(tmp_path).write_text(
-            json.dumps({"default_sort": "bogus"})
+            json.dumps(
+                {
+                    "version": CURRENT_CONFIG_VERSION,
+                    "default_sort": "bogus",
+                }
+            )
         )
 
         with pytest.raises(CorruptedConfigFileError):
             load_config(tmp_path)
+
+    def test_load_config_raises_for_outdated_file(self, tmp_path):
+        config_file_path(tmp_path).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+
+        with pytest.raises(OutdatedConfigFileError, match="tk --migrate"):
+            load_config(tmp_path)
+
+    def test_save_config_stamps_current_version(self, tmp_path):
+        save_config(tmp_path, Config())
+
+        raw = json.loads(config_file_path(tmp_path).read_text())
+
+        assert raw["version"] == CURRENT_CONFIG_VERSION
 
 
 class TestListLifecycle:
@@ -284,6 +314,12 @@ class TestLoadList:
         with pytest.raises(CorruptedListFileError):
             load_list(tmp_path, "broken")
 
+    def test_raises_for_non_dict_json(self, tmp_path):
+        (tmp_path / "broken.json").write_text("[1, 2, 3]")
+
+        with pytest.raises(CorruptedListFileError):
+            load_list(tmp_path, "broken")
+
     def test_save_list_persists_items_in_id_order(self, tmp_path):
         task_list = TaskliList(name="work")
         task_list.add_item("a")
@@ -304,14 +340,22 @@ class TestLoadList:
         task_list.add_item("b")
         task_list.items[0].id = 5
         task_list.items[1].id = 9
-        path = tmp_path / "work.json"
-        path.write_text(task_list.model_dump_json(indent=2))
 
+        save_list(tmp_path, task_list)
         reloaded = load_list(tmp_path, "work")
 
         assert [item.id for item in reloaded.items] == [1, 2]
 
-    def test_backfills_modified_at_missing_from_legacy_file(self, tmp_path):
+    def test_save_list_stamps_current_version(self, tmp_path):
+        task_list = create_list(tmp_path, "work")
+        task_list.add_item("task")
+
+        save_list(tmp_path, task_list)
+
+        raw = json.loads(list_file_path(tmp_path, "work").read_text())
+        assert raw["version"] == CURRENT_LIST_VERSION
+
+    def test_raises_for_unversioned_legacy_file(self, tmp_path):
         path = tmp_path / "work.json"
         path.write_text(
             json.dumps(
@@ -328,11 +372,10 @@ class TestLoadList:
             )
         )
 
-        reloaded = load_list(tmp_path, "work")
+        with pytest.raises(OutdatedListFileError, match="tk --migrate"):
+            load_list(tmp_path, "work")
 
-        assert reloaded.items[0].modified_at == reloaded.items[0].created_at
-
-    def test_migrates_legacy_done_bool_to_status(self, tmp_path):
+    def test_raises_for_legacy_done_bool_not_silently_todo(self, tmp_path):
         path = tmp_path / "work.json"
         path.write_text(
             json.dumps(
@@ -350,15 +393,8 @@ class TestLoadList:
             )
         )
 
-        reloaded = load_list(tmp_path, "work")
-
-        assert reloaded.items[0].status == Status.DONE
-
-        save_list(tmp_path, reloaded)
-        raw = json.loads(path.read_text())
-
-        assert raw["items"][0]["status"] == "done"
-        assert "done" not in raw["items"][0]
+        with pytest.raises(OutdatedListFileError):
+            load_list(tmp_path, "work")
 
     def test_auto_creates_configured_default_list(self, tmp_path):
         config = load_config(tmp_path)
@@ -424,3 +460,93 @@ class TestResortAllLists:
 
         reloaded = load_list(tmp_path, "work")
         assert [item.text for item in reloaded.items] == ["high", "low"]
+
+
+class TestMigrate:
+    def test_migrates_legacy_list_and_config(self, tmp_path):
+        (tmp_path / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+        config_file_path(tmp_path).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("config", "migrated"), ("inbox", "migrated")]
+
+        task_list = load_list(tmp_path, "inbox")
+        config = load_config(tmp_path)
+        assert task_list.items[0].status == Status.DONE
+        assert task_list.items[0].modified_at == task_list.items[0].created_at
+        assert task_list.items[2].priority == Priority.HIGH
+        assert config.default_priority == Priority.HIGH
+
+    def test_reports_current_for_v1_file(self, tmp_path):
+        (tmp_path / "inbox.json").write_text(resource_text("list_v1.json"))
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("inbox", "current")]
+
+    def test_reports_unreadable_for_corrupt_json(self, tmp_path):
+        (tmp_path / "inbox.json").write_text("not valid json")
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("inbox", "unreadable")]
+
+    def test_non_dict_json_reported_without_aborting_walk(self, tmp_path):
+        (tmp_path / "aaa.json").write_text("null")
+        (tmp_path / "zzz.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("aaa", "unreadable"), ("zzz", "migrated")]
+
+    def test_reports_unreadable_when_migrated_form_fails_validation(
+        self, tmp_path
+    ):
+        broken = {"name": "inbox", "items": [{"id": 1, "done": True}]}
+        path = tmp_path / "inbox.json"
+        path.write_text(json.dumps(broken))
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("inbox", "unreadable")]
+        assert json.loads(path.read_text()) == broken
+
+    def test_malformed_item_structure_does_not_crash_walk(self, tmp_path):
+        (tmp_path / "aaa.json").write_text('{"name": "aaa", "items": [null]}')
+        (tmp_path / "zzz.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("aaa", "unreadable"), ("zzz", "migrated")]
+
+    def test_unresolvable_list_name_does_not_crash_walk(self, tmp_path):
+        (tmp_path / "a.b.c.d.json").write_text('{"name": "a.b.c.d"}')
+        (tmp_path / "zzz.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("a.b.c.d", "unreadable"), ("zzz", "migrated")]
+
+    def test_second_run_is_noop(self, tmp_path):
+        (tmp_path / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+        config_file_path(tmp_path).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+        migrate_all(tmp_path)
+
+        results = migrate_all(tmp_path)
+
+        assert results == [("config", "current"), ("inbox", "current")]

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "inbox",
+  "color": "#F8FAFC",
+  "items": [
+    {
+      "id": 1,
+      "text": "ship the release",
+      "status": "done",
+      "priority": "medium",
+      "tags": [],
+      "created_at": "2020-01-01T00:00:00",
+      "modified_at": "2020-01-01T00:00:00",
+      "completed_at": "2020-01-05T00:00:00"
+    },
+    {
+      "id": 2,
+      "text": "write the changelog",
+      "status": "todo",
+      "priority": "high",
+      "tags": ["docs"],
+      "created_at": "2020-01-02T00:00:00",
+      "modified_at": "2020-01-03T00:00:00",
+      "completed_at": null
+    }
+  ]
+}

@@ -1,16 +1,22 @@
 """List storage functions."""
 
+import json
 import os
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
+from . import migrations
 from .exceptions import (
     CorruptedConfigFileError,
     CorruptedListFileError,
     InvalidListNameError,
     ListAlreadyExistsError,
     ListNotFoundError,
+    OutdatedConfigFileError,
+    OutdatedListFileError,
     TaskliError,
     TooManyAncestorListsError,
 )
@@ -74,7 +80,24 @@ def load_config(storage_dir: Path) -> Config:
         return config
 
     try:
-        return Config.model_validate_json(path.read_text())
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise CorruptedConfigFileError(
+            f"config file '{path}' is corrupted and could not be read."
+        ) from e
+
+    if not isinstance(raw, dict):
+        raise CorruptedConfigFileError(
+            f"config file '{path}' is corrupted and could not be read."
+        )
+
+    if migrations.config_needs_migration(raw):
+        raise OutdatedConfigFileError(
+            f"config file '{path}' is on an older schema; run 'tk --migrate'."
+        )
+
+    try:
+        return Config.model_validate(raw)
     except ValidationError as e:
         raise CorruptedConfigFileError(
             f"config file '{path}' is corrupted and could not be read."
@@ -93,7 +116,9 @@ def save_config(storage_dir: Path, config: Config) -> None:
     """
 
     path = config_file_path(storage_dir)
-    path.write_text(config.model_dump_json(indent=2))
+    raw = config.model_dump(mode="json")
+    raw["version"] = migrations.CURRENT_CONFIG_VERSION
+    path.write_text(json.dumps(raw, indent=2))
 
     return None
 
@@ -347,14 +372,30 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
         )
 
     try:
-        task_list = TaskliList.model_validate_json(path.read_text())
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise CorruptedListFileError(
+            f"list file '{path}' is corrupted and could not be read."
+        ) from e
+
+    if not isinstance(raw, dict):
+        raise CorruptedListFileError(
+            f"list file '{path}' is corrupted and could not be read."
+        )
+
+    if migrations.list_needs_migration(raw):
+        raise OutdatedListFileError(
+            f"list file '{path}' is on an older schema; run 'tk --migrate'."
+        )
+
+    try:
+        task_list = TaskliList.model_validate(raw)
     except ValidationError as e:
         raise CorruptedListFileError(
             f"list file '{path}' is corrupted and could not be read."
         ) from e
 
     task_list.reindex()
-    task_list.backfill_modified_at()
 
     return task_list
 
@@ -399,7 +440,9 @@ def save_list(storage_dir: Path, task_list: TaskliList) -> None:
 
     task_list.sort_by_index()
     path = list_file_path(storage_dir, task_list.name)
-    path.write_text(task_list.model_dump_json(indent=2))
+    raw = task_list.model_dump(mode="json")
+    raw["version"] = migrations.CURRENT_LIST_VERSION
+    path.write_text(json.dumps(raw, indent=2))
 
     return None
 
@@ -425,3 +468,125 @@ def resort_all_lists(storage_dir: Path, sort: Sort) -> None:
         save_list(storage_dir, task_list)
 
     return None
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` via a sibling temp file and rename."""
+
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+    return None
+
+
+def _migrate_file(
+    path: Path,
+    needs_migration: Callable[[dict[str, Any]], bool],
+    migrate: Callable[[dict[str, Any]], dict[str, Any]],
+    validate: Callable[[dict[str, Any]], object],
+) -> str:
+    """Migrate one file in place, returning its outcome string.
+
+    Parameters
+    ----------
+    path : Path
+        The file to migrate.
+    needs_migration : Callable[[dict[str, Any]], bool]
+        Predicate telling whether the parsed dict is on an older schema.
+    migrate : Callable[[dict[str, Any]], dict[str, Any]]
+        The migration to apply when it is.
+    validate : Callable[[dict[str, Any]], object]
+        A model validator run on the migrated dict before it is written;
+        its return value is ignored, only a raised ``ValidationError``
+        matters.
+
+    Returns
+    -------
+    str
+        ``"current"`` when nothing was pending, ``"migrated"`` when a
+        migration was applied and written, or ``"unreadable"`` when the
+        file could not be read or parsed, its structure was too malformed
+        for the migration to run, or the migrated form failed to validate
+        (the file is left untouched in every failing case).
+    """
+
+    try:
+        raw = json.loads(path.read_text())
+        if not isinstance(raw, dict):
+            return "unreadable"
+        if not needs_migration(raw):
+            return "current"
+        migrated = migrate(raw)
+        validate(migrated)
+        _atomic_write(path, json.dumps(migrated, indent=2))
+    except Exception:
+        # Any failure on one file (unparseable JSON, structure too
+        # malformed for the migration, a migrated form that won't
+        # validate, an I/O error) is reported and skipped rather than
+        # aborting the whole --migrate walk; every future migration step
+        # inherits this contract.
+        return "unreadable"
+
+    return "migrated"
+
+
+def migrate_all(storage_dir: Path) -> list[tuple[str, str]]:
+    """Migrate every on-disk file to the current schema, in place.
+
+    Walks the config file first, then every list, migrating any that is
+    on an older schema and leaving current ones untouched. Idempotent: a
+    second call over an already-migrated directory reports every file as
+    ``"current"``.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        One ``(name, outcome)`` pair per file, config first then lists in
+        name order. ``outcome`` is ``"migrated"``, ``"current"``, or
+        ``"unreadable"`` (see ``_migrate_file``).
+    """
+
+    results: list[tuple[str, str]] = []
+
+    config_path = config_file_path(storage_dir)
+    if config_path.exists():
+        results.append(
+            (
+                "config",
+                _migrate_file(
+                    config_path,
+                    migrations.config_needs_migration,
+                    migrations.migrate_config,
+                    Config.model_validate,
+                ),
+            )
+        )
+
+    for name in list_all_lists(storage_dir):
+        try:
+            path = list_file_path(storage_dir, name)
+        except TaskliError:
+            # e.g. a legacy file nested too deep to be a valid list name;
+            # report it and keep walking rather than aborting the run.
+            results.append((name, "unreadable"))
+            continue
+
+        results.append(
+            (
+                name,
+                _migrate_file(
+                    path,
+                    migrations.list_needs_migration,
+                    migrations.migrate_list,
+                    TaskliList.model_validate,
+                ),
+            )
+        )
+
+    return results

@@ -22,8 +22,6 @@ class Priority(PriorityContainer, Enum):
 
     @classmethod
     def _missing_(cls, value: object) -> "Priority | None":
-        if isinstance(value, dict):
-            value = value.get("label")
         if isinstance(value, str) and value.upper() in cls.__members__:
             return cls[value.upper()]
 
@@ -43,8 +41,6 @@ class Status(StatusContainer, Enum):
 
     @classmethod
     def _missing_(cls, value: object) -> "Status | None":
-        if isinstance(value, dict):
-            value = value.get("label")
         if isinstance(value, str) and value.upper() in cls.__members__:
             return cls[value.upper()]
 

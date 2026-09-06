@@ -64,13 +64,21 @@ def _print_list(task_list: TaskliList, config: Config) -> None:
     return None
 
 
-def _emit(result: logic.CommandResult, config: Config) -> int:
-    """Render a command result: messages, warnings, then any list view."""
+def _render_notices(result: logic.CommandResult) -> None:
+    """Render a result's messages, then its warnings."""
 
     for message in result.messages:
         render_message(message)
     for warning in result.warnings:
         render_warning(warning)
+
+    return None
+
+
+def _emit(result: logic.CommandResult, config: Config) -> int:
+    """Render a command result: messages, warnings, then any list view."""
+
+    _render_notices(result)
 
     if result.item_view is not None:
         _print_list(result.item_view, config)
@@ -88,6 +96,7 @@ class ListCommands(StrEnum):
     LISTS = "lists"
     PRUNE = "prune"
     RENAME = "rename"
+    MIGRATE = "migrate"
 
 
 class ConfigCommands(StrEnum):
@@ -250,6 +259,15 @@ def _register_list_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         metavar="NEW_NAME",
         help="Rename LIST (and its sublists) to NEW_NAME.",
+    )
+    ops.add_argument(
+        "--migrate",
+        dest="migrate",
+        action="store_true",
+        help=(
+            "Bring every list and config file up to the current on-disk"
+            " schema."
+        ),
     )
 
     return None
@@ -434,6 +452,8 @@ def _resolve_list_op(namespace: argparse.Namespace) -> ListCommands | None:
         return ListCommands.PRUNE
     if namespace.rename:
         return ListCommands.RENAME
+    if namespace.migrate:
+        return ListCommands.MIGRATE
     # bare --color with no other list flag means "recolor this list."
     if namespace.color:
         return ListCommands.COLOR
@@ -523,7 +543,12 @@ def _validate(
     parser: argparse.ArgumentParser,
 ) -> None:
     match op:
-        case ListCommands.DELETE | ListCommands.LISTS | ListCommands.RENAME:
+        case (
+            ListCommands.DELETE
+            | ListCommands.LISTS
+            | ListCommands.RENAME
+            | ListCommands.MIGRATE
+        ):
             _reject_modifiers(
                 namespace,
                 parser,
@@ -669,9 +694,16 @@ def _run_item_action(
 @_handle_errors
 def _dispatch(
     namespace: argparse.Namespace,
-    config: Config,
     op: ListCommands | ItemActionCommands | ConfigCommands,
 ) -> int:
+    if op is ListCommands.MIGRATE:
+        result = logic.migrate()
+        _render_notices(result)
+
+        return result.exit_code
+
+    config = load_config(resolve_storage_dir())
+
     if namespace.list:
         list_name = namespace.list.replace(config.sublist_delimiter, ".")
     else:
@@ -815,9 +847,7 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 1
 
-    config = load_config(resolve_storage_dir())
-
-    return _dispatch(namespace, config, op)
+    return _dispatch(namespace, op)
 
 
 if __name__ == "__main__":

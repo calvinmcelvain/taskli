@@ -1,6 +1,48 @@
 """Shared builders for filter and sort test call sites."""
 
+import json
+from pathlib import Path
+from typing import Any
+
 from taskli.models import Criterion, Operator, Priority, Sort, SortBy
+
+_RESOURCES = Path(__file__).parent / "resources"
+
+
+def resource_text(name: str) -> str:
+    """Return the raw text of a JSON fixture from ``tests/resources``.
+
+    Parameters
+    ----------
+    name : str
+        The fixture file name.
+
+    Returns
+    -------
+    str
+        The file contents.
+    """
+
+    return (_RESOURCES / name).read_text()
+
+
+def resource_dict(name: str) -> dict[str, Any]:
+    """Return a JSON fixture from ``tests/resources`` parsed to a dict.
+
+    Parameters
+    ----------
+    name : str
+        The fixture file name.
+
+    Returns
+    -------
+    dict[str, Any]
+        The parsed JSON object.
+    """
+
+    data: dict[str, Any] = json.loads(resource_text(name))
+
+    return data
 
 
 def tag_criterion(name: str) -> Criterion:
