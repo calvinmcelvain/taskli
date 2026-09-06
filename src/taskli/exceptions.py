@@ -5,12 +5,14 @@ __all__ = [
     "ListNotFoundError",
     "ListAlreadyExistsError",
     "CorruptedListFileError",
+    "OutdatedListFileError",
     "InvalidListNameError",
     "ItemNotFoundError",
     "TooManyAncestorListsError",
     "UnknownConfigKeyError",
     "InvalidConfigValueError",
     "CorruptedConfigFileError",
+    "OutdatedConfigFileError",
 ]
 
 
@@ -28,6 +30,10 @@ class ListAlreadyExistsError(TaskliError):
 
 class CorruptedListFileError(TaskliError):
     """Raised when a list file exists but cannot be parsed."""
+
+
+class OutdatedListFileError(TaskliError):
+    """Raised when a list file uses an outdated schema version."""
 
 
 class InvalidListNameError(TaskliError):
@@ -52,3 +58,7 @@ class InvalidConfigValueError(TaskliError):
 
 class CorruptedConfigFileError(TaskliError):
     """Raised when the config file exists but cannot be parsed."""
+
+
+class OutdatedConfigFileError(TaskliError):
+    """Raised when the config file uses an outdated schema version."""

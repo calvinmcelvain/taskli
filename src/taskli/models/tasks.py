@@ -1,9 +1,8 @@
 """Tasks & task list models."""
 
 from datetime import datetime
-from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer, model_validator
+from pydantic import BaseModel, Field, field_serializer
 
 from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority, Status
@@ -21,18 +20,6 @@ class TaskliItem(BaseModel):
     created_at: datetime
     modified_at: datetime | None = None
     completed_at: datetime | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_done(cls, data: Any) -> Any:
-        """Translate a legacy ``done`` bool into ``status`` on load."""
-
-        if isinstance(data, dict) and "status" not in data and "done" in data:
-            data = dict(data)
-            done = data.pop("done")
-            data["status"] = Status.DONE if done else Status.TODO
-
-        return data
 
     @field_serializer("status")
     def _serialize_status(self, value: Status) -> str:
@@ -108,15 +95,6 @@ class TaskliList(BaseModel):
 
         for new_id, item in enumerate(self.items, start=1):
             item.id = new_id
-
-        return None
-
-    def backfill_modified_at(self) -> None:
-        """Default any item's missing ``modified_at`` to its ``created_at``."""
-
-        for item in self.items:
-            if item.modified_at is None:
-                item.modified_at = item.created_at
 
         return None
 

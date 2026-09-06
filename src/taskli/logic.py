@@ -22,6 +22,7 @@ from .storage import (
     load_config,
     load_list,
     load_or_create_list,
+    migrate_all,
     rename_list,
     resolve_storage_dir,
     resort_all_lists,
@@ -694,6 +695,31 @@ def set_config(key: str, value: str) -> CommandResult:
         )
 
     return CommandResult(messages=[f"set '{key}' to '{value}'."])
+
+
+def migrate() -> CommandResult:
+    """Bring every on-disk list and config file up to the current schema.
+
+    Returns
+    -------
+    CommandResult
+        One message per migrated or already-current file, one warning per
+        file whose JSON could not be read; ``exit_code`` is 1 when any
+        file was unreadable.
+    """
+
+    result = CommandResult()
+    for name, outcome in migrate_all(resolve_storage_dir()):
+        if outcome == "migrated":
+            result.messages.append(f"migrated '{name}'.")
+        elif outcome == "current":
+            result.messages.append(f"'{name}' already current.")
+        else:
+            result.warnings.append(f"could not read '{name}'; skipped.")
+
+    result.exit_code = 1 if result.warnings else 0
+
+    return result
 
 
 def list_names() -> list[str]:

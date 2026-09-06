@@ -5,7 +5,8 @@ import pytest
 from taskli.__version__ import __version__
 from taskli.cli import MODIFIER_FLAGS, main
 from taskli.models import Color, Priority, registry
-from taskli.storage import load_config, load_list
+from taskli.storage import config_file_path, load_config, load_list
+from utils import resource_text
 
 
 class TestAdd:
@@ -1460,6 +1461,69 @@ class TestPath:
         captured = capsys.readouterr()
         assert exit_code == 0
         assert captured.out.strip() == str(tmp_path)
+
+
+class TestMigrate:
+    def test_migrates_stale_files_and_reports(self, taskli_env, capsys):
+        (taskli_env / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+        config_file_path(taskli_env).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+
+        exit_code = main(["--migrate"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "migrated 'config'." in captured.out
+        assert "migrated 'inbox'." in captured.out
+
+    def test_second_run_reports_all_current(self, taskli_env, capsys):
+        (taskli_env / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+        config_file_path(taskli_env).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+        main(["--migrate"])
+        capsys.readouterr()
+
+        exit_code = main(["--migrate"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "'inbox' already current." in captured.out
+        assert "'config' already current." in captured.out
+
+    def test_stale_list_view_points_at_migrate(self, taskli_env, capsys):
+        (taskli_env / "inbox.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+
+        exit_code = main(["inbox"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "--migrate" in captured.out + captured.err
+
+    def test_stale_config_read_exits_one(self, taskli_env, capsys):
+        config_file_path(taskli_env).write_text(
+            resource_text("config_v0_legacy.json")
+        )
+
+        exit_code = main(["--config"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "--migrate" in captured.out + captured.err
+
+    def test_rejects_modifiers(self, taskli_env, capsys):
+        exit_code = main(["--migrate", "--tag", "x"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "error:" in captured.err
 
 
 class TestModifierRegistryParity:

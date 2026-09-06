@@ -20,7 +20,13 @@ carries domain + render facets only; the argparse flag spec for the same
 attributes lives in `cli.py`. `hierarchy.py` holds the pure list-name hierarchy
 helpers (`ancestor_chain`, `parent_list_name`, `child_list_names`,
 `descendant_list_names`) — dotted-name string math, no I/O. `exceptions.py` is
-the shared `TaskliError` hierarchy.
+the shared `TaskliError` hierarchy. `migrations.py` is a third leaf beside
+`exceptions.py` and `hierarchy.py` — the versioned-migration module (stdlib
+only), operating on the raw parsed file dicts before model validation:
+`CURRENT_LIST_VERSION` / `CURRENT_CONFIG_VERSION`, ordered migration chains,
+and `migrate_list` / `migrate_config` / `*_needs_migration`, with the
+historical label strings (`"done"`, `"todo"`, `"high"`, …) hard-coded as a
+frozen contract rather than imported from `attributes.py`.
 
 ## Rules
 
@@ -31,17 +37,20 @@ check a plan against.
    `storage.py`} → `models/` → `exceptions.py` (`render.py` and `storage.py`
    are siblings — neither imports the other; `logic.py` imports `storage` but
    never `render`), with `hierarchy.py` a second leaf alongside `exceptions.py`
-   (a pure-string module any layer may import). A module imports only from lower
-   in the chain, never higher. Concretely: `hierarchy.py` imports nothing from
+   (a pure-string module any layer may import), and `migrations.py` a third.
+   A module imports only from lower
+   in the chain, never higher. Concretely: `hierarchy.py` and `migrations.py`
+   import nothing from
    the package; `models/` imports only `exceptions` (and other `models/`
-   modules); `storage.py` imports only `models`, `hierarchy`, and `exceptions`;
+   modules); `storage.py` imports only `models`, `hierarchy`, `migrations`, and
+   `exceptions`;
    `render.py` imports only `models` and `hierarchy`; `logic.py` imports
    `models`, `storage`, `hierarchy`, and `exceptions` — never `render`; `cli.py`
    is the only module that imports `logic.py` or `render.py`, and also keeps a
    two-name bootstrap import of `storage` (`resolve_storage_dir`, `load_config`)
-   for `main`; nothing in `logic.py`, `{render.py, storage.py}`, `models/`,
-   `hierarchy.py`, or `exceptions.py` imports `render.py`; nothing imports
-   `cli.py`.
+   for the `_dispatch` entry point; nothing in `logic.py`, `{render.py, storage.py}`, `models/`,
+   `hierarchy.py`, `migrations.py`, or `exceptions.py` imports `render.py`;
+   nothing imports `cli.py`.
 2. **`models/` is pure data + domain logic.** Pydantic models, enums, field
    validators, and in-memory item lookup only — no filesystem access, no `rich` or
    other console output, no `argparse`.
@@ -57,9 +66,11 @@ check a plan against.
    value) through `render_value`. `logic.py` never prints — it returns a
    `CommandResult` (messages, warnings, exit code, optional list view) or plain
    data, and `cli.py`'s `_emit` turns that into `render_*` calls.
-5. **`exceptions.py` and `hierarchy.py` are leaves.** `exceptions.py` defines the
-   `TaskliError` hierarchy; `hierarchy.py` holds the dotted-name helpers. Neither
-   imports anything from the `taskli` package.
+5. **`exceptions.py`, `hierarchy.py`, and `migrations.py` are leaves.**
+   `exceptions.py` defines the `TaskliError` hierarchy; `hierarchy.py` holds the
+   dotted-name helpers; `migrations.py` holds the versioned migration chains and
+   their frozen historical literals. None of the three import anything from the
+   `taskli` package.
 
 ## Dependency Diagram
 
@@ -76,5 +87,6 @@ flowchart TD
     render --> hierarchy
     storage --> models
     storage --> hierarchy
+    storage --> migrations[migrations.py]
     models --> exc[exceptions.py]
 ```
