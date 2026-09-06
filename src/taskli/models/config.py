@@ -25,8 +25,6 @@ type Delimters = Literal[".", "/", "-", "|"]
 
 
 class Config(BaseModel):
-    """Taskli config."""
-
     model_config = ConfigDict(validate_assignment=True)
 
     auto_prune: bool = False

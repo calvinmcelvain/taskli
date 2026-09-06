@@ -120,11 +120,6 @@ class ModifierSpec(NamedTuple):
     filter_dest: str | None = None
 
 
-# attribute-backed modifier flags, keyed by the same field names the
-# registry uses. argparse vocabulary (flag strings, metavar, choices)
-# can't live in models/registry.py -- architecture rule 2 keeps it out
-# of models/ -- so this half of the split table lives here. --all is a
-# scope flag, not an attribute, so it stays hand-wired below.
 MODIFIER_FLAGS: dict[str, ModifierSpec] = {
     "priority": ModifierSpec(
         args=(
@@ -745,16 +740,22 @@ def _dispatch(
             criteria = []
             for name, attr in registry.filterable().items():
                 dest = MODIFIER_FLAGS[name].filter_dest
+
                 assert dest is not None  # filterable entries set it.
+
                 raw = getattr(namespace, dest)
                 if not raw:
                     continue
+
                 value = raw[0] if isinstance(raw, list) else raw
                 parse = MODIFIER_FLAGS[name].parse
                 operand = parse(value) if parse is not None else value
                 operator = attr.filter_default_operator
+
                 assert operator is not None  # filterable() entries set it.
+
                 criteria.append(Criterion(name, operator, operand))
+
             item_filter = Filter(tuple(criteria))
 
             if not namespace.list and namespace.all:

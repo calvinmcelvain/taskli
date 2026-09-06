@@ -52,8 +52,6 @@ class Status(StatusContainer, Enum):
 
 
 class Operator(Enum):
-    """A comparison a criterion can apply to an attribute value."""
-
     EQ = "eq"
     CONTAINS = "contains"
 

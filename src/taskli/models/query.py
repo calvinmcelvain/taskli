@@ -20,8 +20,6 @@ __all__ = ["Criterion", "Filter", "Sort"]
 
 @dataclass(frozen=True)
 class Criterion:
-    """A single attribute test: an operator applied to ``attr_key``."""
-
     attr_key: str
     operator: Operator
     operand: object
@@ -47,8 +45,6 @@ class Criterion:
 
 @dataclass(frozen=True)
 class Filter:
-    """An AND-combined set of criteria applied to items."""
-
     criteria: tuple[Criterion, ...] = ()
 
     @property
@@ -94,8 +90,6 @@ class Filter:
 
 @dataclass(frozen=True)
 class Sort:
-    """A sort mode: an item attribute key plus direction."""
-
     attr_key: str
     descending: bool = False
 

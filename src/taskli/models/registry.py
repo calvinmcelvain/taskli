@@ -28,15 +28,6 @@ __all__ = [
 
 @dataclass(frozen=True)
 class Attribute:
-    """Domain and render facets of one item or list attribute.
-
-    Every facet is independently optional: an attribute may be
-    filterable, sortable, renderable, any combination, or none. The
-    ``render_*`` callables take the whole ``TaskliItem`` (matching
-    ``sort_key``); ``render_style`` returns a rich style or color name
-    (``"red"``, ``"dim"``) and never imports rich.
-    """
-
     name: str
     filter_operators: tuple[Operator, ...] = ()
     filter_default_operator: Operator | None = None
@@ -50,13 +41,6 @@ class Attribute:
 
 @dataclass(frozen=True)
 class RenderColumn:
-    """A resolved table column: the render facets, none optional.
-
-    Built by :func:`renderable` from an :class:`Attribute` that carries
-    both a ``column_header`` and a ``render_format``, so callers iterate
-    columns without re-checking that invariant per cell.
-    """
-
     header: str
     justify: _Justify
     format: Callable[[TaskliItem], str]
@@ -110,10 +94,6 @@ ATTRIBUTES: dict[str, Attribute] = {
         name="created_at",
         sort_key=lambda item: item.created_at,
     ),
-    # a list attribute, not an item one: no filter/sort/render facets.
-    # kept here only so every cli.MODIFIER_FLAGS key resolves to a
-    # registry entry (the parity test). cli._validate uses hard-coded
-    # dest sets, not the registry.
     "color": Attribute(name="color"),
 }
 

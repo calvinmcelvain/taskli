@@ -13,8 +13,6 @@ __all__ = ["TaskliItem", "TaskliList"]
 
 
 class TaskliItem(BaseModel):
-    """Single task entry within a list."""
-
     id: int
     text: str
     status: Status = Status.TODO
@@ -58,8 +56,6 @@ class TaskliItem(BaseModel):
 
 
 class TaskliList(BaseModel):
-    """A named collection of tasks."""
-
     name: str
     color: Color | None = Color.WHITE
     items: list[TaskliItem] = Field(default_factory=list)
