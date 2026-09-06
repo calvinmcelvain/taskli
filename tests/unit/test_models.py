@@ -13,11 +13,13 @@ from taskli.models import (
     Color,
     Config,
     Delimters,
+    Filter,
     Priority,
     Status,
     TaskliItem,
     TaskliList,
 )
+from utils import priority_criterion, sort, tag_criterion
 
 
 class TestColor:
@@ -306,7 +308,7 @@ class TestTaskliList:
         todo_list.add_item("a", tags=["Urgent"])
         todo_list.add_item("b", tags=["later"])
 
-        result = todo_list.filtered_items(tag="urgent")
+        result = todo_list.filtered_items(Filter((tag_criterion("urgent"),)))
 
         assert len(result) == 1
         assert result[0].text == "a"
@@ -316,7 +318,7 @@ class TestTaskliList:
         todo_list.add_item("a")
         todo_list.add_item("b")
 
-        result = todo_list.filtered_items()
+        result = todo_list.filtered_items(Filter())
 
         assert len(result) == 2
 
@@ -325,7 +327,9 @@ class TestTaskliList:
         todo_list.add_item("a", priority=Priority.HIGH)
         todo_list.add_item("b", priority=Priority.LOW)
 
-        result = todo_list.filtered_items(priority=Priority.HIGH)
+        result = todo_list.filtered_items(
+            Filter((priority_criterion(Priority.HIGH),))
+        )
 
         assert len(result) == 1
         assert result[0].text == "a"
@@ -335,8 +339,11 @@ class TestTaskliList:
         todo_list.add_item("a", tags=["urgent"], priority=Priority.HIGH)
         todo_list.add_item("b", tags=["urgent"], priority=Priority.LOW)
         todo_list.add_item("c", tags=["later"], priority=Priority.HIGH)
+        item_filter = Filter(
+            (tag_criterion("urgent"), priority_criterion(Priority.HIGH))
+        )
 
-        result = todo_list.filtered_items(tag="urgent", priority=Priority.HIGH)
+        result = todo_list.filtered_items(item_filter)
 
         assert len(result) == 1
         assert result[0].text == "a"
@@ -403,7 +410,7 @@ class TestTaskliList:
         existing = target.add_item("existing task")
 
         source.copy_item(old_item.id, target)
-        target.resort("created_at")
+        target.resort(sort("created_at"))
 
         assert target.get_item(1).text == "old task"
         assert target.get_item(2).text == existing.text
@@ -547,7 +554,7 @@ class TestTaskliList:
         todo_list.add_item("second", tags=["m"])
         todo_list.add_item("third")
 
-        todo_list.sort_by("tags")
+        todo_list.sort_by(sort("tags"))
 
         assert [item.text for item in todo_list.items] == [
             "first",
@@ -561,7 +568,7 @@ class TestTaskliList:
         todo_list.add_item("a", priority=Priority.LOW)
         todo_list.add_item("b", priority=Priority.MEDIUM)
 
-        todo_list.sort_by("priority")
+        todo_list.sort_by(sort("priority"))
 
         assert [item.text for item in todo_list.items] == ["c", "b", "a"]
 
@@ -584,7 +591,7 @@ class TestTaskliList:
         todo_list.add_item("low", priority=Priority.LOW)
         todo_list.add_item("high", priority=Priority.HIGH)
 
-        todo_list.resort("priority")
+        todo_list.resort(sort("priority"))
 
         assert [item.text for item in todo_list.items] == ["high", "low"]
         assert [item.id for item in todo_list.items] == [1, 2]

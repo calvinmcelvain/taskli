@@ -15,7 +15,7 @@ from .exceptions import (
     TooManyAncestorListsError,
 )
 from .hierarchy import ancestor_chain, descendant_list_names
-from .models import Color, Config, SortBy, TaskliList
+from .models import Color, Config, Sort, TaskliList
 
 
 def resolve_storage_dir() -> Path:
@@ -404,15 +404,15 @@ def save_list(storage_dir: Path, task_list: TaskliList) -> None:
     return None
 
 
-def resort_all_lists(storage_dir: Path, sort: SortBy) -> None:
+def resort_all_lists(storage_dir: Path, sort: Sort) -> None:
     """Resort and reindex every list on disk by ``sort``.
 
     Parameters
     ----------
     storage_dir : Path
         The storage directory.
-    sort : SortBy
-        The attribute to sort by.
+    sort : Sort
+        The sort mode to apply.
     """
 
     for name in list_all_lists(storage_dir):

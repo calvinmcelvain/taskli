@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from ..exceptions import ItemNotFoundError
 from .attributes import Color, Priority, Status
-from .config import SortBy
+from .query import Filter, Sort
 
 __all__ = ["TaskliItem", "TaskliList"]
 
@@ -81,31 +81,16 @@ class TaskliList(BaseModel):
 
         return self.name.replace(".", delimiter)
 
-    def sort_by(self, sort: SortBy) -> None:
-        """Sort ``items`` list by attributes.
+    def sort_by(self, sort: Sort) -> None:
+        """Sort ``items`` in place under ``sort``.
 
         Parameters
         ----------
-        sort : SortBy
-            The attribute to sort by.
+        sort : Sort
+            The sort mode to apply.
         """
 
-        if sort == "tags":
-            self.items = sorted(
-                self.items,
-                key=lambda item: (
-                    "".join(item.tags) == "",
-                    ",".join(sorted(item.tags)),
-                ),
-            )
-        elif sort == "priority":
-            self.items = sorted(
-                self.items, key=lambda item: item.priority.index, reverse=True
-            )
-        else:
-            self.items = sorted(
-                self.items, key=lambda item: getattr(item, sort)
-            )
+        self.items = sorted(self.items, key=sort.key, reverse=sort.descending)
 
         return None
 
@@ -146,13 +131,13 @@ class TaskliList(BaseModel):
 
         return None
 
-    def resort(self, sort: SortBy) -> None:
+    def resort(self, sort: Sort) -> None:
         """Sort ``items`` by ``sort``, then reindex to match the new order.
 
         Parameters
         ----------
-        sort : SortBy
-            The attribute to sort by.
+        sort : Sort
+            The sort mode to apply.
         """
 
         self.sort_by(sort)
@@ -418,20 +403,13 @@ class TaskliList(BaseModel):
 
         return item
 
-    def filtered_items(
-        self,
-        *,
-        tag: str | None = None,
-        priority: Priority | None = None,
-    ) -> list[TaskliItem]:
-        """Return items, optionally filtered by tag and/or priority.
+    def filtered_items(self, item_filter: Filter) -> list[TaskliItem]:
+        """Return the items that satisfy ``item_filter``.
 
         Parameters
         ----------
-        tag : str | None, optional
-            Tag to filter by (case-insensitive), by default no filtering.
-        priority : Priority | None, optional
-            Priority to filter by, by default no filtering.
+        item_filter : Filter
+            The filter to apply; an empty filter returns every item.
 
         Returns
         -------
@@ -439,18 +417,7 @@ class TaskliList(BaseModel):
             The matching items.
         """
 
-        items = list(self.items)
-        if tag is not None:
-            needle = tag.lower()
-            items = [
-                item
-                for item in items
-                if needle in (t.lower() for t in item.tags)
-            ]
-        if priority is not None:
-            items = [item for item in items if item.priority == priority]
-
-        return items
+        return item_filter.apply(self.items)
 
     def add_tags(self, item_id: int, tags: list[str]) -> TaskliItem:
         """Append new tags to an item's existing tags, deduplicated.
