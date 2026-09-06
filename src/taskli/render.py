@@ -5,7 +5,7 @@ from rich.table import Table
 from rich.tree import Tree
 
 from .hierarchy import ancestor_chain
-from .models import Color, Config, TaskliItem, TaskliList
+from .models import Color, Config, TaskliItem, TaskliList, registry
 
 __all__ = [
     "render_items",
@@ -54,22 +54,24 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
         The rendered table.
     """
 
+    columns = registry.renderable()
+
     table = Table()
-    table.add_column(_add_color("ID", color), justify="right")
-    table.add_column(_add_color("State", color), justify="center")
-    table.add_column(_add_color("Text", color), justify="left")
-    table.add_column(_add_color("Priority", color), justify="left")
-    table.add_column(_add_color("Tags", color), justify="left")
+    for column in columns:
+        table.add_column(
+            _add_color(column.header, color), justify=column.justify
+        )
 
     for item in items:
-        text = f"[dim]{item.text}[/dim]" if item.done else item.text
-        table.add_row(
-            str(item.id),
-            item.status.marker,
-            text,
-            _add_color(item.priority.label, item.priority.color),
-            ", ".join(item.tags),
-        )
+        cells: list[str] = []
+        for column in columns:
+            cell = column.format(item)
+            if column.style is not None:
+                style = column.style(item)
+                if style:
+                    cell = _add_color(cell, style)
+            cells.append(cell)
+        table.add_row(*cells)
 
     return table
 

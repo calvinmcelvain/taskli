@@ -10,8 +10,14 @@ resolving the storage directory, reading and writing the config file and the
 per-list files. `render.py` owns every piece of console output, building all
 `rich` tables, trees, and messages. `models/` holds the pydantic data types
 (`TaskliItem`, `TaskliList`, `Config`), the attribute enums (`Priority`,
-`Status`, `Color`, `SortBy`), and the query value objects (`Filter`,
-`Criterion`, `Sort`, `Operator`). `hierarchy.py` holds the pure list-name hierarchy
+`Status`, `Color`, `Operator`), the `SortBy` alias (now a plain `str`
+validated against the registry, not an enum), the query value objects
+(`Filter`, `Criterion`, `Sort`), and the attribute registry (`registry.py`'s
+`Attribute` / `ATTRIBUTES` table of per-attribute domain + render metadata —
+filter operators, sort keys, render column facets — that `query.Sort`,
+`Config.default_sort`, and `render._items_table` iterate). The registry
+carries domain + render facets only; the argparse flag spec for the same
+attributes lives in `cli.py`. `hierarchy.py` holds the pure list-name hierarchy
 helpers (`ancestor_chain`, `parent_list_name`, `child_list_names`,
 `descendant_list_names`) — dotted-name string math, no I/O. `exceptions.py` is
 the shared `TaskliError` hierarchy.

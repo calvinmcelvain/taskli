@@ -8,15 +8,19 @@ from pydantic import (
     Field,
     ValidationError,
     field_serializer,
+    field_validator,
 )
 
 from ..exceptions import InvalidConfigValueError, UnknownConfigKeyError
 from .attributes import Color, Priority
+from .registry import sortable
 
 __all__ = ["Config", "SortBy", "Delimters"]
 
 
-type SortBy = Literal["tags", "priority", "created_at"]
+# kept as a name for the models package export and call sites; the set
+# of valid values now lives in the attribute registry.
+type SortBy = str
 type Delimters = Literal[".", "/", "-", "|"]
 
 
@@ -35,6 +39,16 @@ class Config(BaseModel):
     @field_serializer("default_priority")
     def _serialize_priority(self, value: Priority) -> str:
         return value.label
+
+    @field_validator("default_sort")
+    @classmethod
+    def _validate_default_sort(cls, value: str) -> str:
+        if value not in sortable():
+            raise ValueError(
+                f"'{value}' is not a valid value for 'default_sort'."
+            )
+
+        return value
 
     def _has_key(self, key: str) -> None:
         if hasattr(self, key):

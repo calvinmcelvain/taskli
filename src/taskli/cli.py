@@ -6,6 +6,7 @@ import functools
 import sys
 from collections.abc import Callable
 from enum import StrEnum
+from typing import Any, NamedTuple
 
 import argcomplete
 
@@ -17,9 +18,9 @@ from .models import (
     Config,
     Criterion,
     Filter,
-    Operator,
     Priority,
     TaskliList,
+    registry,
 )
 from .render import (
     render_config,
@@ -104,15 +105,112 @@ class ItemActionCommands(StrEnum):
     COPY = "copy"
 
 
-class ModifierCommands(StrEnum):
-    ALL = "all"
-    PRIORITY = "priority"
-    TAG = "tags"
-    ADD_TAG = "add_tag"
-    TEXT = "text"
-
-
 type CommandOptions = ListCommands | ItemActionCommands | ConfigCommands
+
+
+class ModifierArg(NamedTuple):
+    flags: tuple[str, ...]
+    dest: str
+    kwargs: dict[str, Any]
+
+
+class ModifierSpec(NamedTuple):
+    args: tuple[ModifierArg, ...]
+    parse: Callable[[str], object] | None = None
+    filter_dest: str | None = None
+
+
+# attribute-backed modifier flags, keyed by the same field names the
+# registry uses. argparse vocabulary (flag strings, metavar, choices)
+# can't live in models/registry.py -- architecture rule 2 keeps it out
+# of models/ -- so this half of the split table lives here. --all is a
+# scope flag, not an attribute, so it stays hand-wired below.
+MODIFIER_FLAGS: dict[str, ModifierSpec] = {
+    "priority": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("-p", "--priority"),
+                dest="priority",
+                kwargs={
+                    "choices": [p.name.lower() for p in Priority],
+                    "nargs": "?",
+                    "default": None,
+                    "help": (
+                        "Set or filter item's priority. Used to set"
+                        " priority for -a/-e. Used to filter for viewing"
+                        " items."
+                    ),
+                },
+            ),
+        ),
+        parse=lambda s: Priority[s.upper()],
+        filter_dest="priority",
+    ),
+    "tags": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("--tag",),
+                dest="tag",
+                kwargs={
+                    "action": "append",
+                    "default": [],
+                    "metavar": "TAG",
+                    "help": (
+                        "Set of filter item's tag. Used to add/replace"
+                        " tags for -a/-e. Use to filter for viewing"
+                        " items. NOTE: If you want to add a tag and not"
+                        " REPLACE a tag, use --add-tag instead."
+                    ),
+                },
+            ),
+            ModifierArg(
+                flags=("--add-tag",),
+                dest="add_tag",
+                kwargs={
+                    "action": "append",
+                    "default": [],
+                    "metavar": "TAG",
+                    "help": (
+                        "Used to add a tag to an existing set of tags"
+                        " for an item. Can only be used for -e"
+                        " statements."
+                    ),
+                },
+            ),
+        ),
+        filter_dest="tag",
+    ),
+    "text": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("-t", "--text"),
+                dest="text",
+                kwargs={
+                    "type": str,
+                    "default": None,
+                    "help": (
+                        "Replace an item's text. Can use for -e"
+                        " statements only."
+                    ),
+                },
+            ),
+        ),
+    ),
+    "color": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("--color",),
+                dest="color",
+                kwargs={
+                    "choices": [c.name.lower() for c in Color],
+                    "nargs": "?",
+                    "default": None,
+                    "help": "Add/Change color of LIST.",
+                },
+            ),
+        ),
+    ),
+}
 
 
 def _register_list_args(parser: argparse.ArgumentParser) -> None:
@@ -272,40 +370,9 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
         "Modifiers", "Add to list or item action args to change behavior."
     )
 
-    modifiers.add_argument(
-        "-p",
-        "--priority",
-        choices=[p.name.lower() for p in Priority],
-        nargs="?",
-        default=None,
-        help=(
-            "Set or filter item's priority. Used to set priority for -a/-e."
-            " Used to filter for viewing items."
-        ),
-    )
-    modifiers.add_argument(
-        "--tag",
-        dest="tag",
-        action="append",
-        default=[],
-        metavar="TAG",
-        help=(
-            "Set of filter item's tag. Used to add/replace tags for -a/-e."
-            " Use to filter for viewing items. NOTE: If you want to add a tag"
-            " and not REPLACE a tag, use --add-tag instead."
-        ),
-    )
-    modifiers.add_argument(
-        "--add-tag",
-        dest="add_tag",
-        action="append",
-        default=[],
-        metavar="TAG",
-        help=(
-            "Used to add a tag to an existing set of tags for an item. Can"
-            " only be used for -e statements."
-        ),
-    )
+    for spec in MODIFIER_FLAGS.values():
+        for arg in spec.args:
+            modifiers.add_argument(*arg.flags, dest=arg.dest, **arg.kwargs)
     modifiers.add_argument(
         "--all",
         dest="all",
@@ -314,22 +381,6 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
             "Used to prune or view across multiple lists. See documentation"
             " for examples."
         ),
-    )
-    modifiers.add_argument(
-        "-t",
-        "--text",
-        dest="text",
-        type=str,
-        default=None,
-        help="Replace an item's text. Can use for -e statements only.",
-    )
-    modifiers.add_argument(
-        "--color",
-        dest="color",
-        choices=[c.name.lower() for c in Color],
-        nargs="?",
-        default=None,
-        help="Add/Change color of LIST.",
     )
 
 
@@ -454,6 +505,23 @@ def _resolve_op(namespace: argparse.Namespace) -> CommandOptions:
     return ListCommands.VIEW
 
 
+def _reject_modifiers(
+    namespace: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    message: str,
+    allowed: set[str],
+) -> None:
+    # every modifier dest, plus the hand-wired --all scope flag.
+    dests = {"all"} | {
+        arg.dest for spec in MODIFIER_FLAGS.values() for arg in spec.args
+    }
+    for dest in sorted(dests - allowed):
+        if getattr(namespace, dest):
+            parser.error(message)
+
+    return None
+
+
 def _validate(
     op: ListCommands | ItemActionCommands | ConfigCommands,
     namespace: argparse.Namespace,
@@ -461,66 +529,60 @@ def _validate(
 ) -> None:
     match op:
         case ListCommands.DELETE | ListCommands.LISTS | ListCommands.RENAME:
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.all
-                or namespace.color
-            ):
-                parser.error(f"no modifiers are valid with --{op.value}.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                f"no modifiers are valid with --{op.value}.",
+                set(),
+            )
         case ListCommands.NEW | ListCommands.COLOR:
             # --color is the only modifier that means anything for either:
             # the initial color on creation, or the new color on recolor.
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.all
-            ):
-                parser.error(
-                    "only --color is valid with --new/when recoloring an"
-                    " existing list."
-                )
+            _reject_modifiers(
+                namespace,
+                parser,
+                "only --color is valid with --new/when recoloring an"
+                " existing list.",
+                {"color"},
+            )
         case ListCommands.PRUNE:
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.color
-            ):
-                parser.error("only --all is valid with --prune.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                "only --all is valid with --prune.",
+                {"all"},
+            )
         case ItemActionCommands.ADD:
-            if namespace.add_tag or namespace.text or namespace.all:
-                parser.error(
-                    "--add-tag/--text/--all are not valid with -a/--add."
-                )
+            _reject_modifiers(
+                namespace,
+                parser,
+                "--add-tag/--text/--all are not valid with -a/--add.",
+                {"priority", "tag"},
+            )
         case ItemActionCommands.EDIT:
             if namespace.tag and namespace.add_tag:
                 parser.error(
                     "--tag and --add-tag cannot both be given; --tag"
                     " replaces, --add-tag appends."
                 )
-            if namespace.all:
-                parser.error("--all is not valid with -e/--edit.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                "--all is not valid with -e/--edit.",
+                {"priority", "tag", "add_tag", "text"},
+            )
         case (
             ItemActionCommands.REMOVE
             | ItemActionCommands.DONE
             | ItemActionCommands.UNDONE
             | ItemActionCommands.IN_PROGRESS
         ):
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.all
-                or namespace.color
-            ):
-                parser.error(f"no modifiers are valid with --{op.value}.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                f"no modifiers are valid with --{op.value}.",
+                set(),
+            )
         case ItemActionCommands.MOVE | ItemActionCommands.COPY:
             ids = (
                 namespace.move
@@ -531,33 +593,29 @@ def _validate(
                 [int(i) for i in ids]
             except ValueError:
                 parser.error("ID must be an integer.")
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.all
-                or namespace.color
-            ):
-                parser.error(f"no modifiers are valid with --{op.value}.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                f"no modifiers are valid with --{op.value}.",
+                set(),
+            )
         case ConfigCommands.CONFIG:
             if namespace.config and len(namespace.config) > 2:
                 parser.error("--config takes at most KEY and VALUE.")
-            if (
-                namespace.priority
-                or namespace.tag
-                or namespace.add_tag
-                or namespace.text
-                or namespace.all
-                or namespace.color
-            ):
-                parser.error("no modifiers are valid with --config.")
+            _reject_modifiers(
+                namespace,
+                parser,
+                "no modifiers are valid with --config.",
+                set(),
+            )
         case ListCommands.VIEW:
-            if namespace.add_tag or namespace.text or namespace.color:
-                parser.error(
-                    "--add-tag/--text/--color are not valid with the"
-                    " default view."
-                )
+            _reject_modifiers(
+                namespace,
+                parser,
+                "--add-tag/--text/--color are not valid with the"
+                " default view.",
+                {"priority", "tag", "all"},
+            )
 
     return None
 
@@ -685,18 +743,18 @@ def _dispatch(
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
             criteria = []
-            if namespace.tag:
-                criteria.append(
-                    Criterion("tags", Operator.CONTAINS, namespace.tag[0])
-                )
-            if namespace.priority:
-                criteria.append(
-                    Criterion(
-                        "priority",
-                        Operator.EQ,
-                        Priority[namespace.priority.upper()],
-                    )
-                )
+            for name, attr in registry.filterable().items():
+                dest = MODIFIER_FLAGS[name].filter_dest
+                assert dest is not None  # filterable entries set it.
+                raw = getattr(namespace, dest)
+                if not raw:
+                    continue
+                value = raw[0] if isinstance(raw, list) else raw
+                parse = MODIFIER_FLAGS[name].parse
+                operand = parse(value) if parse is not None else value
+                operator = attr.filter_default_operator
+                assert operator is not None  # filterable() entries set it.
+                criteria.append(Criterion(name, operator, operand))
             item_filter = Filter(tuple(criteria))
 
             if not namespace.list and namespace.all:

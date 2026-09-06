@@ -75,6 +75,14 @@ class TestConfigLifecycle:
         with pytest.raises(CorruptedConfigFileError):
             load_config(tmp_path)
 
+    def test_load_config_raises_for_bad_default_sort(self, tmp_path):
+        config_file_path(tmp_path).write_text(
+            json.dumps({"default_sort": "bogus"})
+        )
+
+        with pytest.raises(CorruptedConfigFileError):
+            load_config(tmp_path)
+
 
 class TestListLifecycle:
     def test_create_list_persists_empty_list(self, tmp_path):

@@ -148,3 +148,12 @@ class TestSort:
     def test_rejects_unknown_attr_key(self):
         with pytest.raises(InvalidConfigValueError):
             Sort("bogus")
+
+    @pytest.mark.parametrize("attr_key", ["id", "status", "text", "color"])
+    def test_rejects_unsortable_attr_key(self, attr_key):
+        with pytest.raises(InvalidConfigValueError):
+            Sort(attr_key)
+
+    def test_from_default_sort_rejects_unknown_value(self):
+        with pytest.raises(InvalidConfigValueError):
+            Sort.from_default_sort("bogus")
