@@ -24,8 +24,9 @@ from taskli.logic import (
     set_list_color,
     storage_path,
 )
-from taskli.models import Color, Status, TaskliList
+from taskli.models import Color, Filter, Priority, Status, TaskliList
 from taskli.storage import load_config, load_list
+from utils import priority_criterion, tag_criterion
 
 
 @pytest.fixture
@@ -313,7 +314,7 @@ class TestListView:
         add("work", ["a"], [], "medium", config)
         add("work.sub", ["b"], [], "medium", config)
 
-        views = list_view("work", None, None, False)
+        views = list_view("work", Filter(), False)
 
         assert [v.name for v in views] == ["work"]
 
@@ -321,7 +322,7 @@ class TestListView:
         add("work", ["a"], [], "medium", config)
         add("work.sub", ["b"], [], "medium", config)
 
-        views = list_view("work", None, None, True)
+        views = list_view("work", Filter(), True)
 
         assert [v.name for v in views] == ["work", "work.sub"]
 
@@ -329,7 +330,7 @@ class TestListView:
         add("work", ["tagged"], ["urgent"], "medium", config)
         add("work", ["plain"], [], "medium", config)
 
-        views = list_view("work", "urgent", None, False)
+        views = list_view("work", Filter((tag_criterion("urgent"),)), False)
 
         assert [i.text for i in views[0].items] == ["tagged"]
 
@@ -340,7 +341,7 @@ class TestListView:
         add("work.a", ["hit"], ["urgent"], "medium", config)
         add("work.b", ["miss"], [], "medium", config)
 
-        views = list_view("work", "urgent", None, True)
+        views = list_view("work", Filter((tag_criterion("urgent"),)), True)
 
         assert [v.name for v in views] == ["work", "work.a"]
 
@@ -351,7 +352,9 @@ class TestListView:
         add("work.a", ["hit"], [], "high", config)
         add("work.b", ["miss"], [], "medium", config)
 
-        views = list_view("work", None, "high", True)
+        views = list_view(
+            "work", Filter((priority_criterion(Priority.HIGH),)), True
+        )
 
         assert [v.name for v in views] == ["work", "work.a"]
 
@@ -361,7 +364,7 @@ class TestListView:
         add("work", ["plain"], [], "medium", config)
         add("work.sub", ["also plain"], [], "medium", config)
 
-        views = list_view("work", "ghost", None, True)
+        views = list_view("work", Filter((tag_criterion("ghost"),)), True)
 
         assert views == []
 
@@ -371,7 +374,9 @@ class TestListView:
         add("work", ["plain"], [], "medium", config)
         add("work.sub", ["also plain"], [], "medium", config)
 
-        views = list_view("work", None, "high", True)
+        views = list_view(
+            "work", Filter((priority_criterion(Priority.HIGH),)), True
+        )
 
         assert views == []
 
@@ -380,7 +385,7 @@ class TestListView:
     ):
         add("work", ["plain"], [], "medium", config)
 
-        views = list_view("work", "ghost", None, False)
+        views = list_view("work", Filter((tag_criterion("ghost"),)), False)
 
         assert [v.name for v in views] == ["work"]
 
@@ -389,7 +394,9 @@ class TestListView:
     ):
         add("work", ["plain"], [], "medium", config)
 
-        views = list_view("work", None, "high", False)
+        views = list_view(
+            "work", Filter((priority_criterion(Priority.HIGH),)), False
+        )
 
         assert [v.name for v in views] == ["work"]
 
@@ -399,12 +406,12 @@ class TestAllViews:
         add("work", ["a"], [], "medium", config)
         add("home", ["b"], [], "medium", config)
 
-        groups = all_views(None, None)
+        groups = all_views(Filter())
 
         assert len(groups) == 2
 
     def test_empty_when_no_lists(self, taskli_env):
-        assert all_views(None, None) == []
+        assert all_views(Filter()) == []
 
     def test_tag_drops_root_with_no_matches(self, taskli_env, config):
         add("alpha", ["hit"], ["urgent"], "medium", config)
@@ -412,7 +419,7 @@ class TestAllViews:
         add("beta", ["miss"], [], "medium", config)
         add("beta.sub", ["miss too"], [], "medium", config)
 
-        groups = all_views("urgent", None)
+        groups = all_views(Filter((tag_criterion("urgent"),)))
 
         names = [tl.name for group in groups for tl in group]
         assert "alpha" in names
@@ -425,7 +432,7 @@ class TestAllViews:
         add("proj.mid", ["mid plain"], [], "medium", config)
         add("proj.mid.leaf", ["deep hit"], ["urgent"], "medium", config)
 
-        groups = all_views("urgent", None)
+        groups = all_views(Filter((tag_criterion("urgent"),)))
 
         names = [tl.name for group in groups for tl in group]
         assert names == ["proj", "proj.mid", "proj.mid.leaf"]
@@ -434,7 +441,7 @@ class TestAllViews:
         add("alpha", ["hit"], [], "high", config)
         add("beta", ["miss"], [], "medium", config)
 
-        groups = all_views(None, "high")
+        groups = all_views(Filter((priority_criterion(Priority.HIGH),)))
 
         names = [tl.name for group in groups for tl in group]
         assert names == ["alpha"]
@@ -443,7 +450,7 @@ class TestAllViews:
         add("work", ["a"], [], "medium", config)
         new_list("work.sub", None, config)
 
-        groups = all_views(None, None)
+        groups = all_views(Filter())
 
         names = [tl.name for group in groups for tl in group]
         assert "work.sub" in names

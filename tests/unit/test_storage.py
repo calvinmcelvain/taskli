@@ -26,6 +26,7 @@ from taskli.storage import (
     save_config,
     save_list,
 )
+from utils import sort
 
 
 class TestResolveStorageDir:
@@ -394,7 +395,7 @@ class TestResortAllLists:
             task_list.add_item("high", priority=Priority.HIGH)
             save_list(tmp_path, task_list)
 
-        resort_all_lists(tmp_path, "priority")
+        resort_all_lists(tmp_path, sort("priority"))
 
         for name in ("work", "home"):
             reloaded = load_list(tmp_path, name)
@@ -411,7 +412,7 @@ class TestResortAllLists:
         save_list(tmp_path, task_list)
         (tmp_path / "broken.json").write_text("not valid json")
 
-        resort_all_lists(tmp_path, "priority")
+        resort_all_lists(tmp_path, sort("priority"))
 
         reloaded = load_list(tmp_path, "work")
         assert [item.text for item in reloaded.items] == ["high", "low"]

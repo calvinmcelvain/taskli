@@ -12,7 +12,15 @@ from pathlib import Path
 
 from .exceptions import ItemNotFoundError, TaskliError
 from .hierarchy import ancestor_chain, descendant_list_names
-from .models import Color, Config, Priority, TaskliItem, TaskliList
+from .models import (
+    Color,
+    Config,
+    Filter,
+    Priority,
+    Sort,
+    TaskliItem,
+    TaskliList,
+)
 from .storage import (
     create_list,
     delete_list,
@@ -108,7 +116,7 @@ def add(
     ]
 
     # resort before reading ids back: reindex can renumber the new items.
-    task_list.resort(config.default_sort)
+    task_list.resort(Sort.from_default_sort(config.default_sort))
 
     result = CommandResult(item_view=task_list)
     for item in added:
@@ -406,7 +414,7 @@ def move(
             f"'{target_display_name}'."
         )
 
-    target_list.resort(config.default_sort)
+    target_list.resort(Sort.from_default_sort(config.default_sort))
 
     save_list(storage_dir, task_list)
     save_list(storage_dir, target_list)
@@ -459,7 +467,7 @@ def copy(
             f"'{target_display_name}'."
         )
 
-    target_list.resort(config.default_sort)
+    target_list.resort(Sort.from_default_sort(config.default_sort))
 
     save_list(storage_dir, target_list)
     result.item_view = target_list
@@ -692,7 +700,9 @@ def set_config(key: str, value: str) -> CommandResult:
     save_config(storage_dir, config)
 
     if key == "default_sort":
-        resort_all_lists(storage_dir, config.default_sort)
+        resort_all_lists(
+            storage_dir, Sort.from_default_sort(config.default_sort)
+        )
 
     return CommandResult(messages=[f"set '{key}' to '{value}'."])
 
@@ -747,8 +757,7 @@ def _grouped_lists(
     storage_dir: Path,
     list_name: str,
     all_names: list[str],
-    tag: str | None,
-    priority: Priority | None,
+    item_filter: Filter,
     config: Config,
 ) -> list[TaskliList]:
     """Build filtered views of a list and (optionally) its descendants."""
@@ -761,11 +770,11 @@ def _grouped_lists(
         TaskliList(
             name=list_name,
             color=task_list.color,
-            items=task_list.filtered_items(tag=tag, priority=priority),
+            items=task_list.filtered_items(item_filter),
         )
     ]
 
-    # filter each descendant list by tag/priority if given to the parent.
+    # filter each descendant list by the same criteria given to the parent.
     for descendant_name in descendant_list_names(list_name, all_names):
         descendant_list = load_list(storage_dir, descendant_name)
         if config.auto_prune and descendant_list.prune():
@@ -775,9 +784,7 @@ def _grouped_lists(
             TaskliList(
                 name=descendant_name,
                 color=descendant_list.color,
-                items=descendant_list.filtered_items(
-                    tag=tag, priority=priority
-                ),
+                items=descendant_list.filtered_items(item_filter),
             )
         )
 
@@ -803,16 +810,9 @@ def _drop_unmatched_lists(lists: list[TaskliList]) -> list[TaskliList]:
     return [tl for tl in lists if tl.name in keep]
 
 
-def _filter_active(tag: str | None, priority: Priority | None) -> bool:
-    """Return whether a tag and/or priority filter is in effect."""
-
-    return tag is not None or priority is not None
-
-
 def list_view(
     list_name: str,
-    tag: str | None,
-    priority: str | None,
+    item_filter: Filter,
     include_descendants: bool,
 ) -> list[TaskliList]:
     """Return the filtered tree view for a single list.
@@ -821,10 +821,8 @@ def list_view(
     ----------
     list_name : str
         The list to view.
-    tag : str | None
-        Tag filter, or None.
-    priority : str | None
-        Priority name filter, or None.
+    item_filter : Filter
+        The criteria to filter items by; empty matches everything.
     include_descendants : bool
         Whether to include descendant lists in the view.
 
@@ -840,26 +838,23 @@ def list_view(
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir) if include_descendants else []
-    resolved_priority = Priority[priority.upper()] if priority else None
 
     groups = _grouped_lists(
-        storage_dir, list_name, all_names, tag, resolved_priority, config
+        storage_dir, list_name, all_names, item_filter, config
     )
-    if include_descendants and _filter_active(tag, resolved_priority):
+    if include_descendants and item_filter.active:
         return _drop_unmatched_lists(groups)
 
     return groups
 
 
-def all_views(tag: str | None, priority: str | None) -> list[list[TaskliList]]:
+def all_views(item_filter: Filter) -> list[list[TaskliList]]:
     """Return one filtered tree view per root list on disk.
 
     Parameters
     ----------
-    tag : str | None
-        Tag filter, or None.
-    priority : str | None
-        Priority name filter, or None.
+    item_filter : Filter
+        The criteria to filter items by; empty matches everything.
 
     Returns
     -------
@@ -873,17 +868,14 @@ def all_views(tag: str | None, priority: str | None) -> list[list[TaskliList]]:
     storage_dir = resolve_storage_dir()
     config = load_config(storage_dir)
     all_names = list_all_lists(storage_dir)
-    resolved_priority = Priority[priority.upper()] if priority else None
 
     roots = [name for name in all_names if "." not in name]
 
     groups = [
-        _grouped_lists(
-            storage_dir, root, all_names, tag, resolved_priority, config
-        )
+        _grouped_lists(storage_dir, root, all_names, item_filter, config)
         for root in roots
     ]
-    if _filter_active(tag, resolved_priority):
+    if item_filter.active:
         kept: list[list[TaskliList]] = []
         for group in groups:
             pruned = _drop_unmatched_lists(group)

@@ -12,7 +12,15 @@ import argcomplete
 from . import logic
 from .__version__ import __version__
 from .exceptions import TaskliError
-from .models import Color, Config, Priority, TaskliList
+from .models import (
+    Color,
+    Config,
+    Criterion,
+    Filter,
+    Operator,
+    Priority,
+    TaskliList,
+)
 from .render import (
     render_config,
     render_error,
@@ -676,10 +684,23 @@ def _dispatch(
         case _:
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
-            tag_filter = namespace.tag[0] if namespace.tag else None
+            criteria = []
+            if namespace.tag:
+                criteria.append(
+                    Criterion("tags", Operator.CONTAINS, namespace.tag[0])
+                )
+            if namespace.priority:
+                criteria.append(
+                    Criterion(
+                        "priority",
+                        Operator.EQ,
+                        Priority[namespace.priority.upper()],
+                    )
+                )
+            item_filter = Filter(tuple(criteria))
 
             if not namespace.list and namespace.all:
-                groups = logic.all_views(tag_filter, namespace.priority)
+                groups = logic.all_views(item_filter)
                 if not groups:
                     # all_views returns [] either for a filter that
                     # matched nothing or for genuinely-empty storage;
@@ -697,8 +718,7 @@ def _dispatch(
 
             views = logic.list_view(
                 list_name,
-                tag_filter,
-                namespace.priority,
+                item_filter,
                 namespace.all,
             )
             if not views:

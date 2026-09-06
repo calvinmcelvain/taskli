@@ -118,6 +118,7 @@ extend-exclude = '''
 profile = "black"
 line_length = 79
 extend_skip_glob = [".claude/*"]
+src_paths = ["src", "tests"]
 
 [tool.ruff]
 line-length = 79
