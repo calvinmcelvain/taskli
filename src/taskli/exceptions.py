@@ -11,6 +11,7 @@ __all__ = [
     "TooManyAncestorListsError",
     "UnknownConfigKeyError",
     "InvalidConfigValueError",
+    "InvalidModifierValueError",
     "CorruptedConfigFileError",
     "OutdatedConfigFileError",
 ]
@@ -54,6 +55,10 @@ class UnknownConfigKeyError(TaskliError):
 
 class InvalidConfigValueError(TaskliError):
     """Raised when a config value fails validation."""
+
+
+class InvalidModifierValueError(TaskliError):
+    """Raised when a settable modifier value fails its registry parse."""
 
 
 class CorruptedConfigFileError(TaskliError):

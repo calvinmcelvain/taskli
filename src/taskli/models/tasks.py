@@ -1,10 +1,12 @@
 """Tasks & task list models."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_serializer
 
 from ..exceptions import ItemNotFoundError
+from . import registry
 from .attributes import Color, Priority, Status
 from .query import Filter, Sort
 
@@ -20,6 +22,8 @@ class TaskliItem(BaseModel):
     created_at: datetime
     modified_at: datetime | None = None
     completed_at: datetime | None = None
+    due_date: datetime | None = None
+    description: str | None = None
 
     @field_serializer("status")
     def _serialize_status(self, value: Status) -> str:
@@ -122,9 +126,8 @@ class TaskliList(BaseModel):
     def add_item(
         self,
         text: str,
+        attrs: dict[str, Any] | None = None,
         *,
-        priority: Priority = Priority.MEDIUM,
-        tags: list[str] | None = None,
         created_at: datetime | None = None,
         modified_at: datetime | None = None,
     ) -> TaskliItem:
@@ -134,10 +137,11 @@ class TaskliList(BaseModel):
         ----------
         text : str
             The item's description.
-        priority : Priority, optional
-            Urgency level, by default ``Priority.MEDIUM``.
-        tags : list[str] | None, optional
-            Tags to attach, by default none.
+        attrs : dict[str, Any] | None, optional
+            Typed field values keyed by pydantic field name (e.g.
+            ``{"priority": Priority.HIGH, "tags": ["x"]}``). Present
+            keys are validated and absent ones defaulted by the
+            ``TaskliItem`` constructor. By default none.
         created_at : datetime | None, optional
             Creation timestamp, by default ``datetime.now()``. Set by
             ``copy_item`` to preserve the source item's timestamp.
@@ -156,10 +160,9 @@ class TaskliList(BaseModel):
         item = TaskliItem(
             id=idx,
             text=text,
-            priority=priority,
-            tags=tags or [],
             created_at=resolved_created_at,
             modified_at=modified_at or resolved_created_at,
+            **(attrs or {}),
         )
         self.items.append(item)
 
@@ -337,26 +340,20 @@ class TaskliList(BaseModel):
 
         return removed
 
-    def edit_item(
-        self,
-        item_id: int,
-        *,
-        text: str | None = None,
-        priority: Priority | None = None,
-        tags: list[str] | None = None,
-    ) -> TaskliItem:
-        """Update the given fields of an existing item.
+    def edit_item(self, item_id: int, attrs: dict[str, object]) -> TaskliItem:
+        """Apply a mapping of typed field values to an existing item.
+
+        Assignment is a bare ``setattr`` with no pydantic validation
+        (``TaskliItem`` has no ``validate_assignment``); callers are
+        responsible for passing already-valid typed values.
 
         Parameters
         ----------
         item_id : int
             The item's id.
-        text : str | None, optional
-            New description, if changing.
-        priority : Priority | None, optional
-            New priority, if changing.
-        tags : list[str] | None, optional
-            New tags, if changing.
+        attrs : dict[str, object]
+            Field values keyed by pydantic field name. An empty
+            mapping is a no-op and leaves ``modified_at`` untouched.
 
         Returns
         -------
@@ -365,14 +362,9 @@ class TaskliList(BaseModel):
         """
 
         item = self.get_item(item_id)
-        changed = text is not None or priority is not None or tags is not None
-        if text is not None:
-            item.text = text
-        if priority is not None:
-            item.priority = priority
-        if tags is not None:
-            item.tags = tags
-        if changed:
+        for name, value in attrs.items():
+            setattr(item, name, value)
+        if attrs:
             item.modified_at = datetime.now()
 
         return item
@@ -436,10 +428,16 @@ class TaskliList(BaseModel):
             The newly created item in ``target``.
         """
 
+        # the add-settable attributes are exactly the ones a copy should
+        # carry today; test_add_modifiers_in_column_order pins the set.
+        attrs: dict[str, Any] = {
+            name: getattr(item, name) for name in registry.modifiable("add")
+        }
+        attrs["tags"] = list(item.tags)  # own list object per copy.
+
         return target.add_item(
             item.text,
-            priority=item.priority,
-            tags=list(item.tags),
+            attrs,
             created_at=item.created_at,
             modified_at=datetime.now(),
         )

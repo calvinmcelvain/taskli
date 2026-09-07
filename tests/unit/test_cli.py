@@ -1,4 +1,5 @@
 import argparse
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -402,6 +403,161 @@ class TestEdit:
         captured = capsys.readouterr()
         assert exit_code == 2
         assert "error:" in captured.err
+
+
+class TestDue:
+    def test_add_sets_due_from_keyword(self, taskli_env, capsys):
+        expected = date.today() + timedelta(days=1)
+
+        exit_code = main(["work", "-a", "ship", "--due", "tomorrow"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'work'" in captured.out
+        item = load_list(taskli_env, "work").items[0]
+        assert item.due_date.date() == expected
+
+    def test_add_sets_due_from_relative_span(self, taskli_env):
+        expected = date.today() + timedelta(days=7)
+
+        exit_code = main(["work", "-a", "ship", "--due", "next week"])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.due_date.date() == expected
+
+    def test_add_sets_due_from_explicit_date(self, taskli_env):
+        exit_code = main(["work", "-a", "taxes", "--due", "04-15-2026"])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.due_date == datetime(2026, 4, 15)
+
+    def test_edit_sets_due(self, taskli_env, capsys):
+        main(["work", "-a", "taxes"])
+        capsys.readouterr()
+        expected = date.today() + timedelta(days=3)
+
+        exit_code = main(["work", "-e", "1", "--due", "3 days"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1 in 'work'" in captured.out
+        item = load_list(taskli_env, "work").items[0]
+        assert item.due_date.date() == expected
+
+    def test_rejects_unparseable_value(self, taskli_env, capsys):
+        exit_code = main(["work", "-a", "x", "--due", "someday"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "MM-DD-YYYY" in captured.out + captured.err
+
+    def test_rejects_overdue_on_set_path(self, taskli_env, capsys):
+        exit_code = main(["work", "-a", "x", "--due", "overdue"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "MM-DD-YYYY" in captured.out + captured.err
+
+    def test_bad_value_does_not_create_list(self, taskli_env, capsys):
+        exit_code = main(["fresh", "-a", "x", "--due", "someday"])
+
+        capsys.readouterr()
+        assert exit_code == 1
+        assert not (taskli_env / "fresh.json").exists()
+
+    def test_filter_overdue_matches_only_past_due(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        main(["work", "-a", "bravo", "--due", "today"])
+        main(["work", "-a", "charlie"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--due", "overdue"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+        assert "charlie" not in captured.out
+
+    def test_filter_today_matches_only_today(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        main(["work", "-a", "bravo", "--due", "today"])
+        main(["work", "-a", "charlie"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--due", "today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "bravo" in captured.out
+        assert "alpha" not in captured.out
+        assert "charlie" not in captured.out
+
+    def test_config_default_sort_by_due_orders_none_last(
+        self, taskli_env, capsys
+    ):
+        later = (date.today() + timedelta(days=5)).strftime("%m-%d-%Y")
+        main(["work", "-a", "whenever"])
+        main(["work", "-a", "later", "--due", later])
+        main(["work", "-a", "soon", "--due", "tomorrow"])
+        capsys.readouterr()
+
+        exit_code = main(["--config", "default_sort", "due_date"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "set 'default_sort' to 'due_date'" in captured.out
+        texts = [item.text for item in load_list(taskli_env, "work").items]
+        assert texts == ["soon", "later", "whenever"]
+
+
+class TestDesc:
+    def test_add_sets_description(self, taskli_env, capsys):
+        exit_code = main(
+            ["work", "-a", "migrate", "--desc", "blue/green first"]
+        )
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1 to 'work'" in captured.out
+        item = load_list(taskli_env, "work").items[0]
+        assert item.description == "blue/green first"
+
+    def test_edit_replaces_description(self, taskli_env, capsys):
+        main(["work", "-a", "migrate", "--desc", "old note"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", "--desc", "updated note"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1 in 'work'" in captured.out
+        item = load_list(taskli_env, "work").items[0]
+        assert item.description == "updated note"
+
+    def test_edit_empty_string_clears_description(self, taskli_env):
+        main(["work", "-a", "migrate", "--desc", "old note"])
+
+        exit_code = main(["work", "-e", "1", "--desc", ""])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.description is None
+
+    def test_marker_renders_only_for_described_item(self, taskli_env, capsys):
+        main(["work", "-a", "noted", "--desc", "has a note"])
+        main(["work", "-a", "bare"])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.out.count("*") == 1
 
 
 class TestMoveCopy:
@@ -1416,6 +1572,10 @@ class TestFlagCombinations:
             ["work", "--new", "-p", "high"],
             ["work", "-a", "task", "--all"],
             ["work", "-e", "1", "--all"],
+            ["work", "-d", "1", "--due", "today"],
+            ["work", "--prune", "--due", "today"],
+            ["work", "-mv", "groceries", "--due", "today"],
+            ["work", "--desc", "x"],
         ],
         ids=[
             "done-tag",
@@ -1425,6 +1585,10 @@ class TestFlagCombinations:
             "new-priority",
             "add-all",
             "edit-all",
+            "done-due",
+            "prune-due",
+            "move-due",
+            "view-desc",
         ],
     )
     def test_modifier_rejected_for_op(self, taskli_env, capsys, argv):
@@ -1433,6 +1597,18 @@ class TestFlagCombinations:
         captured = capsys.readouterr()
         assert exit_code == 2
         assert "error:" in captured.err
+
+    def test_empty_desc_on_view_is_ignored_not_rejected(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--desc", ""])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "task" in captured.out
 
     def test_config_with_three_args_errors(self, taskli_env, capsys):
         exit_code = main(["--config", "a", "b", "c"])
@@ -1535,6 +1711,16 @@ class TestModifierRegistryParity:
         # registry.filterable() name; a gap would KeyError at runtime.
         for name in registry.filterable():
             assert MODIFIER_FLAGS[name].filter_dest is not None
+
+    def test_every_modifier_attr_has_a_flag(self):
+        # _modifier_values iterates MODIFIER_FLAGS for every attribute
+        # carrying modifier_ops; a gap would drop that modifier silently.
+        for name, attr in registry.ATTRIBUTES.items():
+            if attr.modifier_ops:
+                assert name in MODIFIER_FLAGS
+
+    def test_color_is_not_an_item_modifier(self):
+        assert registry.ATTRIBUTES["color"].modifier_ops == frozenset()
 
 
 class TestCompletion:

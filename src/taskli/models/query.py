@@ -9,13 +9,14 @@ from typing import TYPE_CHECKING
 from ..exceptions import InvalidConfigValueError
 from . import registry
 from .attributes import Operator
+from .dates import midnight, parse_due_date, today
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
     from .tasks import TaskliItem
 
-__all__ = ["Criterion", "Filter", "Sort"]
+__all__ = ["Criterion", "Filter", "Sort", "due_to_criteria"]
 
 
 @dataclass(frozen=True)
@@ -143,3 +144,31 @@ class Sort:
             )
 
         return cls(value, descending=attr.sort_descending)
+
+
+def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
+    """Build the due-date view criteria for a ``--due`` token.
+
+    ``overdue`` matches not-done items due before today; any other
+    token is parsed as a single day and matched exactly.
+
+    Parameters
+    ----------
+    raw : str
+        The user-supplied ``--due`` value.
+
+    Returns
+    -------
+    tuple[Criterion, ...]
+        The criteria a due-date filter should AND together.
+    """
+
+    if raw.strip().casefold() == "overdue":
+        return (
+            Criterion("due_date", Operator.LT, midnight(today())),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    # parse_due_date midnight-normalizes its result, so this exact-datetime
+    # match agrees with _due_render_style's calendar-day comparison.
+    return (Criterion("due_date", Operator.EQ, parse_due_date(raw)),)

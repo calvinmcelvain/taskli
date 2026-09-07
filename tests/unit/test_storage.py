@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -30,7 +31,7 @@ from taskli.storage import (
     save_config,
     save_list,
 )
-from utils import resource_text, sort
+from utils import add_item, resource_text, sort
 
 
 class TestResolveStorageDir:
@@ -308,6 +309,14 @@ class TestLoadList:
         assert len(reloaded.items) == 1
         assert reloaded.items[0].text == "task"
 
+    def test_load_list_preserves_due_date_and_description(self, tmp_path):
+        (tmp_path / "inbox.json").write_text(resource_text("list_v1.json"))
+
+        items = {i.text: i for i in load_list(tmp_path, "inbox").items}
+
+        assert items["renew the domain"].due_date == datetime(2020, 2, 1)
+        assert items["write the changelog"].description == "some longer note"
+
     def test_raises_for_corrupted_file(self, tmp_path):
         (tmp_path / "broken.json").write_text("not valid json")
 
@@ -435,8 +444,8 @@ class TestResortAllLists:
     def test_resorts_and_reindexes_every_list(self, tmp_path):
         for name in ("work", "home"):
             task_list = create_list(tmp_path, name)
-            task_list.add_item("low", priority=Priority.LOW)
-            task_list.add_item("high", priority=Priority.HIGH)
+            add_item(task_list, "low", priority=Priority.LOW)
+            add_item(task_list, "high", priority=Priority.HIGH)
             save_list(tmp_path, task_list)
 
         resort_all_lists(tmp_path, sort("priority"))
@@ -451,8 +460,8 @@ class TestResortAllLists:
 
     def test_skips_corrupted_list(self, tmp_path):
         task_list = create_list(tmp_path, "work")
-        task_list.add_item("low", priority=Priority.LOW)
-        task_list.add_item("high", priority=Priority.HIGH)
+        add_item(task_list, "low", priority=Priority.LOW)
+        add_item(task_list, "high", priority=Priority.HIGH)
         save_list(tmp_path, task_list)
         (tmp_path / "broken.json").write_text("not valid json")
 
