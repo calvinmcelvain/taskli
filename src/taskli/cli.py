@@ -28,6 +28,7 @@ from .render import (
     render_agenda,
     render_config,
     render_error,
+    render_item_details,
     render_items,
     render_list_names,
     render_list_tree,
@@ -117,6 +118,7 @@ class ItemActionCommands(StrEnum):
     EDIT = "edit"
     MOVE = "move"
     COPY = "copy"
+    DETAILS = "details"
 
 
 type CommandOptions = ListCommands | ItemActionCommands | ConfigCommands
@@ -403,6 +405,14 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         help="Edit an item's text, priority, or tags.",
     )
     ops.add_argument(
+        "-D",
+        "--details",
+        dest="details",
+        nargs=1,
+        metavar="ID",
+        help="Show a task's full detail: description, timestamps, subtasks.",
+    )
+    ops.add_argument(
         "-mv",
         "--move",
         dest="move",
@@ -534,6 +544,8 @@ def _resolve_item_action_op(
         return ItemActionCommands.IN_PROGRESS
     if namespace.edit:
         return ItemActionCommands.EDIT
+    if namespace.details:
+        return ItemActionCommands.DETAILS
     if namespace.move:
         return ItemActionCommands.MOVE
     if namespace.copy:
@@ -655,6 +667,7 @@ def _validate(
             | ItemActionCommands.DONE
             | ItemActionCommands.UNDONE
             | ItemActionCommands.IN_PROGRESS
+            | ItemActionCommands.DETAILS
         ):
             _reject_modifiers(
                 namespace,
@@ -757,7 +770,8 @@ def _run_item_action(
 
             return logic.copy(list_name, target_name, ids, config)
 
-    # only EDIT is left once the match above didn't return.
+    # only EDIT reaches here: DETAILS is handled in _dispatch, and the
+    # match above returns for every other action.
     return logic.edit(
         list_name,
         namespace.edit[0],
@@ -849,6 +863,13 @@ def _dispatch(
             new_name = namespace.rename.replace(config.sublist_delimiter, ".")
 
             return _emit(logic.rename(list_name, new_name, config), config)
+        case ItemActionCommands.DETAILS:
+            task_list, item = logic.item_details(
+                list_name, namespace.details[0]
+            )
+            render_item_details(task_list, item, config.sublist_delimiter)
+
+            return 0
         case ItemActionCommands():
             return _emit(
                 _run_item_action(op, list_name, namespace, config), config

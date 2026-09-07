@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from taskli.models import Operator, Priority, Status, TaskliList
+from taskli.models import Operator, Priority, TaskliList
 from taskli.models.dates import parse_due_date
 from taskli.models.registry import (
     ATTRIBUTES,
@@ -11,7 +11,7 @@ from taskli.models.registry import (
     renderable,
     sortable,
 )
-from utils import add_item, add_subtask, freeze_today
+from utils import add_item, freeze_today
 
 
 class TestAttributes:
@@ -98,61 +98,6 @@ class TestAttributes:
 
 
 class TestRenderFacets:
-    def test_id_render_format(self):
-        todo = TaskliList(name="t")
-        item = todo.add_item("x")
-        fmt = ATTRIBUTES["id"].render_format
-        assert fmt
-
-        assert fmt(item) == "1"
-
-    def test_id_render_format_dotted_path(self):
-        todo = TaskliList(name="t")
-        todo.add_item("parent")
-        add_subtask(todo, "1", "first")
-        child = add_subtask(todo, "1", "second")
-        fmt = ATTRIBUTES["id"].render_format
-        assert fmt
-
-        assert fmt(child) == "1.2"
-
-    @pytest.mark.parametrize(
-        ("status", "marker"),
-        [
-            (Status.TODO, " "),
-            (Status.IN_PROGRESS, "•"),
-            (Status.DONE, "x"),
-        ],
-        ids=["todo", "in-progress", "done"],
-    )
-    def test_status_render_format(self, status, marker):
-        todo = TaskliList(name="t")
-        item = todo.add_item("x")
-        item.status = status
-        fmt = ATTRIBUTES["status"].render_format
-        assert fmt
-
-        assert fmt(item) == marker
-
-    def test_text_render_format_no_indent_at_root(self):
-        todo = TaskliList(name="t")
-        item = todo.add_item("buy milk")
-        fmt = ATTRIBUTES["text"].render_format
-        assert fmt
-
-        assert fmt(item) == "buy milk"
-
-    def test_text_render_format_indents_nested(self):
-        todo = TaskliList(name="t")
-        todo.add_item("parent")
-        child = add_subtask(todo, "1", "child")
-        grandchild = add_subtask(todo, "1.1", "grandchild")
-        fmt = ATTRIBUTES["text"].render_format
-        assert fmt
-
-        assert fmt(child) == "  child"
-        assert fmt(grandchild) == "    grandchild"
-
     def test_priority_render_format_label(self):
         todo = TaskliList(name="t")
         item = add_item(todo, "x", priority=Priority.HIGH)
@@ -169,9 +114,12 @@ class TestRenderFacets:
 
         assert fmt(item) == "a, b"
 
-    def test_render_format_absent_for_nonrendered(self):
-        assert ATTRIBUTES["created_at"].render_format is None
-        assert ATTRIBUTES["color"].render_format is None
+    @pytest.mark.parametrize(
+        "name",
+        ["id", "status", "text", "description", "created_at", "color"],
+    )
+    def test_render_format_absent_for_nonrendered(self, name):
+        assert ATTRIBUTES[name].render_format is None
 
     @pytest.mark.parametrize(
         ("priority", "color"),
@@ -190,23 +138,6 @@ class TestRenderFacets:
 
         assert style(item) == color
 
-    def test_text_render_style_dim_when_done(self):
-        todo = TaskliList(name="t")
-        item = todo.add_item("x")
-        todo.mark_done(item.id)
-        style = ATTRIBUTES["text"].render_style
-        assert style
-
-        assert style(item) == "dim"
-
-    def test_text_render_style_none_when_not_done(self):
-        todo = TaskliList(name="t")
-        item = todo.add_item("x")
-        style = ATTRIBUTES["text"].render_style
-        assert style
-
-        assert style(item) is None
-
     def test_due_date_render_format(self):
         todo = TaskliList(name="t")
         dated = add_item(todo, "x", due_date=datetime(2020, 2, 1, 13, 30))
@@ -216,16 +147,6 @@ class TestRenderFacets:
 
         assert fmt(dated) == "2020-02-01"
         assert fmt(undated) == ""
-
-    def test_description_render_format(self):
-        todo = TaskliList(name="t")
-        noted = add_item(todo, "x", description="a note")
-        plain = add_item(todo, "y")
-        fmt = ATTRIBUTES["description"].render_format
-        assert fmt
-
-        assert fmt(noted) == "*"
-        assert fmt(plain) == ""
 
     @pytest.mark.parametrize(
         ("due_date", "expected"),
@@ -257,7 +178,7 @@ class TestRenderFacets:
 
     @pytest.mark.parametrize(
         "name",
-        ["id", "status", "description", "tags", "created_at", "color"],
+        ["id", "status", "text", "description", "tags", "created_at", "color"],
     )
     def test_render_style_absent(self, name):
         assert ATTRIBUTES[name].render_style is None
@@ -268,19 +189,11 @@ class TestAccessors:
         columns = renderable()
 
         assert [column.header for column in columns] == [
-            "ID",
-            "State",
-            "Text",
-            "",
             "Priority",
             "Tags",
             "Due",
         ]
         assert [column.justify for column in columns] == [
-            "right",
-            "center",
-            "left",
-            "center",
             "left",
             "left",
             "left",
@@ -292,7 +205,6 @@ class TestAccessors:
 
         assert by_header["Priority"].format is priority.render_format
         assert by_header["Priority"].style is priority.render_style
-        assert by_header["ID"].style is None
 
     def test_sortable_keys(self):
         assert list(sortable()) == [

@@ -59,8 +59,9 @@ def resource_dict(name: str) -> dict[str, Any]:
 def freeze_today(monkeypatch: pytest.MonkeyPatch, value: date) -> None:
     """Pin ``models.dates.today`` and its re-bound copies to ``value``.
 
-    ``today`` is imported by name into ``models.query`` and
-    ``models.registry``, so each binding is patched independently.
+    ``today`` is imported by name into ``models.query``,
+    ``models.registry``, and ``render``, so each binding is patched
+    independently.
 
     Parameters
     ----------
@@ -74,6 +75,7 @@ def freeze_today(monkeypatch: pytest.MonkeyPatch, value: date) -> None:
         "taskli.models.dates.today",
         "taskli.models.query.today",
         "taskli.models.registry.today",
+        "taskli.render.today",
     ):
         monkeypatch.setattr(target, lambda: value)
 

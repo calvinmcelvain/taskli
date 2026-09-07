@@ -793,16 +793,52 @@ class TestDesc:
         item = load_list(taskli_env, "work").items[0]
         assert item.description is None
 
-    def test_marker_renders_only_for_described_item(self, taskli_env, capsys):
-        main(["work", "-a", "noted", "--desc", "has a note"])
-        main(["work", "-a", "bare"])
+
+class TestDetails:
+    def test_shows_task_detail(self, taskli_env, capsys):
+        main(["work", "-a", "ship it"])
         capsys.readouterr()
 
-        exit_code = main(["work"])
+        exit_code = main(["work", "-D", "1"])
 
         captured = capsys.readouterr()
         assert exit_code == 0
-        assert captured.out.count("*") == 1
+        assert "ship it" in captured.out
+        assert "work / 1" in captured.out
+
+    def test_alias(self, taskli_env, capsys):
+        main(["work", "-a", "ship it"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--details", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "ship it" in captured.out
+
+    def test_subtask_target(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-D", "1.1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "child" in captured.out
+
+    def test_unknown_id_exits_1(self, taskli_env, capsys):
+        main(["work", "-a", "ship it"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-D", "9"])
+
+        assert exit_code == 1
+
+    def test_rejects_modifier(self, taskli_env):
+        exit_code = main(["work", "-D", "1", "-p", "high"])
+
+        assert exit_code == 2
 
 
 class TestMoveCopy:

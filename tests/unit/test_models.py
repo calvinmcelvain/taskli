@@ -38,6 +38,35 @@ class TestColor:
         RichColor.parse(member.value)
 
 
+class TestStatus:
+    @pytest.mark.parametrize(
+        ("status", "marker"),
+        [
+            (Status.TODO, "☐"),
+            (Status.IN_PROGRESS, "■"),
+            (Status.DONE, "■"),
+        ],
+        ids=["todo", "in-progress", "done"],
+    )
+    def test_marker(self, status, marker):
+        assert status.marker == marker
+
+    def test_in_progress_color_is_cyan(self):
+        assert Status.IN_PROGRESS.color == Color.CYAN.value
+
+    @pytest.mark.parametrize(
+        ("status", "style"),
+        [
+            (Status.TODO, Color.WHITE.value),
+            (Status.IN_PROGRESS, Color.CYAN.value),
+            (Status.DONE, "dim"),
+        ],
+        ids=["todo", "in-progress", "done"],
+    )
+    def test_marker_style(self, status, style):
+        assert status.marker_style == style
+
+
 class TestConfig:
     def test_get_value(self):
         config = Config()

@@ -68,32 +68,14 @@ def _due_render_style(item: TaskliItem) -> str | None:
 
 # insertion order is the render column order.
 ATTRIBUTES: dict[str, Attribute] = {
-    "id": Attribute(
-        name="id",
-        column_header="ID",
-        column_justify="right",
-        render_format=lambda item: item.id,
-    ),
-    "status": Attribute(
-        name="status",
-        column_header="State",
-        column_justify="center",
-        render_format=lambda item: item.status.marker,
-    ),
+    "id": Attribute(name="id"),
+    "status": Attribute(name="status"),
     "text": Attribute(
         name="text",
-        column_header="Text",
-        # indent nested rows by depth; depth is the dot count in the path.
-        render_format=lambda item: "  " * item.id.count(".") + item.text,
-        render_style=lambda item: "dim" if item.done else None,
         modifier_ops=frozenset({"edit"}),
     ),
     "description": Attribute(
         name="description",
-        # empty string is a real (blank-headed) column; None is skipped.
-        column_header="",
-        column_justify="center",
-        render_format=lambda item: "*" if item.description else "",
         parse=lambda s: s or None,
         modifier_ops=frozenset({"add", "edit"}),
     ),

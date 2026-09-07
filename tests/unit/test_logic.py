@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from taskli.exceptions import InvalidModifierValueError
+from taskli.exceptions import InvalidModifierValueError, ItemNotFoundError
 from taskli.logic import (
     CommandResult,
     add,
@@ -14,6 +14,7 @@ from taskli.logic import (
     delete_prompt,
     edit,
     has_any_lists,
+    item_details,
     list_entries,
     list_names,
     list_view,
@@ -30,7 +31,14 @@ from taskli.logic import (
     set_list_color,
     storage_path,
 )
-from taskli.models import Color, Filter, Priority, Status, TaskliList
+from taskli.models import (
+    Color,
+    Filter,
+    Priority,
+    Status,
+    TaskliItem,
+    TaskliList,
+)
 from taskli.storage import load_config, load_list
 from utils import priority_criterion, resource_text, tag_criterion
 
@@ -561,6 +569,34 @@ class TestAgenda:
         rows = agenda("today", config)
 
         assert [item.text for _, item in rows] == ["due today"]
+
+
+class TestItemDetails:
+    def test_returns_list_and_item(self, taskli_env, config):
+        add("work", ["ship it"], {}, config)
+
+        task_list, item = item_details("work", "1")
+
+        assert isinstance(task_list, TaskliList)
+        assert isinstance(item, TaskliItem)
+        assert item.id == "1"
+        assert item.text == "ship it"
+
+    def test_resolves_subtask_id(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        _, item = item_details("work", "1.1")
+
+        assert isinstance(item, TaskliItem)
+        assert item.id == "1.1"
+        assert item.text == "child"
+
+    def test_unknown_id_raises(self, taskli_env, config):
+        add("work", ["only one"], {}, config)
+
+        with pytest.raises(ItemNotFoundError):
+            item_details("work", "9")
 
 
 class TestListNames:
