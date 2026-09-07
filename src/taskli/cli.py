@@ -31,6 +31,7 @@ from .render import (
     render_list_names,
     render_list_tree,
     render_message,
+    render_reminder,
     render_value,
     render_warning,
 )
@@ -759,6 +760,11 @@ def _dispatch(
         return result.exit_code
 
     config = load_config(resolve_storage_dir())
+
+    if config.show_reminders:
+        overdue, due_today = logic.check_reminders()
+        if overdue or due_today:
+            render_reminder(overdue, due_today)
 
     if namespace.list:
         list_name = namespace.list.replace(config.sublist_delimiter, ".")

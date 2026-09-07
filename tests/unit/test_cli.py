@@ -583,6 +583,43 @@ class TestDue:
         assert texts == ["soon", "later", "whenever"]
 
 
+class TestReminders:
+    def test_banner_on_view_with_overdue_item(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "1 overdue" in captured.err
+
+    def test_no_banner_when_disabled(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        main(["--config", "show_reminders", "false"])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.err == ""
+
+    def test_banner_counts_nested_subtask(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1", "--due", past])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "1 overdue" in captured.err
+
+
 class TestDesc:
     def test_add_sets_description(self, taskli_env, capsys):
         exit_code = main(

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 import pytest
 
 from taskli.exceptions import InvalidModifierValueError
@@ -5,6 +7,7 @@ from taskli.logic import (
     CommandResult,
     add,
     all_views,
+    check_reminders,
     copy,
     delete_confirmed,
     delete_prompt,
@@ -432,6 +435,44 @@ class TestHasAnyLists:
         add("work", ["a"], {}, config)
 
         assert has_any_lists() is True
+
+
+class TestCheckReminders:
+    def test_counts_overdue_item(self, taskli_env, config):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        add("work", ["alpha"], {"due_date": past}, config)
+
+        assert check_reminders() == (1, 0)
+
+    def test_counts_due_today_item(self, taskli_env, config):
+        add("work", ["alpha"], {"due_date": "today"}, config)
+
+        assert check_reminders() == (0, 1)
+
+    def test_excludes_done_items(self, taskli_env, config):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        add("work", ["alpha"], {"due_date": past}, config)
+        mark_done("work", ["1"], config)
+
+        assert check_reminders() == (0, 0)
+
+    def test_counts_nested_subtask(self, taskli_env, config):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        add("work", ["parent"], {}, config)
+        add(
+            "work",
+            ["child"],
+            {"due_date": past},
+            config,
+            parent_path="1",
+        )
+
+        assert check_reminders() == (1, 0)
+
+    def test_skips_unloadable_list(self, taskli_env):
+        (taskli_env / "broken.json").write_text("not json")
+
+        assert check_reminders() == (0, 0)
 
 
 class TestListNames:
