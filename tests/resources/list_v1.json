@@ -4,17 +4,30 @@
   "color": "#F8FAFC",
   "items": [
     {
-      "id": 1,
+      "id": "1",
       "text": "ship the release",
       "status": "done",
       "priority": "medium",
       "tags": [],
       "created_at": "2020-01-01T00:00:00",
       "modified_at": "2020-01-01T00:00:00",
-      "completed_at": "2020-01-05T00:00:00"
+      "completed_at": "2020-01-05T00:00:00",
+      "children": [
+        {
+          "id": "1.1",
+          "text": "tag the release commit",
+          "status": "done",
+          "priority": "medium",
+          "tags": [],
+          "created_at": "2020-01-03T00:00:00",
+          "modified_at": "2020-01-03T00:00:00",
+          "completed_at": "2020-01-04T00:00:00",
+          "children": []
+        }
+      ]
     },
     {
-      "id": 2,
+      "id": "2",
       "text": "write the changelog",
       "status": "todo",
       "priority": "high",
@@ -22,10 +35,11 @@
       "created_at": "2020-01-02T00:00:00",
       "modified_at": "2020-01-03T00:00:00",
       "completed_at": null,
-      "description": "some longer note"
+      "description": "some longer note",
+      "children": []
     },
     {
-      "id": 3,
+      "id": "3",
       "text": "renew the domain",
       "status": "todo",
       "priority": "medium",
@@ -33,7 +47,8 @@
       "created_at": "2020-01-04T00:00:00",
       "modified_at": "2020-01-04T00:00:00",
       "completed_at": null,
-      "due_date": "2020-02-01T00:00:00"
+      "due_date": "2020-02-01T00:00:00",
+      "children": []
     }
   ]
 }

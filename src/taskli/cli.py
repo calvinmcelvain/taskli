@@ -21,6 +21,7 @@ from .models import (
     Priority,
     TaskliList,
     due_to_criteria,
+    path_key,
     registry,
 )
 from .render import (
@@ -349,7 +350,6 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         "-rm",
         "--remove",
         dest="remove",
-        type=int,
         nargs="+",
         metavar="ID",
         help="Remove an item, or items, from LIST.",
@@ -358,7 +358,6 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         "-d",
         "--done",
         dest="done",
-        type=int,
         nargs="+",
         metavar="ID",
         help="Mark an item, or items, as done.",
@@ -367,7 +366,6 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         "-u",
         "--undone",
         dest="undone",
-        type=int,
         nargs="+",
         metavar="ID",
         help="Mark an item, or items, as not done.",
@@ -376,7 +374,6 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         "-i",
         "--in-progress",
         dest="in_progress",
-        type=int,
         nargs="+",
         metavar="ID",
         help="Mark an item, or items, as in progress.",
@@ -385,7 +382,6 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         "-e",
         "--edit",
         dest="edit",
-        type=int,
         nargs=1,
         metavar="ID",
         help="Edit an item's text, priority, or tags.",
@@ -431,6 +427,13 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
             "Used to prune or view across multiple lists. See documentation"
             " for examples."
         ),
+    )
+    modifiers.add_argument(
+        "--under",
+        dest="under",
+        default=None,
+        metavar="PATH",
+        help="Add the new item as a subtask of the item at PATH. -a only.",
     )
 
 
@@ -563,8 +566,8 @@ def _reject_modifiers(
     message: str,
     allowed: set[str],
 ) -> None:
-    # every modifier dest, plus the hand-wired --all scope flag.
-    dests = {"all"} | {
+    # every modifier dest, plus the hand-wired --all/--under scope flags.
+    dests = {"all", "under"} | {
         arg.dest for spec in MODIFIER_FLAGS.values() for arg in spec.args
     }
     for dest in sorted(dests - allowed):
@@ -614,7 +617,7 @@ def _validate(
                 namespace,
                 parser,
                 "--add-tag/--text/--all are not valid with -a/--add.",
-                {"priority", "tag", "due", "desc"},
+                {"priority", "tag", "due", "desc", "under"},
             )
         case ItemActionCommands.EDIT:
             if namespace.tag and namespace.add_tag:
@@ -647,9 +650,9 @@ def _validate(
                 else namespace.copy
             )[1:]
             try:
-                [int(i) for i in ids]
+                [path_key(i) for i in ids]
             except ValueError:
-                parser.error("ID must be an integer.")
+                parser.error("ID must be an item path like 1 or 1.2.")
             _reject_modifiers(
                 namespace,
                 parser,
@@ -712,6 +715,7 @@ def _run_item_action(
                 texts,
                 _modifier_values(action, namespace),
                 config,
+                parent_path=namespace.under,
             )
         case ItemActionCommands.DONE:
             return logic.mark_done(list_name, namespace.done, config)
@@ -727,16 +731,12 @@ def _run_item_action(
             target, *ids = namespace.move
             target_name = target.replace(config.sublist_delimiter, ".")
 
-            return logic.move(
-                list_name, target_name, [int(i) for i in ids], config
-            )
+            return logic.move(list_name, target_name, ids, config)
         case ItemActionCommands.COPY:
             target, *ids = namespace.copy
             target_name = target.replace(config.sublist_delimiter, ".")
 
-            return logic.copy(
-                list_name, target_name, [int(i) for i in ids], config
-            )
+            return logic.copy(list_name, target_name, ids, config)
 
     # only EDIT is left once the match above didn't return.
     return logic.edit(

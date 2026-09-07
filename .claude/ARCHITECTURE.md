@@ -9,12 +9,15 @@ no `render` and prints nothing. `storage.py` owns every filesystem interaction �
 resolving the storage directory, reading and writing the config file and the
 per-list files. `render.py` owns every piece of console output, building all
 `rich` tables, trees, and messages. `models/` holds the pydantic data types
-(`TaskliItem`, `TaskliList`, `Config`), the attribute enums (`Priority`,
+(`TaskliItem` — now a recursive tree via a `children: list[TaskliItem]`
+field — `TaskliList`, `Config`), the attribute enums (`Priority`,
 `Status`, `Color`, `Operator`), the `SortBy` alias (now a plain `str`
 validated against the registry, not an enum), the query value objects
 (`Filter`, `Criterion`, `Sort`), the due-date value parser (`dates.py` —
 `parse_due_date` / `today` / `midnight`, a leaf beside `attributes.py`
-importing only `re`, `datetime`, and `exceptions`), and the attribute
+importing only `re`, `datetime`, and `exceptions`), the dotted item-path
+sort key (`paths.py` — `path_key`, a leaf that imports nothing), and the
+attribute
 registry (`registry.py`'s `Attribute` / `ATTRIBUTES` table of
 per-attribute domain + render + modifier metadata — filter operators,
 sort keys, render column facets, plus the `parse` callable and the
@@ -30,7 +33,9 @@ helpers (`ancestor_chain`, `parent_list_name`, `child_list_names`,
 the shared `TaskliError` hierarchy. `migrations.py` is a third leaf beside
 `exceptions.py` and `hierarchy.py` — the versioned-migration module (stdlib
 only), operating on the raw parsed file dicts before model validation:
-`CURRENT_LIST_VERSION` / `CURRENT_CONFIG_VERSION`, ordered migration chains,
+`CURRENT_LIST_VERSION` / `CURRENT_CONFIG_VERSION`, ordered migration chains
+(still one list step, `base → v1`, which also stringifies each item id and
+adds `children: []` for the recursive-subtasks shape),
 and `migrate_list` / `migrate_config` / `*_needs_migration`, with the
 historical label strings (`"done"`, `"todo"`, `"high"`, …) hard-coded as a
 frozen contract rather than imported from `attributes.py`.

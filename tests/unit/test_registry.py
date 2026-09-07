@@ -11,7 +11,7 @@ from taskli.models.registry import (
     renderable,
     sortable,
 )
-from utils import add_item, freeze_today
+from utils import add_item, add_subtask, freeze_today
 
 
 class TestAttributes:
@@ -106,6 +106,16 @@ class TestRenderFacets:
 
         assert fmt(item) == "1"
 
+    def test_id_render_format_dotted_path(self):
+        todo = TaskliList(name="t")
+        todo.add_item("parent")
+        add_subtask(todo, "1", "first")
+        child = add_subtask(todo, "1", "second")
+        fmt = ATTRIBUTES["id"].render_format
+        assert fmt
+
+        assert fmt(child) == "1.2"
+
     @pytest.mark.parametrize(
         ("status", "marker"),
         [
@@ -124,13 +134,24 @@ class TestRenderFacets:
 
         assert fmt(item) == marker
 
-    def test_text_render_format_passthrough(self):
+    def test_text_render_format_no_indent_at_root(self):
         todo = TaskliList(name="t")
         item = todo.add_item("buy milk")
         fmt = ATTRIBUTES["text"].render_format
         assert fmt
 
         assert fmt(item) == "buy milk"
+
+    def test_text_render_format_indents_nested(self):
+        todo = TaskliList(name="t")
+        todo.add_item("parent")
+        child = add_subtask(todo, "1", "child")
+        grandchild = add_subtask(todo, "1.1", "grandchild")
+        fmt = ATTRIBUTES["text"].render_format
+        assert fmt
+
+        assert fmt(child) == "  child"
+        assert fmt(grandchild) == "    grandchild"
 
     def test_priority_render_format_label(self):
         todo = TaskliList(name="t")

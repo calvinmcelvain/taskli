@@ -24,6 +24,12 @@ class TestMigrateList:
         assert done["modified_at"] == done["created_at"]
         assert undone["modified_at"] == "2020-01-03T00:00:00"
         assert prioritized["priority"] == "high"
+        assert done["id"] == "1"
+        assert undone["id"] == "2"
+        assert prioritized["id"] == "3"
+        assert done["children"] == []
+        assert undone["children"] == []
+        assert prioritized["children"] == []
 
     def test_stamps_current_version(self):
         raw = resource_dict("list_v0_legacy.json")

@@ -37,7 +37,13 @@ def file_version(raw: dict[str, Any]) -> int:
 
 
 def _list_base_to_v1(raw: dict[str, Any]) -> dict[str, Any]:
-    """Bring a pre-versioned list dict up to the v1 item shape."""
+    """Bring a pre-versioned list dict up to the current v1 item shape.
+
+    v1 was introduced in #101 and redefined by #92 (recursive subtasks)
+    before any real data reached it, so this single step also stringifies
+    each ``id`` into a dotted path and defaults ``children`` -- there is no
+    v2. The historical label strings below stay frozen regardless.
+    """
 
     for item in raw.get("items", []):
         if "done" in item and "status" not in item:
@@ -48,6 +54,10 @@ def _list_base_to_v1(raw: dict[str, Any]) -> dict[str, Any]:
             value = item.get(key)
             if isinstance(value, dict):
                 item[key] = value.get("label")
+        if "id" in item:
+            item["id"] = str(item["id"])
+        # base/v0 files are flat, so no recursion into children here.
+        item.setdefault("children", [])
 
     return raw
 

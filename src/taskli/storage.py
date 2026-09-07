@@ -438,6 +438,9 @@ def save_list(storage_dir: Path, task_list: TaskliList) -> None:
         The list to save.
     """
 
+    if task_list.view_only:
+        raise RuntimeError("refusing to save a view-only (filtered) list")
+
     task_list.sort_by_index()
     path = list_file_path(storage_dir, task_list.name)
     raw = task_list.model_dump(mode="json")

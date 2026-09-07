@@ -65,12 +65,22 @@ class TestAdd:
         assert first.tags is not second.tags
         assert first.tags == second.tags == ["t"]
 
+    def test_parent_path_nests_item(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+
+        result = add("work", ["child"], {}, config, parent_path="1")
+
+        assert result.messages == ["added #1.1 to 'work'."]
+        child = result.item_view.items[0].children[0]
+        assert child.text == "child"
+        assert child.id == "1.1"
+
 
 class TestEdit:
     def test_updates_item_text(self, taskli_env, config):
         add("work", ["old"], {}, config)
 
-        result = edit("work", 1, {"text": "new"}, config)
+        result = edit("work", "1", {"text": "new"}, config)
 
         assert result.messages == ["updated #1 in 'work'."]
         assert result.item_view.items[0].text == "new"
@@ -78,7 +88,7 @@ class TestEdit:
     def test_add_tag_appends_to_existing_tags(self, taskli_env, config):
         add("work", ["x"], {"tags": ["a"]}, config)
 
-        result = edit("work", 1, {"add_tag": ["b"]}, config)
+        result = edit("work", "1", {"add_tag": ["b"]}, config)
 
         assert result.item_view.items[0].tags == ["a", "b"]
 
@@ -87,7 +97,7 @@ class TestMarkDone:
     def test_marks_and_returns_view(self, taskli_env, config):
         add("work", ["task"], {}, config)
 
-        result = mark_done("work", [1], config)
+        result = mark_done("work", ["1"], config)
 
         assert result.exit_code == 0
         assert result.messages == ["marked #1 done in 'work'."]
@@ -96,20 +106,46 @@ class TestMarkDone:
     def test_missing_id_taints_exit_and_warns(self, taskli_env, config):
         add("work", ["task"], {}, config)
 
-        result = mark_done("work", [1, 99], config)
+        result = mark_done("work", ["1", "99"], config)
 
         assert result.exit_code == 1
         assert result.messages == ["marked #1 done in 'work'."]
         assert len(result.warnings) == 1
         assert "99" in result.warnings[0]
 
+    def test_marks_nested_path_partial_success(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = mark_done("work", ["1.1", "1.9"], config)
+
+        assert result.exit_code == 1
+        assert result.messages == ["marked #1.1 done in 'work'."]
+        assert len(result.warnings) == 1
+        assert result.item_view.items[0].children[0].status is Status.DONE
+
+    def test_marks_ancestor_and_descendant_both(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = mark_done("work", ["1", "1.1"], config)
+
+        assert result.exit_code == 0
+        assert result.messages == [
+            "marked #1 done in 'work'.",
+            "marked #1.1 done in 'work'.",
+        ]
+        parent = result.item_view.items[0]
+        assert parent.status is Status.DONE
+        assert parent.children[0].status is Status.DONE
+
 
 class TestMarkUndone:
     def test_resets_status_to_todo(self, taskli_env, config):
         add("work", ["task"], {}, config)
-        mark_done("work", [1], config)
+        mark_done("work", ["1"], config)
 
-        result = mark_undone("work", [1], config)
+        result = mark_undone("work", ["1"], config)
 
         assert result.item_view.items[0].status is Status.TODO
 
@@ -118,7 +154,7 @@ class TestMarkInProgress:
     def test_sets_status(self, taskli_env, config):
         add("work", ["task"], {}, config)
 
-        result = mark_in_progress("work", [1], config)
+        result = mark_in_progress("work", ["1"], config)
 
         assert result.item_view.items[0].status is Status.IN_PROGRESS
 
@@ -127,7 +163,7 @@ class TestRemoveItems:
     def test_removes_named_ids(self, taskli_env, config):
         add("work", ["a", "b", "c"], {}, config)
 
-        result = remove_items("work", [1, 2], config)
+        result = remove_items("work", ["1", "2"], config)
 
         assert result.exit_code == 0
         assert [item.text for item in result.item_view.items] == ["c"]
@@ -135,15 +171,25 @@ class TestRemoveItems:
     def test_missing_id_taints_exit(self, taskli_env, config):
         add("work", ["a"], {}, config)
 
-        result = remove_items("work", [99], config)
+        result = remove_items("work", ["99"], config)
 
         assert result.exit_code == 1
         assert len(result.warnings) == 1
 
+    def test_removes_nested_path(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = remove_items("work", ["1.1"], config)
+
+        assert result.exit_code == 0
+        assert result.messages == ["removed #1.1 from 'work'."]
+        assert result.item_view.items[0].children == []
+
     def test_non_adjacent_ids_keep_user_order(self, taskli_env, config):
         add("work", ["a", "b", "c", "d"], {}, config)
 
-        result = remove_items("work", [1, 3], config)
+        result = remove_items("work", ["1", "3"], config)
 
         assert result.exit_code == 0
         assert [item.text for item in result.item_view.items] == ["b", "d"]
@@ -155,12 +201,33 @@ class TestRemoveItems:
     def test_duplicate_id_acts_once(self, taskli_env, config):
         add("work", ["a", "b", "c"], {}, config)
 
-        result = remove_items("work", [1, 1], config)
+        result = remove_items("work", ["1", "1"], config)
 
         assert result.exit_code == 0
         assert [item.text for item in result.item_view.items] == ["b", "c"]
         assert len(result.messages) == 1
         assert result.warnings == []
+
+    def test_ancestor_covers_descendant(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = remove_items("work", ["1", "1.1"], config)
+
+        assert result.exit_code == 0
+        assert result.messages == ["removed #1 from 'work'."]
+        assert result.item_view.items == []
+        assert result.warnings == []
+
+    def test_ancestor_covers_descendant_reverse(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = remove_items("work", ["1.1", "1"], config)
+
+        assert result.exit_code == 0
+        assert result.messages == ["removed #1 from 'work'."]
+        assert result.item_view.items == []
 
 
 class TestMove:
@@ -176,7 +243,7 @@ class TestMove:
     def test_missing_id_taints_exit_and_moves_rest(self, taskli_env, config):
         add("src", ["task"], {}, config)
 
-        result = move("src", "dst", [1, 99], config)
+        result = move("src", "dst", ["1", "99"], config)
 
         assert result.exit_code == 1
         assert len(result.messages) == 1
@@ -186,10 +253,38 @@ class TestMove:
     def test_duplicate_id_moves_once(self, taskli_env, config):
         add("src", ["a", "b"], {}, config)
 
-        result = move("src", "dst", [1, 1], config)
+        result = move("src", "dst", ["1", "1"], config)
 
         assert len(result.messages) == 1
         assert len(load_list(taskli_env, "dst").items) == 1
+
+    def test_nested_path_partial_success(self, taskli_env, config):
+        add("src", ["parent"], {}, config)
+        add("src", ["child"], {}, config, parent_path="1")
+
+        result = move("src", "dst", ["1.1", "1.9"], config)
+
+        assert result.exit_code == 1
+        assert len(result.messages) == 1
+        assert len(result.warnings) == 1
+        assert [i.text for i in load_list(taskli_env, "dst").items] == [
+            "child"
+        ]
+        assert load_list(taskli_env, "src").items[0].children == []
+
+    def test_ancestor_and_child_moves_once(self, taskli_env, config):
+        add("src", ["parent"], {}, config)
+        add("src", ["child"], {}, config, parent_path="1")
+
+        result = move("src", "dst", ["1", "1.1"], config)
+
+        assert result.exit_code == 0
+        assert len(result.messages) == 1
+        assert load_list(taskli_env, "src").items == []
+
+        target = load_list(taskli_env, "dst")
+        assert [i.text for i in target.items] == ["parent"]
+        assert [c.text for c in target.items[0].children] == ["child"]
 
 
 class TestCopy:
@@ -204,16 +299,39 @@ class TestCopy:
     def test_duplicate_id_copies_once(self, taskli_env, config):
         add("src", ["a", "b"], {}, config)
 
-        result = copy("src", "dst", [1, 1], config)
+        result = copy("src", "dst", ["1", "1"], config)
 
         assert len(result.messages) == 1
         assert len(load_list(taskli_env, "dst").items) == 1
+
+    def test_copies_nested_path_partial_success(self, taskli_env, config):
+        add("src", ["parent"], {}, config)
+        add("src", ["child"], {}, config, parent_path="1")
+
+        result = copy("src", "dst", ["1.1", "1.9"], config)
+
+        assert result.exit_code == 1
+        assert len(result.warnings) == 1
+        assert [i.text for i in result.item_view.items] == ["child"]
+        assert len(load_list(taskli_env, "src").items[0].children) == 1
+
+    def test_ancestor_and_child_copies_once(self, taskli_env, config):
+        add("src", ["parent"], {}, config)
+        add("src", ["child"], {}, config, parent_path="1")
+
+        result = copy("src", "dst", ["1", "1.1"], config)
+
+        assert result.exit_code == 0
+
+        target = load_list(taskli_env, "dst")
+        assert [i.text for i in target.items] == ["parent"]
+        assert [c.text for c in target.items[0].children] == ["child"]
 
 
 class TestPrune:
     def test_returns_tree_view_and_message(self, taskli_env, config):
         add("work", ["task"], {}, config)
-        mark_done("work", [1], config)
+        mark_done("work", ["1"], config)
 
         result = prune("work", False, True, config)
 

@@ -171,7 +171,7 @@ def add_item(
 
 
 def edit_item(
-    task_list: TaskliList, item_id: int, **attrs: object
+    task_list: TaskliList, item_id: str | int, **attrs: object
 ) -> TaskliItem:
     """Edit an item on ``task_list`` from keyword attributes.
 
@@ -183,7 +183,7 @@ def edit_item(
     ----------
     task_list : TaskliList
         The list owning the item.
-    item_id : int
+    item_id : str | int
         The id of the item to edit.
     **attrs : object
         Field values to apply, forwarded as the ``attrs`` mapping.
@@ -195,3 +195,28 @@ def edit_item(
     """
 
     return task_list.edit_item(item_id, attrs)
+
+
+def add_subtask(
+    task_list: TaskliList, parent_path: str, text: str, **attrs: object
+) -> TaskliItem:
+    """Add a child item under ``parent_path`` on ``task_list``.
+
+    Parameters
+    ----------
+    task_list : TaskliList
+        The list owning the parent item.
+    parent_path : str
+        The dotted path of the parent item.
+    text : str
+        The subtask text.
+    **attrs : object
+        Settable item attributes, forwarded as the ``attrs`` mapping.
+
+    Returns
+    -------
+    TaskliItem
+        The newly added child item.
+    """
+
+    return task_list.add_item(text, attrs or None, parent_path=parent_path)
