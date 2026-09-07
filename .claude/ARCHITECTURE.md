@@ -12,12 +12,19 @@ per-list files. `render.py` owns every piece of console output, building all
 (`TaskliItem`, `TaskliList`, `Config`), the attribute enums (`Priority`,
 `Status`, `Color`, `Operator`), the `SortBy` alias (now a plain `str`
 validated against the registry, not an enum), the query value objects
-(`Filter`, `Criterion`, `Sort`), and the attribute registry (`registry.py`'s
-`Attribute` / `ATTRIBUTES` table of per-attribute domain + render metadata —
-filter operators, sort keys, render column facets — that `query.Sort`,
-`Config.default_sort`, and `render._items_table` iterate). The registry
-carries domain + render facets only; the argparse flag spec for the same
-attributes lives in `cli.py`. `hierarchy.py` holds the pure list-name hierarchy
+(`Filter`, `Criterion`, `Sort`), the due-date value parser (`dates.py` —
+`parse_due_date` / `today` / `midnight`, a leaf beside `attributes.py`
+importing only `re`, `datetime`, and `exceptions`), and the attribute
+registry (`registry.py`'s `Attribute` / `ATTRIBUTES` table of
+per-attribute domain + render + modifier metadata — filter operators,
+sort keys, render column facets, plus the `parse` callable and the
+`modifier_ops` op-name set — that `query.Sort`, `Config.default_sort`,
+`render._items_table`, and the `logic` / `cli` modifier path iterate via
+`sortable()` / `renderable()` / `filterable()` / `modifiable(op)`).
+`registry.py` sits on top of both `attributes.py` and `dates.py`. The
+registry carries domain, render, and value-parsing facets; the argparse
+vocabulary (flags, `nargs`, `metavar`, `dest`) for the same attributes
+lives in `cli.py`'s `MODIFIER_FLAGS`. `hierarchy.py` holds the pure list-name hierarchy
 helpers (`ancestor_chain`, `parent_list_name`, `child_list_names`,
 `descendant_list_names`) — dotted-name string math, no I/O. `exceptions.py` is
 the shared `TaskliError` hierarchy. `migrations.py` is a third leaf beside
@@ -52,8 +59,12 @@ check a plan against.
    `hierarchy.py`, `migrations.py`, or `exceptions.py` imports `render.py`;
    nothing imports `cli.py`.
 2. **`models/` is pure data + domain logic.** Pydantic models, enums, field
-   validators, and in-memory item lookup only — no filesystem access, no `rich` or
-   other console output, no `argparse`.
+   validators, in-memory item lookup, pure value parsing (`dates.py`'s
+   `re`+`datetime` due-date parser) and criteria construction
+   (`query.due_to_criteria`) only — no filesystem access, no `rich` or other
+   console output, no `argparse`. The enumeration is descriptive, not
+   exhaustive: op-name strings (`registry.Attribute.modifier_ops` holds
+   `"add"` / `"edit"`) are admitted; `argparse` types and objects are not.
 3. **`storage.py` owns all persistence.** Every read or write of the config file
    and the list files goes through a `storage.py` function. `cli.py` and
    `render.py` call those functions; they do not open, read, or write project

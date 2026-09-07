@@ -19,7 +19,7 @@ from taskli.models import (
     TaskliItem,
     TaskliList,
 )
-from utils import priority_criterion, sort, tag_criterion
+from utils import add_item, edit_item, priority_criterion, sort, tag_criterion
 
 
 class TestColor:
@@ -120,6 +120,56 @@ class TestConfig:
 
         with pytest.raises(UnknownConfigKeyError):
             config.set_value("nope", "x")
+
+
+class TestTaskliItem:
+    def test_due_date_defaults_none(self):
+        item = TaskliItem(id=1, text="x", created_at=datetime(2020, 1, 1))
+
+        assert item.due_date is None
+
+    def test_due_date_survives_json_round_trip(self):
+        item = TaskliItem(
+            id=1,
+            text="x",
+            created_at=datetime(2020, 1, 1),
+            due_date=datetime(2020, 6, 1),
+        )
+
+        restored = TaskliItem.model_validate(item.model_dump(mode="json"))
+
+        assert restored.due_date == datetime(2020, 6, 1)
+
+    def test_old_shape_without_due_date_validates_to_none(self):
+        restored = TaskliItem.model_validate(
+            {"id": 1, "text": "x", "created_at": "2020-01-01T00:00:00"}
+        )
+
+        assert restored.due_date is None
+
+    def test_description_defaults_none(self):
+        item = TaskliItem(id=1, text="x", created_at=datetime(2020, 1, 1))
+
+        assert item.description is None
+
+    def test_description_survives_json_round_trip(self):
+        item = TaskliItem(
+            id=1,
+            text="x",
+            created_at=datetime(2020, 1, 1),
+            description="a note",
+        )
+
+        restored = TaskliItem.model_validate(item.model_dump(mode="json"))
+
+        assert restored.description == "a note"
+
+    def test_old_shape_without_description_validates_to_none(self):
+        restored = TaskliItem.model_validate(
+            {"id": 1, "text": "x", "created_at": "2020-01-01T00:00:00"}
+        )
+
+        assert restored.description is None
 
 
 class TestTaskliList:
@@ -261,35 +311,65 @@ class TestTaskliList:
 
     def test_edit_item_updates_given_fields_only(self):
         todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task", tags=["a"])
+        item = add_item(todo_list, "task", tags=["a"])
 
-        todo_list.edit_item(item.id, text="new text")
+        edit_item(todo_list, item.id, text="new text")
 
         assert item.text == "new text"
         assert item.tags == ["a"]
 
     def test_edit_item_updates_modified_at_when_changed(self):
         todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task")
+        item = add_item(todo_list, "task")
         item.modified_at = datetime(2020, 1, 1)
 
-        todo_list.edit_item(item.id, text="new text")
+        edit_item(todo_list, item.id, text="new text")
 
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_edit_item_sets_due_date_and_bumps_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = add_item(todo_list, "task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        edit_item(todo_list, item.id, due_date=datetime(2021, 3, 4))
+
+        assert item.due_date == datetime(2021, 3, 4)
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_edit_item_sets_description_and_bumps_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = add_item(todo_list, "task")
+        item.modified_at = datetime(2020, 1, 1)
+
+        edit_item(todo_list, item.id, description="a note")
+
+        assert item.description == "a note"
+        assert item.modified_at != datetime(2020, 1, 1)
+
+    def test_edit_item_clears_description_and_bumps_modified_at(self):
+        todo_list = TaskliList(name="work")
+        item = add_item(todo_list, "task", description="a note")
+        item.modified_at = datetime(2020, 1, 1)
+
+        edit_item(todo_list, item.id, description=None)
+
+        assert item.description is None
         assert item.modified_at != datetime(2020, 1, 1)
 
     def test_edit_item_leaves_modified_at_when_nothing_changes(self):
         todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task")
+        item = add_item(todo_list, "task")
         item.modified_at = datetime(2020, 1, 1)
 
-        todo_list.edit_item(item.id)
+        edit_item(todo_list, item.id)
 
         assert item.modified_at == datetime(2020, 1, 1)
 
     def test_filtered_items_by_tag_case_insensitive(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("a", tags=["Urgent"])
-        todo_list.add_item("b", tags=["later"])
+        add_item(todo_list, "a", tags=["Urgent"])
+        add_item(todo_list, "b", tags=["later"])
 
         result = todo_list.filtered_items(Filter((tag_criterion("urgent"),)))
 
@@ -307,8 +387,8 @@ class TestTaskliList:
 
     def test_filtered_items_by_priority(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("a", priority=Priority.HIGH)
-        todo_list.add_item("b", priority=Priority.LOW)
+        add_item(todo_list, "a", priority=Priority.HIGH)
+        add_item(todo_list, "b", priority=Priority.LOW)
 
         result = todo_list.filtered_items(
             Filter((priority_criterion(Priority.HIGH),))
@@ -319,9 +399,9 @@ class TestTaskliList:
 
     def test_filtered_items_combines_tag_and_priority(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("a", tags=["urgent"], priority=Priority.HIGH)
-        todo_list.add_item("b", tags=["urgent"], priority=Priority.LOW)
-        todo_list.add_item("c", tags=["later"], priority=Priority.HIGH)
+        add_item(todo_list, "a", tags=["urgent"], priority=Priority.HIGH)
+        add_item(todo_list, "b", tags=["urgent"], priority=Priority.LOW)
+        add_item(todo_list, "c", tags=["later"], priority=Priority.HIGH)
         item_filter = Filter(
             (tag_criterion("urgent"), priority_criterion(Priority.HIGH))
         )
@@ -333,7 +413,7 @@ class TestTaskliList:
 
     def test_add_tags_appends_new_only(self):
         todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task", tags=["a"])
+        item = add_item(todo_list, "task", tags=["a"])
 
         todo_list.add_tags(item.id, ["a", "b"])
 
@@ -341,7 +421,7 @@ class TestTaskliList:
 
     def test_add_tags_updates_modified_at(self):
         todo_list = TaskliList(name="work")
-        item = todo_list.add_item("task", tags=["a"])
+        item = add_item(todo_list, "task", tags=["a"])
         item.modified_at = datetime(2020, 1, 1)
 
         todo_list.add_tags(item.id, ["b"])
@@ -351,7 +431,7 @@ class TestTaskliList:
     def test_copy_item_adds_to_target_with_new_id(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
-        item = source.add_item("task", priority=Priority.HIGH, tags=["a"])
+        item = add_item(source, "task", priority=Priority.HIGH, tags=["a"])
 
         copied = source.copy_item(item.id, target)
 
@@ -361,6 +441,26 @@ class TestTaskliList:
         assert copied.tags == ["a"]
         assert copied in target.items
         assert item in source.items
+
+    def test_copy_item_copies_all_settable_attributes(self):
+        source = TaskliList(name="work")
+        target = TaskliList(name="groceries")
+        item = add_item(
+            source,
+            "task",
+            priority=Priority.HIGH,
+            tags=["a"],
+            due_date=datetime(2020, 6, 1),
+            description="a note",
+        )
+
+        copied = source.copy_item(item.id, target)
+
+        assert copied.priority == Priority.HIGH
+        assert copied.tags == ["a"]
+        assert copied.tags is not item.tags
+        assert copied.due_date == datetime(2020, 6, 1)
+        assert copied.description == "a note"
 
     def test_copy_item_resets_done_state(self):
         source = TaskliList(name="work")
@@ -408,7 +508,7 @@ class TestTaskliList:
     def test_move_item_removes_from_source(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
-        item = source.add_item("task", priority=Priority.LOW, tags=["a"])
+        item = add_item(source, "task", priority=Priority.LOW, tags=["a"])
 
         moved = source.move_item(item.id, target)
 
@@ -472,7 +572,7 @@ class TestTaskliList:
     def test_copy_item_ref_adds_to_target(self):
         source = TaskliList(name="work")
         target = TaskliList(name="groceries")
-        item = source.add_item("task", priority=Priority.HIGH, tags=["a"])
+        item = add_item(source, "task", priority=Priority.HIGH, tags=["a"])
 
         copied = source.copy_item_ref(item, target)
 
@@ -533,9 +633,9 @@ class TestTaskliList:
 
     def test_sort_by_tags_orders_by_joined_sorted_tags(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("first", tags=["z", "a"])
-        todo_list.add_item("second", tags=["m"])
-        todo_list.add_item("third")
+        add_item(todo_list, "first", tags=["z", "a"])
+        add_item(todo_list, "second", tags=["m"])
+        add_item(todo_list, "third")
 
         todo_list.sort_by(sort("tags"))
 
@@ -547,9 +647,9 @@ class TestTaskliList:
 
     def test_sort_by_priority_orders_high_to_low(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("c", priority=Priority.HIGH)
-        todo_list.add_item("a", priority=Priority.LOW)
-        todo_list.add_item("b", priority=Priority.MEDIUM)
+        add_item(todo_list, "c", priority=Priority.HIGH)
+        add_item(todo_list, "a", priority=Priority.LOW)
+        add_item(todo_list, "b", priority=Priority.MEDIUM)
 
         todo_list.sort_by(sort("priority"))
 
@@ -571,8 +671,8 @@ class TestTaskliList:
 
     def test_resort_sorts_then_reindexes(self):
         todo_list = TaskliList(name="work")
-        todo_list.add_item("low", priority=Priority.LOW)
-        todo_list.add_item("high", priority=Priority.HIGH)
+        add_item(todo_list, "low", priority=Priority.LOW)
+        add_item(todo_list, "high", priority=Priority.HIGH)
 
         todo_list.resort(sort("priority"))
 

@@ -50,6 +50,7 @@ class Status(StatusContainer, Enum):
 class Operator(Enum):
     EQ = "eq"
     CONTAINS = "contains"
+    LT = "lt"
 
     def compare(self, value: object, operand: object) -> bool:
         """Test ``value`` against ``operand`` under this operator.
@@ -81,6 +82,14 @@ class Operator(Enum):
                 return needle in (str(v).lower() for v in value)
 
             return False
+
+        if self is Operator.LT:
+            if value is None or operand is None:
+                return False
+
+            # object carries no ordering, so operand compatibility rests
+            # on the caller pairing the criterion, not on a check here.
+            return bool(value < operand)  # type: ignore[operator]
 
         assert_never(self)
 

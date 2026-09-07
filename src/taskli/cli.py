@@ -20,6 +20,7 @@ from .models import (
     Filter,
     Priority,
     TaskliList,
+    due_to_criteria,
     registry,
 )
 from .render import (
@@ -125,7 +126,7 @@ class ModifierArg(NamedTuple):
 
 class ModifierSpec(NamedTuple):
     args: tuple[ModifierArg, ...]
-    parse: Callable[[str], object] | None = None
+    to_criteria: Callable[[str], tuple[Criterion, ...]] | None = None
     filter_dest: str | None = None
 
 
@@ -147,7 +148,6 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                 },
             ),
         ),
-        parse=lambda s: Priority[s.upper()],
         filter_dest="priority",
     ),
     "tags": ModifierSpec(
@@ -184,6 +184,26 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
         ),
         filter_dest="tag",
     ),
+    "due_date": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("--due",),
+                dest="due",
+                kwargs={
+                    "default": None,
+                    "metavar": "WHEN",
+                    "help": (
+                        "Set (with -a/-e) or filter (default view) an"
+                        " item's due date. Accepts: today, tomorrow,"
+                        " 'N days', 'next week', 'N weeks', MM-DD-YYYY."
+                        " Filtering also accepts 'overdue'."
+                    ),
+                },
+            ),
+        ),
+        filter_dest="due",
+        to_criteria=due_to_criteria,
+    ),
     "text": ModifierSpec(
         args=(
             ModifierArg(
@@ -195,6 +215,23 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                     "help": (
                         "Replace an item's text. Can use for -e"
                         " statements only."
+                    ),
+                },
+            ),
+        ),
+    ),
+    "description": ModifierSpec(
+        args=(
+            ModifierArg(
+                flags=("--desc",),
+                dest="desc",
+                kwargs={
+                    "type": str,
+                    "default": None,
+                    "metavar": "TEXT",
+                    "help": (
+                        "Set (with -a/-e) an item's description; pass an"
+                        " empty string to clear it. -a/-e only."
                     ),
                 },
             ),
@@ -577,7 +614,7 @@ def _validate(
                 namespace,
                 parser,
                 "--add-tag/--text/--all are not valid with -a/--add.",
-                {"priority", "tag"},
+                {"priority", "tag", "due", "desc"},
             )
         case ItemActionCommands.EDIT:
             if namespace.tag and namespace.add_tag:
@@ -589,7 +626,7 @@ def _validate(
                 namespace,
                 parser,
                 "--all is not valid with -e/--edit.",
-                {"priority", "tag", "add_tag", "text"},
+                {"priority", "tag", "add_tag", "text", "due", "desc"},
             )
         case (
             ItemActionCommands.REMOVE
@@ -634,10 +671,30 @@ def _validate(
                 parser,
                 "--add-tag/--text/--color are not valid with the"
                 " default view.",
-                {"priority", "tag", "all"},
+                {"priority", "tag", "all", "due"},
             )
 
     return None
+
+
+def _modifier_values(
+    op: ItemActionCommands, namespace: argparse.Namespace
+) -> dict[str, object]:
+    values: dict[str, object] = {}
+    for name, spec in MODIFIER_FLAGS.items():
+        if op not in registry.ATTRIBUTES[name].modifier_ops:
+            continue
+        if name == "tags":
+            if namespace.tag:
+                values["tags"] = namespace.tag
+            if op is ItemActionCommands.EDIT and namespace.add_tag:
+                values["add_tag"] = namespace.add_tag
+            continue
+        value = getattr(namespace, spec.args[0].dest)
+        if value is not None:
+            values[name] = value
+
+    return values
 
 
 def _run_item_action(
@@ -649,11 +706,13 @@ def _run_item_action(
     match action:
         case ItemActionCommands.ADD:
             texts = [" ".join(words) for words in namespace.add]
-            priority = (
-                namespace.priority or config.default_priority.name.lower()
-            )
 
-            return logic.add(list_name, texts, namespace.tag, priority, config)
+            return logic.add(
+                list_name,
+                texts,
+                _modifier_values(action, namespace),
+                config,
+            )
         case ItemActionCommands.DONE:
             return logic.mark_done(list_name, namespace.done, config)
         case ItemActionCommands.UNDONE:
@@ -683,10 +742,7 @@ def _run_item_action(
     return logic.edit(
         list_name,
         namespace.edit[0],
-        namespace.text,
-        namespace.priority,
-        namespace.tag,
-        namespace.add_tag,
+        _modifier_values(ItemActionCommands.EDIT, namespace),
         config,
     )
 
@@ -769,9 +825,10 @@ def _dispatch(
         case _:
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
-            criteria = []
+            criteria: list[Criterion] = []
             for name, attr in registry.filterable().items():
-                dest = MODIFIER_FLAGS[name].filter_dest
+                spec = MODIFIER_FLAGS[name]
+                dest = spec.filter_dest
 
                 assert dest is not None  # filterable entries set it.
 
@@ -780,7 +837,12 @@ def _dispatch(
                     continue
 
                 value = raw[0] if isinstance(raw, list) else raw
-                parse = MODIFIER_FLAGS[name].parse
+
+                if spec.to_criteria is not None:
+                    criteria.extend(spec.to_criteria(value))
+                    continue
+
+                parse = attr.parse
                 operand = parse(value) if parse is not None else value
                 operator = attr.filter_default_operator
 

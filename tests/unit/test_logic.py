@@ -1,5 +1,6 @@
 import pytest
 
+from taskli.exceptions import InvalidModifierValueError
 from taskli.logic import (
     CommandResult,
     add,
@@ -37,7 +38,7 @@ def config(taskli_env):
 
 class TestAdd:
     def test_creates_list_and_returns_result(self, taskli_env, config):
-        result = add("work", ["task one"], [], "medium", config)
+        result = add("work", ["task one"], {}, config)
 
         assert isinstance(result, CommandResult)
         assert result.exit_code == 0
@@ -46,27 +47,45 @@ class TestAdd:
         assert len(result.item_view.items) == 1
 
     def test_one_message_per_item(self, taskli_env, config):
-        result = add("work", ["a", "b"], [], "medium", config)
+        result = add("work", ["a", "b"], {}, config)
 
         assert result.messages == [
             "added #1 to 'work'.",
             "added #2 to 'work'.",
         ]
 
+    def test_rejects_bad_modifier_value(self, taskli_env, config):
+        with pytest.raises(InvalidModifierValueError):
+            add("work", ["x"], {"priority": "nonsense"}, config)
+
+    def test_two_items_dont_share_tag_list(self, taskli_env, config):
+        result = add("work", ["a", "b"], {"tags": ["t"]}, config)
+
+        first, second = result.item_view.items
+        assert first.tags is not second.tags
+        assert first.tags == second.tags == ["t"]
+
 
 class TestEdit:
     def test_updates_item_text(self, taskli_env, config):
-        add("work", ["old"], [], "medium", config)
+        add("work", ["old"], {}, config)
 
-        result = edit("work", 1, "new", None, [], [], config)
+        result = edit("work", 1, {"text": "new"}, config)
 
         assert result.messages == ["updated #1 in 'work'."]
         assert result.item_view.items[0].text == "new"
 
+    def test_add_tag_appends_to_existing_tags(self, taskli_env, config):
+        add("work", ["x"], {"tags": ["a"]}, config)
+
+        result = edit("work", 1, {"add_tag": ["b"]}, config)
+
+        assert result.item_view.items[0].tags == ["a", "b"]
+
 
 class TestMarkDone:
     def test_marks_and_returns_view(self, taskli_env, config):
-        add("work", ["task"], [], "medium", config)
+        add("work", ["task"], {}, config)
 
         result = mark_done("work", [1], config)
 
@@ -75,7 +94,7 @@ class TestMarkDone:
         assert result.item_view.items[0].status is Status.DONE
 
     def test_missing_id_taints_exit_and_warns(self, taskli_env, config):
-        add("work", ["task"], [], "medium", config)
+        add("work", ["task"], {}, config)
 
         result = mark_done("work", [1, 99], config)
 
@@ -87,7 +106,7 @@ class TestMarkDone:
 
 class TestMarkUndone:
     def test_resets_status_to_todo(self, taskli_env, config):
-        add("work", ["task"], [], "medium", config)
+        add("work", ["task"], {}, config)
         mark_done("work", [1], config)
 
         result = mark_undone("work", [1], config)
@@ -97,7 +116,7 @@ class TestMarkUndone:
 
 class TestMarkInProgress:
     def test_sets_status(self, taskli_env, config):
-        add("work", ["task"], [], "medium", config)
+        add("work", ["task"], {}, config)
 
         result = mark_in_progress("work", [1], config)
 
@@ -106,7 +125,7 @@ class TestMarkInProgress:
 
 class TestRemoveItems:
     def test_removes_named_ids(self, taskli_env, config):
-        add("work", ["a", "b", "c"], [], "medium", config)
+        add("work", ["a", "b", "c"], {}, config)
 
         result = remove_items("work", [1, 2], config)
 
@@ -114,7 +133,7 @@ class TestRemoveItems:
         assert [item.text for item in result.item_view.items] == ["c"]
 
     def test_missing_id_taints_exit(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         result = remove_items("work", [99], config)
 
@@ -122,7 +141,7 @@ class TestRemoveItems:
         assert len(result.warnings) == 1
 
     def test_non_adjacent_ids_keep_user_order(self, taskli_env, config):
-        add("work", ["a", "b", "c", "d"], [], "medium", config)
+        add("work", ["a", "b", "c", "d"], {}, config)
 
         result = remove_items("work", [1, 3], config)
 
@@ -134,7 +153,7 @@ class TestRemoveItems:
         ]
 
     def test_duplicate_id_acts_once(self, taskli_env, config):
-        add("work", ["a", "b", "c"], [], "medium", config)
+        add("work", ["a", "b", "c"], {}, config)
 
         result = remove_items("work", [1, 1], config)
 
@@ -146,7 +165,7 @@ class TestRemoveItems:
 
 class TestMove:
     def test_moves_and_returns_target_view(self, taskli_env, config):
-        add("src", ["task"], [], "medium", config)
+        add("src", ["task"], {}, config)
 
         result = move("src", "dst", [], config)
 
@@ -155,7 +174,7 @@ class TestMove:
         assert load_list(taskli_env, "src").items == []
 
     def test_missing_id_taints_exit_and_moves_rest(self, taskli_env, config):
-        add("src", ["task"], [], "medium", config)
+        add("src", ["task"], {}, config)
 
         result = move("src", "dst", [1, 99], config)
 
@@ -165,7 +184,7 @@ class TestMove:
         assert load_list(taskli_env, "src").items == []
 
     def test_duplicate_id_moves_once(self, taskli_env, config):
-        add("src", ["a", "b"], [], "medium", config)
+        add("src", ["a", "b"], {}, config)
 
         result = move("src", "dst", [1, 1], config)
 
@@ -175,7 +194,7 @@ class TestMove:
 
 class TestCopy:
     def test_copies_leaving_source_intact(self, taskli_env, config):
-        add("src", ["task"], [], "medium", config)
+        add("src", ["task"], {}, config)
 
         result = copy("src", "dst", [], config)
 
@@ -183,7 +202,7 @@ class TestCopy:
         assert len(load_list(taskli_env, "src").items) == 1
 
     def test_duplicate_id_copies_once(self, taskli_env, config):
-        add("src", ["a", "b"], [], "medium", config)
+        add("src", ["a", "b"], {}, config)
 
         result = copy("src", "dst", [1, 1], config)
 
@@ -193,7 +212,7 @@ class TestCopy:
 
 class TestPrune:
     def test_returns_tree_view_and_message(self, taskli_env, config):
-        add("work", ["task"], [], "medium", config)
+        add("work", ["task"], {}, config)
         mark_done("work", [1], config)
 
         result = prune("work", False, True, config)
@@ -205,7 +224,7 @@ class TestPrune:
 
 class TestSetListColor:
     def test_recolor_returns_view(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         result = set_list_color("work", "teal", config)
 
@@ -215,7 +234,7 @@ class TestSetListColor:
 
 class TestRename:
     def test_renames_and_reports(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         result = rename("work", "office", config)
 
@@ -223,7 +242,7 @@ class TestRename:
         assert "office" in [name for name, _ in list_entries()]
 
     def test_noop_when_same_name(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         result = rename("work", "work", config)
 
@@ -232,8 +251,8 @@ class TestRename:
 
 class TestDeletePrompt:
     def test_names_descendants(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
-        add("work.sub", ["b"], [], "medium", config)
+        add("work", ["a"], {}, config)
+        add("work.sub", ["b"], {}, config)
 
         prompt = delete_prompt("work", config)
 
@@ -241,7 +260,7 @@ class TestDeletePrompt:
         assert "sublist(s)" in prompt
 
     def test_simple_when_no_descendants(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         prompt = delete_prompt("work", config)
 
@@ -250,7 +269,7 @@ class TestDeletePrompt:
 
 class TestDeleteConfirmed:
     def test_removes_list_and_reports(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         result = delete_confirmed("work", config)
 
@@ -266,8 +285,8 @@ class TestSetConfig:
         assert load_config(taskli_env).auto_prune is True
 
     def test_default_sort_resorts_every_list(self, taskli_env, config):
-        add("work", ["low task"], [], "low", config)
-        add("work", ["high task"], [], "high", config)
+        add("work", ["low task"], {"priority": "low"}, config)
+        add("work", ["high task"], {"priority": "high"}, config)
 
         set_config("default_sort", "priority")
 
@@ -279,7 +298,7 @@ class TestSetConfig:
 
 class TestListEntries:
     def test_pairs_name_with_color(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
         set_list_color("work", "teal", config)
 
         entries = list_entries()
@@ -292,15 +311,15 @@ class TestHasAnyLists:
         assert has_any_lists() is False
 
     def test_true_once_a_list_exists(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
 
         assert has_any_lists() is True
 
 
 class TestListNames:
     def test_returns_names_sorted(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
-        add("home", ["b"], [], "medium", config)
+        add("work", ["a"], {}, config)
+        add("home", ["b"], {}, config)
 
         names = list_names()
 
@@ -312,24 +331,24 @@ class TestListNames:
 
 class TestListView:
     def test_returns_single_list_without_descendants(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
-        add("work.sub", ["b"], [], "medium", config)
+        add("work", ["a"], {}, config)
+        add("work.sub", ["b"], {}, config)
 
         views = list_view("work", Filter(), False)
 
         assert [v.name for v in views] == ["work"]
 
     def test_includes_descendants_when_asked(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
-        add("work.sub", ["b"], [], "medium", config)
+        add("work", ["a"], {}, config)
+        add("work.sub", ["b"], {}, config)
 
         views = list_view("work", Filter(), True)
 
         assert [v.name for v in views] == ["work", "work.sub"]
 
     def test_filters_by_tag(self, taskli_env, config):
-        add("work", ["tagged"], ["urgent"], "medium", config)
-        add("work", ["plain"], [], "medium", config)
+        add("work", ["tagged"], {"tags": ["urgent"]}, config)
+        add("work", ["plain"], {}, config)
 
         views = list_view("work", Filter((tag_criterion("urgent"),)), False)
 
@@ -338,9 +357,9 @@ class TestListView:
     def test_descendants_filter_drops_empty_keeps_ancestors_by_tag(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
-        add("work.a", ["hit"], ["urgent"], "medium", config)
-        add("work.b", ["miss"], [], "medium", config)
+        add("work", ["plain"], {}, config)
+        add("work.a", ["hit"], {"tags": ["urgent"]}, config)
+        add("work.b", ["miss"], {}, config)
 
         views = list_view("work", Filter((tag_criterion("urgent"),)), True)
 
@@ -349,9 +368,9 @@ class TestListView:
     def test_descendants_filter_drops_empty_keeps_ancestors_by_priority(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
-        add("work.a", ["hit"], [], "high", config)
-        add("work.b", ["miss"], [], "medium", config)
+        add("work", ["plain"], {}, config)
+        add("work.a", ["hit"], {"priority": "high"}, config)
+        add("work.b", ["miss"], {}, config)
 
         views = list_view(
             "work", Filter((priority_criterion(Priority.HIGH),)), True
@@ -362,8 +381,8 @@ class TestListView:
     def test_descendants_filter_no_matches_returns_empty_by_tag(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
-        add("work.sub", ["also plain"], [], "medium", config)
+        add("work", ["plain"], {}, config)
+        add("work.sub", ["also plain"], {}, config)
 
         views = list_view("work", Filter((tag_criterion("ghost"),)), True)
 
@@ -372,8 +391,8 @@ class TestListView:
     def test_descendants_filter_no_matches_returns_empty_by_priority(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
-        add("work.sub", ["also plain"], [], "medium", config)
+        add("work", ["plain"], {}, config)
+        add("work.sub", ["also plain"], {}, config)
 
         views = list_view(
             "work", Filter((priority_criterion(Priority.HIGH),)), True
@@ -384,7 +403,7 @@ class TestListView:
     def test_without_descendants_keeps_single_list_by_tag(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
+        add("work", ["plain"], {}, config)
 
         views = list_view("work", Filter((tag_criterion("ghost"),)), False)
 
@@ -393,7 +412,7 @@ class TestListView:
     def test_without_descendants_keeps_single_list_by_priority(
         self, taskli_env, config
     ):
-        add("work", ["plain"], [], "medium", config)
+        add("work", ["plain"], {}, config)
 
         views = list_view(
             "work", Filter((priority_criterion(Priority.HIGH),)), False
@@ -404,8 +423,8 @@ class TestListView:
 
 class TestAllViews:
     def test_one_group_per_root(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
-        add("home", ["b"], [], "medium", config)
+        add("work", ["a"], {}, config)
+        add("home", ["b"], {}, config)
 
         groups = all_views(Filter())
 
@@ -415,10 +434,10 @@ class TestAllViews:
         assert all_views(Filter()) == []
 
     def test_tag_drops_root_with_no_matches(self, taskli_env, config):
-        add("alpha", ["hit"], ["urgent"], "medium", config)
-        add("alpha.sub", ["nope"], [], "medium", config)
-        add("beta", ["miss"], [], "medium", config)
-        add("beta.sub", ["miss too"], [], "medium", config)
+        add("alpha", ["hit"], {"tags": ["urgent"]}, config)
+        add("alpha.sub", ["nope"], {}, config)
+        add("beta", ["miss"], {}, config)
+        add("beta.sub", ["miss too"], {}, config)
 
         groups = all_views(Filter((tag_criterion("urgent"),)))
 
@@ -429,9 +448,9 @@ class TestAllViews:
         assert "beta.sub" not in names
 
     def test_tag_keeps_ancestor_chain_for_deep_match(self, taskli_env, config):
-        add("proj", ["top plain"], [], "medium", config)
-        add("proj.mid", ["mid plain"], [], "medium", config)
-        add("proj.mid.leaf", ["deep hit"], ["urgent"], "medium", config)
+        add("proj", ["top plain"], {}, config)
+        add("proj.mid", ["mid plain"], {}, config)
+        add("proj.mid.leaf", ["deep hit"], {"tags": ["urgent"]}, config)
 
         groups = all_views(Filter((tag_criterion("urgent"),)))
 
@@ -439,8 +458,8 @@ class TestAllViews:
         assert names == ["proj", "proj.mid", "proj.mid.leaf"]
 
     def test_priority_drops_root_with_no_matches(self, taskli_env, config):
-        add("alpha", ["hit"], [], "high", config)
-        add("beta", ["miss"], [], "medium", config)
+        add("alpha", ["hit"], {"priority": "high"}, config)
+        add("beta", ["miss"], {}, config)
 
         groups = all_views(Filter((priority_criterion(Priority.HIGH),)))
 
@@ -448,7 +467,7 @@ class TestAllViews:
         assert names == ["alpha"]
 
     def test_no_filter_keeps_empty_descendant(self, taskli_env, config):
-        add("work", ["a"], [], "medium", config)
+        add("work", ["a"], {}, config)
         new_list("work.sub", None, config)
 
         groups = all_views(Filter())

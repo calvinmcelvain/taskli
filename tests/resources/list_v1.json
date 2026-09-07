@@ -21,7 +21,19 @@
       "tags": ["docs"],
       "created_at": "2020-01-02T00:00:00",
       "modified_at": "2020-01-03T00:00:00",
-      "completed_at": null
+      "completed_at": null,
+      "description": "some longer note"
+    },
+    {
+      "id": 3,
+      "text": "renew the domain",
+      "status": "todo",
+      "priority": "medium",
+      "tags": [],
+      "created_at": "2020-01-04T00:00:00",
+      "modified_at": "2020-01-04T00:00:00",
+      "completed_at": null,
+      "due_date": "2020-02-01T00:00:00"
     }
   ]
 }

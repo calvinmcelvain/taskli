@@ -3,17 +3,22 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
-from .exceptions import ItemNotFoundError, TaskliError
+from .exceptions import (
+    InvalidModifierValueError,
+    ItemNotFoundError,
+    TaskliError,
+)
 from .hierarchy import ancestor_chain, descendant_list_names
 from .models import (
     Color,
     Config,
     Filter,
-    Priority,
     Sort,
     TaskliItem,
     TaskliList,
+    registry,
 )
 from .storage import (
     create_list,
@@ -66,11 +71,44 @@ def _mutate(
     return CommandResult(messages=[message], item_view=task_list)
 
 
+def _resolve_modifiers(raw: dict[str, object]) -> dict[str, object]:
+    """Turn raw string modifier values into typed field values."""
+
+    typed: dict[str, object] = {}
+    for name, value in raw.items():
+        attr = registry.ATTRIBUTES.get(name)
+        if attr is None:
+            raise InvalidModifierValueError(f"unknown modifier '{name}'.")
+        parse = attr.parse
+        if parse is None:
+            typed[name] = value
+            continue
+        try:
+            # the cli only ever supplies str modifier values.
+            typed[name] = parse(cast(str, value))
+        except InvalidModifierValueError:
+            raise
+        except (KeyError, ValueError, TaskliError) as error:
+            raise InvalidModifierValueError(
+                f"invalid value for '{name}': {value!r}."
+            ) from error
+
+    return typed
+
+
+def _per_item(typed: dict[str, object]) -> dict[str, object]:
+    """Copy a typed modifier mapping, duplicating its list values."""
+
+    return {
+        key: list(value) if isinstance(value, list) else value
+        for key, value in typed.items()
+    }
+
+
 def add(
     list_name: str,
     texts: list[str],
-    tags: list[str],
-    priority: str,
+    modifiers: dict[str, object],
     config: Config,
 ) -> CommandResult:
     """Add one or more items to a list, creating the list if missing.
@@ -81,10 +119,10 @@ def add(
         The target list.
     texts : list[str]
         One entry per item to add.
-    tags : list[str]
-        Tags applied to every item added in this call.
-    priority : str
-        Priority name (lower-cased) applied to every item added.
+    modifiers : dict[str, object]
+        Raw modifier values keyed by field name, applied to every item
+        added in this call. A missing ``priority`` falls back to the
+        config default.
     config : Config
         The active config, for the display name and default sort.
 
@@ -95,15 +133,17 @@ def add(
     """
 
     storage_dir = resolve_storage_dir()
+
+    # resolve before load_or_create_list so a bad value doesn't leave an
+    # empty list file behind.
+    raw = dict(modifiers)
+    raw.setdefault("priority", config.default_priority.label)
+    typed = _resolve_modifiers(raw)
+
     task_list = load_or_create_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
-    added = [
-        task_list.add_item(
-            text, priority=Priority[priority.upper()], tags=list(tags)
-        )
-        for text in texts
-    ]
+    added = [task_list.add_item(text, _per_item(typed)) for text in texts]
 
     # resort before reading ids back: reindex can renumber the new items.
     task_list.resort(Sort.from_default_sort(config.default_sort))
@@ -147,13 +187,10 @@ def set_list_color(name: str, color: str, config: Config) -> CommandResult:
 def edit(
     list_name: str,
     item_id: int,
-    text: str | None,
-    priority: str | None,
-    tags: list[str],
-    add_tag: list[str],
+    modifiers: dict[str, object],
     config: Config,
 ) -> CommandResult:
-    """Edit an item's text, priority, or tags.
+    """Edit an item's text, priority, tags, or other modifiers.
 
     Parameters
     ----------
@@ -161,14 +198,10 @@ def edit(
         The list holding the item.
     item_id : int
         The item to edit.
-    text : str | None
-        Replacement text, or None to leave unchanged.
-    priority : str | None
-        Replacement priority name, or None to leave unchanged.
-    tags : list[str]
-        Replacement tag list, or empty to leave unchanged.
-    add_tag : list[str]
-        Tags to append to the item's existing tags.
+    modifiers : dict[str, object]
+        Raw modifier values keyed by field name. The reserved
+        ``add_tag`` key appends to the item's existing tags instead of
+        replacing them.
     config : Config
         The active config, for the display name.
 
@@ -179,12 +212,9 @@ def edit(
     """
 
     def mutate_fn(task_list: TaskliList) -> str:
-        task_list.edit_item(
-            item_id,
-            text=text,
-            priority=Priority[priority.upper()] if priority else None,
-            tags=list(tags) if tags else None,
-        )
+        mods = dict(modifiers)
+        add_tag = cast(list[str] | None, mods.pop("add_tag", None))
+        task_list.edit_item(item_id, _resolve_modifiers(mods))
         if add_tag:
             task_list.add_tags(item_id, add_tag)
 
