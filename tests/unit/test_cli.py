@@ -620,6 +620,146 @@ class TestReminders:
         assert "1 overdue" in captured.err
 
 
+class TestAgenda:
+    def test_default_window_uses_configured_default(self, taskli_env, capsys):
+        soon = (date.today() + timedelta(days=3)).strftime("%m-%d-%Y")
+        far = (date.today() + timedelta(days=10)).strftime("%m-%d-%Y")
+        main(["work", "-a", "soon", "--due", soon])
+        main(["work", "-a", "far", "--due", far])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "soon" in captured.out
+        assert "far" not in captured.out
+
+    def test_window_today(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo", "--due", "tomorrow"])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+
+    def test_window_week(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "tomorrow"])
+        far = (date.today() + timedelta(days=10)).strftime("%m-%d-%Y")
+        main(["work", "-a", "bravo", "--due", far])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "week"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+
+    def test_window_overdue(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        main(["work", "-a", "bravo", "--due", "today"])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "overdue"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+
+    def test_window_n_days(self, taskli_env, capsys):
+        in_range = (date.today() + timedelta(days=3)).strftime("%m-%d-%Y")
+        out_of_range = (date.today() + timedelta(days=5)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", in_range])
+        main(["work", "-a", "bravo", "--due", out_of_range])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "3"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+
+    def test_config_default_window_picked_up(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        far = (date.today() + timedelta(days=5)).strftime("%m-%d-%Y")
+        main(["work", "-a", "bravo", "--due", far])
+        main(["--config", "agenda_window", "today"])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" not in captured.out
+
+    def test_bad_window_token_exits_one(self, taskli_env, capsys):
+        exit_code = main(["--agenda", "someday"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "today, week, overdue" in captured.out + captured.err
+
+    def test_rejects_modifiers(self, taskli_env, capsys):
+        exit_code = main(["--agenda", "--priority", "high"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "no modifiers are valid with --agenda." in captured.err
+
+    def test_conflicts_with_sibling_list_flag(self, taskli_env, capsys):
+        exit_code = main(["--agenda", "--lists"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "not allowed with" in captured.err
+
+    def test_wins_over_item_action(self, taskli_env, capsys):
+        exit_code = main(["--agenda", "-a", "x"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "warning:" in captured.out
+        assert "multiple option groups" in captured.out
+
+    def test_items_across_lists_sorted_chronologically(
+        self, taskli_env, capsys
+    ):
+        later = (date.today() + timedelta(days=2)).strftime("%m-%d-%Y")
+        sooner = (date.today() + timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "later-task", "--due", later])
+        main(["groceries", "-a", "sooner-task", "--due", sooner])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "week"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        sooner_pos = captured.out.index("sooner-task")
+        later_pos = captured.out.index("later-task")
+        assert sooner_pos < later_pos
+
+    def test_subtask_with_due_date_shows_up(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        soon = (date.today() + timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "child", "--under", "1", "--due", soon])
+        capsys.readouterr()
+
+        exit_code = main(["--agenda", "week"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "child" in captured.out
+
+
 class TestDesc:
     def test_add_sets_description(self, taskli_env, capsys):
         exit_code = main(

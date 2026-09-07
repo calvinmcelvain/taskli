@@ -4,19 +4,26 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from ..exceptions import InvalidConfigValueError
 from . import registry
 from .attributes import Operator
-from .dates import midnight, parse_due_date, today
+from .dates import midnight, parse_agenda_window, parse_due_date, today
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
     from .tasks import TaskliItem
 
-__all__ = ["Criterion", "Filter", "Sort", "due_to_criteria"]
+__all__ = [
+    "Criterion",
+    "Filter",
+    "Sort",
+    "agenda_criteria",
+    "due_to_criteria",
+]
 
 
 @dataclass(frozen=True)
@@ -176,3 +183,39 @@ def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
     # parse_due_date midnight-normalizes its result, so this exact-datetime
     # match agrees with _due_render_style's calendar-day comparison.
     return (Criterion("due_date", Operator.EQ, parse_due_date(raw)),)
+
+
+def agenda_criteria(window: str) -> tuple[Criterion, ...]:
+    """Build the criteria for a ``--agenda`` window.
+
+    ``overdue`` matches not-done items due before today; any other
+    token bounds a forward-looking, inclusive window of not-done items
+    due from today through ``today + N`` days (``today`` is ``N=0``,
+    ``week`` is ``N=7``).
+
+    Parameters
+    ----------
+    window : str
+        The user-supplied ``--agenda`` value.
+
+    Returns
+    -------
+    tuple[Criterion, ...]
+        The criteria an agenda filter should AND together.
+    """
+
+    keyword = parse_agenda_window(window)
+    if keyword == "overdue":
+        return due_to_criteria("overdue")
+
+    days = (
+        0 if keyword == "today" else 7 if keyword == "week" else int(keyword)
+    )
+    start = midnight(today())
+    end = start + timedelta(days=days + 1)
+
+    return (
+        Criterion("due_date", Operator.GTE, start),
+        Criterion("due_date", Operator.LT, end),
+        Criterion("done", Operator.EQ, False),
+    )

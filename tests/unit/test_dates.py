@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from taskli.exceptions import InvalidModifierValueError
-from taskli.models.dates import parse_due_date
+from taskli.models.dates import parse_agenda_window, parse_due_date
 from utils import freeze_today
 
 
@@ -80,3 +80,40 @@ class TestParseDueDate:
         assert "N days" in message
         assert "N weeks" in message
         assert "MM-DD-YYYY" in message
+
+
+class TestParseAgendaWindow:
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("today", "today"),
+            ("  TODAY ", "today"),
+            ("week", "week"),
+            ("Week", "week"),
+            ("overdue", "overdue"),
+            ("OVERDUE", "overdue"),
+            ("3", "3"),
+            ("14", "14"),
+        ],
+        ids=[
+            "today",
+            "today-padded-caps",
+            "week",
+            "week-caps",
+            "overdue",
+            "overdue-caps",
+            "digits",
+            "multi-digit",
+        ],
+    )
+    def test_accepts(self, raw, expected):
+        assert parse_agenda_window(raw) == expected
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["", "someday", "0", "-3", "1.5"],
+        ids=["empty", "garbage", "zero", "negative", "float"],
+    )
+    def test_rejects(self, raw):
+        with pytest.raises(InvalidModifierValueError):
+            parse_agenda_window(raw)

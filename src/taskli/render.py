@@ -11,6 +11,7 @@ __all__ = [
     "render_items",
     "render_list_tree",
     "render_list_names",
+    "render_agenda",
     "render_config",
     "render_message",
     "render_value",
@@ -190,6 +191,51 @@ def render_list_names(
             parent = node
 
     _console.print(*list(roots.values()))
+
+    return None
+
+
+def render_agenda(
+    rows: list[tuple[str, TaskliItem]], delimiter: str = "."
+) -> None:
+    """Print a chronological, cross-list table of due items.
+
+    Parameters
+    ----------
+    rows : list[tuple[str, TaskliItem]]
+        (list_name, item) pairs, in the order they should render.
+    delimiter : str, optional
+        Display delimiter for each row's list name, by default ".".
+    """
+
+    if not rows:
+        _console.print("[dim]nothing on the agenda.[/dim]")
+
+        return None
+
+    table = Table()
+    table.add_column("List")
+    table.add_column("ID", justify="right")
+    table.add_column("Text")
+    table.add_column("Due")
+
+    due_format = registry.ATTRIBUTES["due_date"].render_format
+    due_style = registry.ATTRIBUTES["due_date"].render_style
+    assert due_format is not None
+
+    display_names: dict[str, str] = {}
+    for name, item in rows:
+        if name not in display_names:
+            display_names[name] = TaskliList(name=name).display_name(delimiter)
+
+        due = due_format(item)
+        if due_style is not None:
+            style = due_style(item)
+            if style:
+                due = _add_color(due, style)
+        table.add_row(display_names[name], item.id, item.text, due)
+
+    _console.print(table)
 
     return None
 

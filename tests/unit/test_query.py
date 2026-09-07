@@ -13,6 +13,7 @@ from taskli.models import (
     Priority,
     Sort,
     TaskliList,
+    agenda_criteria,
     due_to_criteria,
 )
 from utils import add_item, freeze_today
@@ -66,6 +67,26 @@ class TestOperator:
     )
     def test_lt(self, value, operand, expected):
         assert Operator.LT.compare(value, operand) is expected
+
+    @pytest.mark.parametrize(
+        ("value", "operand", "expected"),
+        [
+            (datetime(2021, 1, 1), datetime(2020, 1, 1), True),
+            (datetime(2020, 1, 1), datetime(2020, 1, 1), True),
+            (datetime(2020, 1, 1), datetime(2021, 1, 1), False),
+            (None, datetime(2021, 1, 1), False),
+            (datetime(2020, 1, 1), None, False),
+        ],
+        ids=[
+            "after",
+            "equal",
+            "before",
+            "none-value",
+            "none-operand",
+        ],
+    )
+    def test_gte(self, value, operand, expected):
+        assert Operator.GTE.compare(value, operand) is expected
 
 
 class TestFilter:
@@ -251,3 +272,49 @@ class TestDueToCriteria:
         result = Filter(due_to_criteria("today")).apply(todo.items)
 
         assert [i.text for i in result] == ["now"]
+
+
+class TestAgendaCriteria:
+    def test_today_bounds_single_day(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        criteria = agenda_criteria("today")
+
+        assert criteria == (
+            Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
+            Criterion("due_date", Operator.LT, datetime(2026, 3, 11)),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    def test_week_bounds_eight_days(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        criteria = agenda_criteria("week")
+
+        assert criteria == (
+            Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
+            Criterion("due_date", Operator.LT, datetime(2026, 3, 18)),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    def test_n_days_bounds_n_plus_one_days(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        criteria = agenda_criteria("3")
+
+        assert criteria == (
+            Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
+            Criterion("due_date", Operator.LT, datetime(2026, 3, 14)),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    def test_overdue_matches_due_to_criteria(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        assert agenda_criteria("overdue") == due_to_criteria("overdue")
+
+    def test_rejects_unparseable_token(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        with pytest.raises(InvalidModifierValueError):
+            agenda_criteria("someday")

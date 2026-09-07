@@ -136,6 +136,24 @@ class TestConfig:
 
         assert config.show_reminders is True
 
+    def test_agenda_window_defaults_week(self):
+        config = Config()
+
+        assert config.agenda_window == "week"
+
+    def test_set_value_agenda_window(self):
+        config = Config()
+
+        config.set_value("agenda_window", "today")
+
+        assert config.agenda_window == "today"
+
+    def test_set_value_rejects_bad_agenda_window(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("agenda_window", "someday")
+
 
 class TestTaskliItem:
     def test_due_date_defaults_none(self):

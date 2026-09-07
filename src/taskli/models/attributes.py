@@ -51,6 +51,7 @@ class Operator(Enum):
     EQ = "eq"
     CONTAINS = "contains"
     LT = "lt"
+    GTE = "gte"
 
     def compare(self, value: object, operand: object) -> bool:
         """Test ``value`` against ``operand`` under this operator.
@@ -90,6 +91,12 @@ class Operator(Enum):
             # object carries no ordering, so operand compatibility rests
             # on the caller pairing the criterion, not on a check here.
             return bool(value < operand)  # type: ignore[operator]
+
+        if self is Operator.GTE:
+            if value is None or operand is None:
+                return False
+
+            return bool(value >= operand)  # type: ignore[operator]
 
         assert_never(self)
 
