@@ -1,11 +1,33 @@
 from datetime import date, datetime
 
+import pytest
 from rich.console import Console
 
 import taskli.render as render_module
-from taskli.models import TaskliList
-from taskli.render import render_agenda, render_items, render_reminder
+from taskli.models import Priority, TaskliList
+from taskli.render import (
+    render_agenda,
+    render_error,
+    render_items,
+    render_list_names,
+    render_reminder,
+    render_value,
+)
 from utils import add_item, add_subtask, freeze_today
+
+
+@pytest.fixture
+def recording_console(monkeypatch):
+    console = Console(record=True)
+    monkeypatch.setattr(render_module, "_console", console)
+    return console
+
+
+@pytest.fixture
+def recording_err_console(monkeypatch):
+    console = Console(record=True)
+    monkeypatch.setattr(render_module, "_err_console", console)
+    return console
 
 
 class TestRenderItems:
@@ -49,6 +71,27 @@ class TestRenderItems:
         assert "1.1.1" in grandchild_line
         assert grandchild_line.index("gamma") > child_line.index("beta")
 
+    def test_done_item_text_dim(self, recording_console):
+        todo = TaskliList(name="chores")
+        add_item(todo, "wash up")
+        todo.mark_done("1")
+
+        render_items("chores", todo.items)
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        text_line = next(line for line in lines if "wash up" in line)
+        assert "\x1b[2m" in text_line
+
+    def test_styled_cell_padding_not_colored(self, recording_console):
+        todo = TaskliList(name="chores")
+        add_item(todo, "wash up", priority=Priority.HIGH)
+
+        render_items("chores", todo.items)
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        row = next(line for line in lines if "high" in line)
+        assert "\x1b[31mhigh\x1b[0m" in row
+
 
 class TestRenderReminder:
     def test_shows_both_counts(self, capsys):
@@ -71,6 +114,28 @@ class TestRenderReminder:
         captured = capsys.readouterr()
         assert captured.out == ""
         assert "1 overdue" in captured.err
+
+    def test_bold_yellow_prefix(self, recording_err_console):
+        render_reminder(1, 0)
+
+        out = recording_err_console.export_text(styles=True)
+        assert "\x1b[1;33m" in out
+
+
+class TestRenderError:
+    def test_bold_red_prefix(self, recording_err_console):
+        render_error("boom")
+
+        out = recording_err_console.export_text(styles=True)
+        assert "error:" in out
+        assert "\x1b[1;31m" in out
+
+
+class TestRenderValue:
+    def test_bracket_value_printed_verbatim(self, capsys):
+        render_value("[bold]/x/y[/bold]")
+
+        assert "[bold]/x/y[/bold]" in capsys.readouterr().out
 
 
 class TestRenderAgenda:
@@ -102,8 +167,9 @@ class TestRenderAgenda:
         out = capsys.readouterr().out
         assert "work/meetings" in out
 
-    def test_overdue_and_due_today_styled_differently(self, monkeypatch):
-        monkeypatch.setattr(render_module, "_console", Console(record=True))
+    def test_overdue_and_due_today_styled_differently(
+        self, recording_console, monkeypatch
+    ):
         freeze_today(monkeypatch, date(2026, 9, 7))
         work = TaskliList(name="work")
         overdue = add_item(work, "late", due_date=datetime(2026, 9, 6))
@@ -111,8 +177,21 @@ class TestRenderAgenda:
 
         render_agenda([("work", overdue), ("work", due_today)])
 
-        lines = render_module._console.export_text(styles=True).splitlines()
+        lines = recording_console.export_text(styles=True).splitlines()
         overdue_line = next(line for line in lines if "2026-09-06" in line)
         due_today_line = next(line for line in lines if "2026-09-07" in line)
         assert "\x1b[31m" in overdue_line
         assert "\x1b[33m" in due_today_line
+
+
+class TestRenderListNames:
+    def test_default_list_bold_siblings_plain(self, recording_console):
+        render_list_names([("alpha", None), ("beta", None)], "alpha")
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        assert "\x1b[1malpha\x1b[0m" in next(
+            line for line in lines if "alpha" in line
+        )
+        assert "\x1b[1mbeta" not in next(
+            line for line in lines if "beta" in line
+        )

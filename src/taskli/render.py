@@ -2,6 +2,7 @@
 
 from rich.console import Console, Group
 from rich.table import Table
+from rich.text import Text
 from rich.tree import Tree
 
 from .hierarchy import ancestor_chain
@@ -24,22 +25,27 @@ _console = Console()
 _err_console = Console(stderr=True)
 
 
-def _add_bold(name: str, color: str | Color | None) -> str:
-    """Wrap a name in bold markup, adding a list color if set."""
+def _span(text: str, style: str = "") -> Text:
+    """Build a Text whose style is span-scoped, not painting cell padding."""
 
-    if color is None:
-        return f"[bold]{name}[/bold]"
+    result = Text()
+    result.append(text, style=style)
 
-    return f"[bold {str(color)}]{name}[/bold {str(color)}]"
+    return result
 
 
-def _add_color(name: str, color: str | Color | None) -> str:
-    """Wrap a name in color markup if a color is set, else leave it plain."""
+def _label(
+    name: str, color: str | Color | None, *, bold: bool = False
+) -> Text:
+    """Build a Text label, bold and/or list-colored per the flags."""
 
-    if color is None:
-        return name
+    parts: list[str] = []
+    if bold:
+        parts.append("bold")
+    if color is not None:
+        parts.append(str(color))
 
-    return f"[{str(color)}]{name}[/{str(color)}]"
+    return _span(name, " ".join(parts))
 
 
 def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
@@ -60,19 +66,14 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
 
     table = Table()
     for column in columns:
-        table.add_column(
-            _add_color(column.header, color), justify=column.justify
-        )
+        table.add_column(_label(column.header, color), justify=column.justify)
 
     for item in walk_items(items):
-        cells: list[str] = []
+        cells: list[str | Text] = []
         for column in columns:
             cell = column.format(item)
-            if column.style is not None:
-                style = column.style(item)
-                if style:
-                    cell = _add_color(cell, style)
-            cells.append(cell)
+            style = column.style(item) if column.style is not None else None
+            cells.append(_span(cell, style) if style else cell)
         table.add_row(*cells)
 
     return table
@@ -93,7 +94,9 @@ def render_items(
         The list's display color, by default none.
     """
 
-    table = Group(_add_bold(list_name, color), _items_table(items, color))
+    table = Group(
+        _label(list_name, color, bold=True), _items_table(items, color)
+    )
     _console.print(table)
 
     return None
@@ -120,7 +123,7 @@ def render_list_tree(
     head = lists[0]
     head_node = Tree(
         Group(
-            _add_bold(head.display_name(delimiter), head.color),
+            _label(head.display_name(delimiter), head.color, bold=True),
             _items_table(head.items, head.color),
         )
     )
@@ -132,7 +135,7 @@ def render_list_tree(
         label = sublist.name.rsplit(".", 1)[-1]
         node = parent.add(
             Group(
-                _add_bold(label, sublist.color),
+                _label(label, sublist.color, bold=True),
                 _items_table(sublist.items, sublist.color),
             )
         )
@@ -160,7 +163,7 @@ def render_list_names(
     """
 
     if not entries:
-        _console.print("[dim]no lists yet.[/dim]")
+        _console.print(Text("no lists yet.", style="dim"))
 
         return None
 
@@ -178,14 +181,14 @@ def render_list_names(
                 parent = nodes[i]
                 continue
 
-            style = _add_bold if i == default_name else _add_color
+            node_bold = i == default_name
 
             if parent is None:
-                node = Tree(style(i, colors.get(i)))
+                node = Tree(_label(i, colors.get(i), bold=node_bold))
                 roots[i] = node
             else:
                 label = i.rsplit(".", 1)[-1]
-                node = parent.add(style(label, colors.get(i)))
+                node = parent.add(_label(label, colors.get(i), bold=node_bold))
 
             nodes[i] = node
             parent = node
@@ -209,7 +212,7 @@ def render_agenda(
     """
 
     if not rows:
-        _console.print("[dim]nothing on the agenda.[/dim]")
+        _console.print(Text("nothing on the agenda.", style="dim"))
 
         return None
 
@@ -228,11 +231,9 @@ def render_agenda(
         if name not in display_names:
             display_names[name] = TaskliList(name=name).display_name(delimiter)
 
-        due = due_format(item)
-        if due_style is not None:
-            style = due_style(item)
-            if style:
-                due = _add_color(due, style)
+        formatted = due_format(item)
+        style = due_style(item) if due_style is not None else None
+        due = _span(formatted, style) if style else formatted
         table.add_row(display_names[name], item.id, item.text, due)
 
     _console.print(table)
@@ -255,7 +256,7 @@ def render_config(config: Config) -> None:
 
     keys = config.model_dump().keys()
     for key in keys:
-        table.add_row(key, str(config.get_value(key)))
+        table.add_row(_span(key), _span(str(config.get_value(key))))
 
     _console.print(table)
 
@@ -271,7 +272,7 @@ def render_message(message: str) -> None:
         The message text.
     """
 
-    _console.print(message)
+    _console.print(Text(message))
 
     return None
 
@@ -285,7 +286,7 @@ def render_value(value: str) -> None:
         The value to print (e.g. a storage path or a config value).
     """
 
-    _console.print(value, markup=False, highlight=False, soft_wrap=True)
+    _console.print(Text(value), highlight=False, soft_wrap=True)
 
     return None
 
@@ -299,7 +300,7 @@ def render_error(message: str) -> None:
         The error text.
     """
 
-    _err_console.print(f"[bold red]error:[/bold red] {message}")
+    _err_console.print(Text.assemble(("error:", "bold red"), f" {message}"))
 
     return None
 
@@ -313,7 +314,7 @@ def render_warning(message: str) -> None:
         The warning text.
     """
 
-    _console.print(f"[bold yellow]warning:[/bold yellow] {message}")
+    _console.print(Text.assemble(("warning:", "bold yellow"), f" {message}"))
 
     return None
 
@@ -336,6 +337,6 @@ def render_reminder(overdue: int, due_today: int) -> None:
         parts.append(f"{due_today} due today")
     message = ", ".join(parts)
 
-    _err_console.print(f"[bold yellow]⚠[/bold yellow]  {message}")
+    _err_console.print(Text.assemble(("⚠", "bold yellow"), f"  {message}"))
 
     return None
