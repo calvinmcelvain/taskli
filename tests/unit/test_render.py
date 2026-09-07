@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 from rich.console import Console
@@ -8,6 +8,7 @@ from taskli.models import Priority, TaskliList
 from taskli.render import (
     render_agenda,
     render_error,
+    render_item_details,
     render_items,
     render_list_names,
     render_reminder,
@@ -71,7 +72,7 @@ class TestRenderItems:
         assert "1.1.1" in grandchild_line
         assert grandchild_line.index("gamma") > child_line.index("beta")
 
-    def test_done_item_text_dim(self, recording_console):
+    def test_done_item_text_dim_and_strike(self, recording_console):
         todo = TaskliList(name="chores")
         add_item(todo, "wash up")
         todo.mark_done("1")
@@ -80,7 +81,34 @@ class TestRenderItems:
 
         lines = recording_console.export_text(styles=True).splitlines()
         text_line = next(line for line in lines if "wash up" in line)
-        assert "\x1b[2m" in text_line
+        assert "\x1b[2;9mwash up" in text_line
+
+    def test_marker_colored_by_status(self, recording_console):
+        todo = TaskliList(name="chores")
+        add_item(todo, "aa")
+        add_item(todo, "bb")
+        todo.mark_in_progress("2")
+
+        render_items("chores", todo.items)
+
+        text = recording_console.export_text(styles=True)
+        assert "☐" in text
+        in_progress_line = next(
+            line for line in text.splitlines() if "bb" in line
+        )
+        assert "\x1b[38;2;0;217;255m■" in in_progress_line
+
+    def test_child_branch_glyphs(self, recording_console):
+        todo = TaskliList(name="chores")
+        todo.add_item("root")
+        add_subtask(todo, "1", "first")
+        add_subtask(todo, "1", "last")
+
+        render_items("chores", todo.items)
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        assert "├──" in next(line for line in lines if "first" in line)
+        assert "└──" in next(line for line in lines if "last" in line)
 
     def test_styled_cell_padding_not_colored(self, recording_console):
         todo = TaskliList(name="chores")
@@ -182,6 +210,114 @@ class TestRenderAgenda:
         due_today_line = next(line for line in lines if "2026-09-07" in line)
         assert "\x1b[31m" in overdue_line
         assert "\x1b[33m" in due_today_line
+
+
+class TestRenderItemDetails:
+    def test_panel_shows_text_title_and_tags(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "ship the release", tags=["urgent", "api"])
+
+        render_item_details(work, work.items[0])
+
+        out = recording_console.export_text()
+        assert "ship the release" in out
+        assert "work / 1" in out
+        assert "urgent, api" in out
+
+    def test_title_uses_delimiter(self, recording_console):
+        work = TaskliList(name="work.releases")
+        add_item(work, "ship")
+
+        render_item_details(work, work.items[0], delimiter="/")
+
+        assert "work/releases / 1" in recording_console.export_text()
+
+    def test_description_block_rendered(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "ship", description="line one\nline two")
+
+        render_item_details(work, work.items[0])
+
+        out = recording_console.export_text()
+        assert "description" in out
+        assert "line one" in out
+        assert "line two" in out
+
+    def test_description_absent_without_description(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "ship")
+
+        render_item_details(work, work.items[0])
+
+        assert "description" not in recording_console.export_text()
+
+    def test_subtask_block_lists_children(self, recording_console):
+        work = TaskliList(name="work")
+        work.add_item("parent")
+        add_subtask(work, "1", "first child")
+        add_subtask(work, "1", "second child")
+
+        render_item_details(work, work.items[0])
+
+        out = recording_console.export_text()
+        assert "subtasks" in out
+        assert "first child" in out
+        assert "1.1." in out
+        assert "☐" in out
+
+    def test_subtask_block_absent_without_children(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "lonely")
+
+        render_item_details(work, work.items[0])
+
+        assert "subtasks" not in recording_console.export_text()
+
+    def test_priority_value_carries_color_span(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "ship", priority=Priority.HIGH)
+
+        render_item_details(work, work.items[0])
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        row = next(line for line in lines if "high" in line)
+        assert "\x1b[31mhigh\x1b[0m" in row
+
+    @pytest.mark.parametrize(
+        ("offset", "hint"),
+        [
+            (0, "today"),
+            (1, "tomorrow"),
+            (-1, "yesterday"),
+            (3, "in 3 days"),
+            (-3, "3 days ago"),
+        ],
+        ids=["today", "tomorrow", "yesterday", "future", "past"],
+    )
+    def test_due_row_relative_hint(
+        self, recording_console, monkeypatch, offset, hint
+    ):
+        freeze_today(monkeypatch, date(2026, 9, 7))
+        work = TaskliList(name="work")
+        due = datetime(2026, 9, 7) + timedelta(days=offset)
+        add_item(work, "ship", due_date=due)
+
+        render_item_details(work, work.items[0])
+
+        out = recording_console.export_text()
+        assert due.date().isoformat() in out
+        assert hint in out
+
+    def test_done_item_header_struck(self, recording_console):
+        work = TaskliList(name="work")
+        add_item(work, "done deal")
+        work.mark_done("1")
+
+        render_item_details(work, work.items[0])
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        header_line = next(line for line in lines if "done deal" in line)
+        assert "\x1b[1;9m" in header_line
 
 
 class TestRenderListNames:

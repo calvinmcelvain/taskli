@@ -914,6 +914,31 @@ def agenda(window: str | None, config: Config) -> list[tuple[str, TaskliItem]]:
     return rows
 
 
+def item_details(
+    list_name: str, item_id: str
+) -> tuple[TaskliList, TaskliItem]:
+    """Return a list and one of its items for the read-only detail view.
+
+    Parameters
+    ----------
+    list_name : str
+        The list holding the item.
+    item_id : str
+        The dotted path of the item to show.
+
+    Returns
+    -------
+    tuple[TaskliList, TaskliItem]
+        The loaded list and the resolved item.
+    """
+
+    storage_dir = resolve_storage_dir()
+    task_list = load_list(storage_dir, list_name)
+    item = task_list.get_item(item_id)
+
+    return task_list, item
+
+
 def _grouped_lists(
     storage_dir: Path,
     list_name: str,

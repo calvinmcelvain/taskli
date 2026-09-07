@@ -8,6 +8,32 @@ from typing import assert_never
 __all__ = ["Color", "Operator", "Priority", "Status"]
 
 
+class Color(StrEnum):
+    WHITE = "#F8FAFC"
+    RED = "#FF4D6D"
+    CORAL = "#FF6B6B"
+    ORANGE = "#FF8A3D"
+    YELLOW = "#FFD60A"
+    LIME = "#A3E635"
+    GREEN = "#22C55E"
+    TEAL = "#14D8B4"
+    CYAN = "#00D9FF"
+    SKY = "#38BDF8"
+    BLUE = "#3B82F6"
+    INDIGO = "#6366F1"
+    VIOLET = "#8B5CF6"
+    PURPLE = "#A855F7"
+    MAGENTA = "#D946EF"
+    PINK = "#FF4FCB"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "Color | None":
+        if isinstance(value, str) and value.upper() in cls.__members__:
+            return cls[value.upper()]
+
+        return None
+
+
 @dataclass(frozen=True)
 class PriorityContainer:
     label: str
@@ -32,12 +58,25 @@ class Priority(PriorityContainer, Enum):
 class StatusContainer:
     label: str
     marker: str
+    color: str
 
 
 class Status(StatusContainer, Enum):
-    TODO = ("todo", " ")
-    IN_PROGRESS = ("in_progress", "•")
-    DONE = ("done", "x")
+    TODO = ("todo", "☐", Color.WHITE.value)
+    IN_PROGRESS = ("in_progress", "■", Color.CYAN.value)
+    DONE = ("done", "■", Color.WHITE.value)
+
+    @property
+    def marker_style(self) -> str:
+        """Rich style for this status's marker glyph.
+
+        Returns
+        -------
+        str
+            ``"dim"`` for a done item, else the status's marker color.
+        """
+
+        return "dim" if self is Status.DONE else self.color
 
     @classmethod
     def _missing_(cls, value: object) -> "Status | None":
@@ -99,29 +138,3 @@ class Operator(Enum):
             return bool(value >= operand)  # type: ignore[operator]
 
         assert_never(self)
-
-
-class Color(StrEnum):
-    WHITE = "#F8FAFC"
-    RED = "#FF4D6D"
-    CORAL = "#FF6B6B"
-    ORANGE = "#FF8A3D"
-    YELLOW = "#FFD60A"
-    LIME = "#A3E635"
-    GREEN = "#22C55E"
-    TEAL = "#14D8B4"
-    CYAN = "#00D9FF"
-    SKY = "#38BDF8"
-    BLUE = "#3B82F6"
-    INDIGO = "#6366F1"
-    VIOLET = "#8B5CF6"
-    PURPLE = "#A855F7"
-    MAGENTA = "#D946EF"
-    PINK = "#FF4FCB"
-
-    @classmethod
-    def _missing_(cls, value: object) -> "Color | None":
-        if isinstance(value, str) and value.upper() in cls.__members__:
-            return cls[value.upper()]
-
-        return None

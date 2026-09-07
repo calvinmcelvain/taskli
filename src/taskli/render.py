@@ -1,18 +1,23 @@
 """CLI Taskli rendering function."""
 
-from rich.console import Console, Group
+from collections.abc import Iterator
+from datetime import datetime
+
+from rich.console import Console, Group, RenderableType
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
 from .hierarchy import ancestor_chain
-from .models import Color, Config, TaskliItem, TaskliList, registry, walk_items
+from .models import Color, Config, TaskliItem, TaskliList, registry, today
 
 __all__ = [
     "render_items",
     "render_list_tree",
     "render_list_names",
     "render_agenda",
+    "render_item_details",
     "render_config",
     "render_message",
     "render_value",
@@ -48,6 +53,38 @@ def _label(
     return _span(name, " ".join(parts))
 
 
+def _task_rows(
+    items: list[TaskliItem], prefix: str = "", top: bool = True
+) -> Iterator[tuple[TaskliItem, str]]:
+    """Yield each item with its tree-branch prefix, pre-order DFS."""
+
+    for item in items:
+        is_last = item is items[-1]
+        if top:
+            yield item, ""
+            yield from _task_rows(item.children, "", top=False)
+            continue
+
+        connector = "└── " if is_last else "├── "
+        yield item, prefix + connector
+        ext = "    " if is_last else "│   "
+        yield from _task_rows(item.children, prefix + ext, top=False)
+
+
+def _task_cell(item: TaskliItem, prefix: str) -> Text:
+    """Build the Task cell: branch prefix, state marker, id, and text."""
+
+    result = Text()
+    result.append(prefix, style="dim")
+    result.append(f"{item.status.marker} ", style=item.status.marker_style)
+    dim = "dim" if item.done else ""
+    # trailing dot at every level: "2" -> "2.", "2.1" -> "2.1."
+    result.append(f"{item.id}. ", style=dim)
+    result.append(item.text, style="dim strike" if item.done else "")
+
+    return result
+
+
 def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
     """Build a table of tasks.
 
@@ -65,11 +102,12 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
     columns = registry.renderable()
 
     table = Table()
+    table.add_column(_label("Task", color), justify="left")
     for column in columns:
         table.add_column(_label(column.header, color), justify=column.justify)
 
-    for item in walk_items(items):
-        cells: list[str | Text] = []
+    for item, prefix in _task_rows(items):
+        cells: list[str | Text] = [_task_cell(item, prefix)]
         for column in columns:
             cell = column.format(item)
             style = column.style(item) if column.style is not None else None
@@ -198,6 +236,29 @@ def render_list_names(
     return None
 
 
+def _due_display(item: TaskliItem) -> tuple[str, str | None]:
+    """Return an item's formatted due date and its rich style.
+
+    Parameters
+    ----------
+    item : TaskliItem
+        The item whose due-date cell to build.
+
+    Returns
+    -------
+    tuple[str, str | None]
+        The formatted date string and the style name (``None`` when the
+        cell should render plain), both from the ``due_date`` registry
+        entry -- shared by ``render_agenda`` and ``render_item_details``.
+    """
+
+    attr = registry.ATTRIBUTES["due_date"]
+    assert attr.render_format is not None
+    style = attr.render_style(item) if attr.render_style is not None else None
+
+    return attr.render_format(item), style
+
+
 def render_agenda(
     rows: list[tuple[str, TaskliItem]], delimiter: str = "."
 ) -> None:
@@ -222,21 +283,106 @@ def render_agenda(
     table.add_column("Text")
     table.add_column("Due")
 
-    due_format = registry.ATTRIBUTES["due_date"].render_format
-    due_style = registry.ATTRIBUTES["due_date"].render_style
-    assert due_format is not None
-
     display_names: dict[str, str] = {}
     for name, item in rows:
         if name not in display_names:
             display_names[name] = TaskliList(name=name).display_name(delimiter)
 
-        formatted = due_format(item)
-        style = due_style(item) if due_style is not None else None
+        formatted, style = _due_display(item)
         due = _span(formatted, style) if style else formatted
         table.add_row(display_names[name], item.id, item.text, due)
 
     _console.print(table)
+
+    return None
+
+
+def _relative_due(due: datetime) -> str:
+    """Return a human phrase for a due date relative to today."""
+
+    delta = (due.date() - today()).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    if delta == -1:
+        return "yesterday"
+    if delta > 1:
+        return f"in {delta} days"
+
+    return f"{-delta} days ago"
+
+
+def render_item_details(
+    task_list: TaskliList, item: TaskliItem, delimiter: str = "."
+) -> None:
+    """Print a single task's full detail as a bordered panel.
+
+    Parameters
+    ----------
+    task_list : TaskliList
+        The list holding the item, named in the panel title.
+    item : TaskliItem
+        The item to show.
+    delimiter : str, optional
+        Display delimiter for the panel title's list name, by default ".".
+    """
+
+    header = Text()
+    header.append(f"{item.status.marker} ", style=item.status.marker_style)
+    header.append(item.text, style="bold strike" if item.done else "bold")
+
+    metadata = Table.grid(padding=(0, 2))
+    metadata.add_column()
+    metadata.add_column()
+
+    meta_rows: list[tuple[str, str | Text]] = [
+        ("status", item.status.label),
+        ("priority", _span(item.priority.label, item.priority.color)),
+    ]
+    if item.tags:
+        meta_rows.append(("tags", ", ".join(item.tags)))
+    if item.due_date is not None:
+        formatted, due_style = _due_display(item)
+        due_value = f"{formatted} ({_relative_due(item.due_date)})"
+        meta_rows.append(
+            ("due", _span(due_value, due_style) if due_style else due_value)
+        )
+    meta_rows.append(("created", item.created_at.strftime("%Y-%m-%d %H:%M")))
+    if item.modified_at is not None:
+        meta_rows.append(
+            ("modified", item.modified_at.strftime("%Y-%m-%d %H:%M"))
+        )
+
+    for label, value in meta_rows:
+        metadata.add_row(_span(label, "dim"), value)
+
+    parts: list[RenderableType] = [header, "", metadata]
+
+    if item.description:
+        description = Text()
+        description.append("description", style="dim")
+        for line in item.description.splitlines():
+            description.append(f"\n  {line}")
+        parts += ["", description]
+
+    if item.children:
+        subtasks = Text()
+        subtasks.append("subtasks", style="dim")
+        subtasks.append("\n")
+        for child, prefix in _task_rows(item.children):
+            subtasks.append_text(_task_cell(child, prefix))
+            subtasks.append("\n")
+        parts += ["", subtasks]
+
+    panel = Panel(
+        Group(*parts),
+        title=f"{task_list.display_name(delimiter)} / {item.id}",
+        title_align="left",
+        border_style="dim",
+        padding=(0, 1),
+    )
+    _console.print(panel)
 
     return None
 

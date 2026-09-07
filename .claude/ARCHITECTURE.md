@@ -20,10 +20,15 @@ sort key (`paths.py` — `path_key`, a leaf that imports nothing), and the
 attribute
 registry (`registry.py`'s `Attribute` / `ATTRIBUTES` table of
 per-attribute domain + render + modifier metadata — filter operators,
-sort keys, render column facets, plus the `parse` callable and the
-`modifier_ops` op-name set — that `query.Sort`, `Config.default_sort`,
-`render._items_table`, and the `logic` / `cli` modifier path iterate via
-`sortable()` / `renderable()` / `filterable()` / `modifiable(op)`).
+sort keys, render column facets (now only on `priority` / `tags` /
+`due_date`), plus the `parse` callable and the `modifier_ops` op-name
+set — that `query.Sort`, `Config.default_sort`, `render._items_table`,
+and the `logic` / `cli` modifier path iterate via `sortable()` /
+`renderable()` / `filterable()` / `modifiable(op)`). `_items_table`
+leads with a bespoke non-registry `Task` column (id, state marker, and
+tree-branch text in one cell — the same sanctioned pattern as
+`render_agenda`), with `renderable()` driving only the trailing
+`priority` / `tags` / `due_date` columns.
 `registry.py` sits on top of both `attributes.py` and `dates.py`. The
 registry carries domain, render, and value-parsing facets; the argparse
 vocabulary (flags, `nargs`, `metavar`, `dest`) for the same attributes
