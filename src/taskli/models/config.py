@@ -11,8 +11,13 @@ from pydantic import (
     field_validator,
 )
 
-from ..exceptions import InvalidConfigValueError, UnknownConfigKeyError
+from ..exceptions import (
+    InvalidConfigValueError,
+    InvalidModifierValueError,
+    UnknownConfigKeyError,
+)
 from .attributes import Color, Priority
+from .dates import parse_agenda_window
 from .registry import sortable
 
 __all__ = ["Config", "SortBy", "Delimters"]
@@ -34,6 +39,7 @@ class Config(BaseModel):
     default_sort: SortBy = "created_at"
     default_priority: Priority = Priority.MEDIUM
     default_color: Color | None = Color.WHITE
+    agenda_window: str = "week"
 
     @field_serializer("default_priority")
     def _serialize_priority(self, value: Priority) -> str:
@@ -48,6 +54,14 @@ class Config(BaseModel):
             )
 
         return value
+
+    @field_validator("agenda_window")
+    @classmethod
+    def _validate_agenda_window(cls, value: str) -> str:
+        try:
+            return parse_agenda_window(value)
+        except InvalidModifierValueError as e:
+            raise ValueError(str(e)) from e
 
     def _has_key(self, key: str) -> None:
         if hasattr(self, key):

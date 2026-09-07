@@ -6,6 +6,7 @@ from taskli.exceptions import InvalidModifierValueError
 from taskli.logic import (
     CommandResult,
     add,
+    agenda,
     all_views,
     check_reminders,
     copy,
@@ -473,6 +474,93 @@ class TestCheckReminders:
         (taskli_env / "broken.json").write_text("not json")
 
         assert check_reminders() == (0, 0)
+
+
+class TestAgenda:
+    def test_today_window_includes_only_today(self, taskli_env, config):
+        add("work", ["due today"], {"due_date": "today"}, config)
+        add("work", ["due tomorrow"], {"due_date": "tomorrow"}, config)
+
+        rows = agenda("today", config)
+
+        assert [item.text for _, item in rows] == ["due today"]
+
+    def test_week_window_includes_up_to_seven_days(self, taskli_env, config):
+        add("work", ["in range"], {"due_date": "7 days"}, config)
+        add("work", ["out of range"], {"due_date": "8 days"}, config)
+
+        rows = agenda("week", config)
+
+        assert [item.text for _, item in rows] == ["in range"]
+
+    def test_digit_window_includes_up_to_n_days(self, taskli_env, config):
+        add("work", ["in range"], {"due_date": "3 days"}, config)
+        add("work", ["out of range"], {"due_date": "4 days"}, config)
+
+        rows = agenda("3", config)
+
+        assert [item.text for _, item in rows] == ["in range"]
+
+    def test_overdue_window_includes_only_past(self, taskli_env, config):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        add("work", ["late"], {"due_date": past}, config)
+        add("work", ["due today"], {"due_date": "today"}, config)
+
+        rows = agenda("overdue", config)
+
+        assert [item.text for _, item in rows] == ["late"]
+
+    def test_override_beats_config_default(self, taskli_env, config):
+        config.agenda_window = "today"
+        add("work", ["in range"], {"due_date": "3 days"}, config)
+
+        rows = agenda("3", config)
+
+        assert [item.text for _, item in rows] == ["in range"]
+
+    def test_falls_back_to_config_default(self, taskli_env, config):
+        config.agenda_window = "today"
+        add("work", ["due today"], {"due_date": "today"}, config)
+        add("work", ["due tomorrow"], {"due_date": "tomorrow"}, config)
+
+        rows = agenda(None, config)
+
+        assert [item.text for _, item in rows] == ["due today"]
+
+    def test_empty_when_nothing_matches(self, taskli_env, config):
+        add("work", ["far off"], {"due_date": "30 days"}, config)
+
+        assert agenda("today", config) == []
+
+    def test_orders_chronologically_across_lists(self, taskli_env, config):
+        add("alpha", ["later"], {"due_date": "3 days"}, config)
+        add("zebra", ["sooner"], {"due_date": "today"}, config)
+
+        rows = agenda("week", config)
+
+        assert [item.text for _, item in rows] == ["sooner", "later"]
+
+    def test_includes_subtask(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add(
+            "work",
+            ["child"],
+            {"due_date": "today"},
+            config,
+            parent_path="1",
+        )
+
+        rows = agenda("today", config)
+
+        assert [item.text for _, item in rows] == ["child"]
+
+    def test_skips_unloadable_list(self, taskli_env, config):
+        add("work", ["due today"], {"due_date": "today"}, config)
+        (taskli_env / "broken.json").write_text("not json")
+
+        rows = agenda("today", config)
+
+        assert [item.text for _, item in rows] == ["due today"]
 
 
 class TestListNames:

@@ -1,6 +1,11 @@
+from datetime import date, datetime
+
+from rich.console import Console
+
+import taskli.render as render_module
 from taskli.models import TaskliList
-from taskli.render import render_items, render_reminder
-from utils import add_subtask
+from taskli.render import render_agenda, render_items, render_reminder
+from utils import add_item, add_subtask, freeze_today
 
 
 class TestRenderItems:
@@ -66,3 +71,48 @@ class TestRenderReminder:
         captured = capsys.readouterr()
         assert captured.out == ""
         assert "1 overdue" in captured.err
+
+
+class TestRenderAgenda:
+    def test_empty_rows_prints_dim_message(self, capsys):
+        render_agenda([])
+
+        out = capsys.readouterr().out
+        assert "nothing on the agenda." in out
+
+    def test_row_content(self, capsys):
+        work = TaskliList(name="work")
+        work.add_item("chores")
+        item = add_subtask(work, "1", "ship", due_date=datetime(2026, 9, 10))
+
+        render_agenda([("work", item)])
+
+        out = capsys.readouterr().out
+        assert "work" in out
+        assert "1.1" in out
+        assert "ship" in out
+        assert "2026-09-10" in out
+
+    def test_display_name_uses_delimiter(self, capsys):
+        work = TaskliList(name="work.meetings")
+        item = add_item(work, "sync", due_date=datetime(2026, 9, 10))
+
+        render_agenda([("work.meetings", item)], delimiter="/")
+
+        out = capsys.readouterr().out
+        assert "work/meetings" in out
+
+    def test_overdue_and_due_today_styled_differently(self, monkeypatch):
+        monkeypatch.setattr(render_module, "_console", Console(record=True))
+        freeze_today(monkeypatch, date(2026, 9, 7))
+        work = TaskliList(name="work")
+        overdue = add_item(work, "late", due_date=datetime(2026, 9, 6))
+        due_today = add_item(work, "today", due_date=datetime(2026, 9, 7))
+
+        render_agenda([("work", overdue), ("work", due_today)])
+
+        lines = render_module._console.export_text(styles=True).splitlines()
+        overdue_line = next(line for line in lines if "2026-09-06" in line)
+        due_today_line = next(line for line in lines if "2026-09-07" in line)
+        assert "\x1b[31m" in overdue_line
+        assert "\x1b[33m" in due_today_line

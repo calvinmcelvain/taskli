@@ -25,6 +25,7 @@ from .models import (
     registry,
 )
 from .render import (
+    render_agenda,
     render_config,
     render_error,
     render_items,
@@ -100,6 +101,7 @@ class ListCommands(StrEnum):
     PRUNE = "prune"
     RENAME = "rename"
     MIGRATE = "migrate"
+    AGENDA = "agenda"
 
 
 class ConfigCommands(StrEnum):
@@ -308,6 +310,19 @@ def _register_list_args(parser: argparse.ArgumentParser) -> None:
             " schema."
         ),
     )
+    ops.add_argument(
+        "--agenda",
+        dest="agenda",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="WINDOW",
+        help=(
+            "Show items due across every list, chronologically. WINDOW:"
+            " today, week, overdue, or N (days from today, inclusive);"
+            " defaults to the configured agenda_window."
+        ),
+    )
 
     return None
 
@@ -495,6 +510,8 @@ def _resolve_list_op(namespace: argparse.Namespace) -> ListCommands | None:
         return ListCommands.RENAME
     if namespace.migrate:
         return ListCommands.MIGRATE
+    if namespace.agenda is not None:
+        return ListCommands.AGENDA
     # bare --color with no other list flag means "recolor this list."
     if namespace.color:
         return ListCommands.COLOR
@@ -589,6 +606,7 @@ def _validate(
             | ListCommands.LISTS
             | ListCommands.RENAME
             | ListCommands.MIGRATE
+            | ListCommands.AGENDA
         ):
             _reject_modifiers(
                 namespace,
@@ -761,7 +779,7 @@ def _dispatch(
 
     config = load_config(resolve_storage_dir())
 
-    if config.show_reminders:
+    if config.show_reminders and op is not ListCommands.AGENDA:
         overdue, due_today = logic.check_reminders()
         if overdue or due_today:
             render_reminder(overdue, due_today)
@@ -777,6 +795,13 @@ def _dispatch(
                 config.sublist_delimiter, "."
             )
             render_list_names(logic.list_entries(), default_name)
+
+            return 0
+        case ListCommands.AGENDA:
+            render_agenda(
+                logic.agenda(namespace.agenda or None, config),
+                config.sublist_delimiter,
+            )
 
             return 0
         case ConfigCommands.CONFIG:

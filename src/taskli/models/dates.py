@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 from ..exceptions import InvalidModifierValueError
 
-__all__ = ["parse_due_date", "today"]
+__all__ = ["parse_agenda_window", "parse_due_date", "today"]
 
 
 def today() -> date:
@@ -81,3 +81,30 @@ def parse_due_date(raw: str) -> datetime:
         ) from error
 
     return midnight(explicit)
+
+
+def parse_agenda_window(raw: str) -> str:
+    """Validate and normalize an agenda window token.
+
+    Parameters
+    ----------
+    raw : str
+        The user-supplied value, e.g. ``"today"``, ``"week"``,
+        ``"overdue"``, or a positive integer of days as a string.
+
+    Returns
+    -------
+    str
+        The normalized token: ``"today"``, ``"week"``, ``"overdue"``,
+        or the digit string unchanged.
+    """
+
+    keyword = raw.strip().casefold()
+    if keyword in {"today", "week", "overdue"}:
+        return keyword
+    if keyword.isdigit() and int(keyword) > 0:
+        return keyword
+
+    raise InvalidModifierValueError(
+        "agenda window must be one of: today, week, overdue, or N (days)."
+    )

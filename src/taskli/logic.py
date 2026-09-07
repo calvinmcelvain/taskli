@@ -20,6 +20,7 @@ from .models import (
     Sort,
     TaskliItem,
     TaskliList,
+    agenda_criteria,
     due_to_criteria,
     registry,
     walk_items,
@@ -838,6 +839,20 @@ def has_any_lists() -> bool:
     return bool(list_all_lists(resolve_storage_dir()))
 
 
+def _all_items(storage_dir: Path) -> list[tuple[str, TaskliItem]]:
+    """Return every item on disk, paired with its list name."""
+
+    items: list[tuple[str, TaskliItem]] = []
+    for name in list_all_lists(storage_dir):
+        try:
+            task_list = load_list(storage_dir, name)
+        except TaskliError:
+            continue
+        items.extend((name, item) for item in walk_items(task_list.items))
+
+    return items
+
+
 def check_reminders() -> tuple[int, int]:
     """Count overdue and due-today items across every list on disk.
 
@@ -855,19 +870,48 @@ def check_reminders() -> tuple[int, int]:
     )
 
     overdue = due_today = 0
-    for name in list_all_lists(storage_dir):
-        try:
-            task_list = load_list(storage_dir, name)
-        except TaskliError:
-            continue
-
-        for item in walk_items(task_list.items):
-            if overdue_filter.matches(item):
-                overdue += 1
-            elif today_filter.matches(item):
-                due_today += 1
+    for _, item in _all_items(storage_dir):
+        if overdue_filter.matches(item):
+            overdue += 1
+        elif today_filter.matches(item):
+            due_today += 1
 
     return overdue, due_today
+
+
+def agenda(window: str | None, config: Config) -> list[tuple[str, TaskliItem]]:
+    """Return items due within a window, chronologically, across every list.
+
+    Parameters
+    ----------
+    window : str | None
+        An explicit window token (``today``/``week``/``overdue``/``N``),
+        or None to fall back to ``config.agenda_window``.
+    config : Config
+        The active config, for the default window.
+
+    Returns
+    -------
+    list[tuple[str, TaskliItem]]
+        (list name, item) rows sorted chronologically by due date across
+        every list on disk, including nested subtasks. A list that fails
+        to load is skipped rather than raising.
+    """
+
+    storage_dir = resolve_storage_dir()
+    token = window or config.agenda_window
+    item_filter = Filter(agenda_criteria(token))
+
+    rows = [
+        (name, item)
+        for name, item in _all_items(storage_dir)
+        if item_filter.matches(item)
+    ]
+    sort_key = registry.ATTRIBUTES["due_date"].sort_key
+    assert sort_key is not None
+    rows.sort(key=lambda pair: sort_key(pair[1]))
+
+    return rows
 
 
 def _grouped_lists(
