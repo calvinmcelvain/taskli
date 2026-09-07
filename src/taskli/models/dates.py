@@ -7,6 +7,24 @@ from ..exceptions import InvalidModifierValueError
 
 __all__ = ["parse_agenda_window", "parse_due_date", "today"]
 
+# both the full and 3-letter forms, keyed to date.weekday() (mon=0).
+WEEKDAY_INDEX = {
+    "monday": 0,
+    "mon": 0,
+    "tuesday": 1,
+    "tue": 1,
+    "wednesday": 2,
+    "wed": 2,
+    "thursday": 3,
+    "thu": 3,
+    "friday": 4,
+    "fri": 4,
+    "saturday": 5,
+    "sat": 5,
+    "sunday": 6,
+    "sun": 6,
+}
+
 
 def today() -> date:
     """Return the current calendar day.
@@ -65,6 +83,15 @@ def parse_due_date(raw: str) -> datetime:
     if keyword == "next week":
         return midnight(today() + timedelta(days=7))
 
+    if keyword in WEEKDAY_INDEX:
+        current = today()
+        delta = (WEEKDAY_INDEX[keyword] - current.weekday()) % 7
+        # a named weekday that is today resolves to the following week.
+        if delta == 0:
+            delta = 7
+
+        return midnight(current + timedelta(days=delta))
+
     relative = re.match(r"^(\d+)\s+(days?|weeks?)$", keyword)
     if relative is not None:
         count = int(relative.group(1))
@@ -77,7 +104,8 @@ def parse_due_date(raw: str) -> datetime:
     except ValueError as error:
         raise InvalidModifierValueError(
             "due date must be one of: today, tomorrow, next week, "
-            "N days, N weeks, or MM-DD-YYYY"
+            "N days, N weeks, a weekday name (e.g. monday), or "
+            "MM-DD-YYYY"
         ) from error
 
     return midnight(explicit)

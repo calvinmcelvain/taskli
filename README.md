@@ -106,23 +106,41 @@ and the names of lists you've already created. It needs a one-time shell
 registration. Freeform-value flags (`--due`, `--desc`, `-t/--text`) take no
 completion.
 
-### Global (all argcomplete scripts)
+### Enable it
 
-```bash
-activate-global-python-argcomplete
-```
-
-This enables completion for every `argcomplete`-enabled script on your system.
-Start a new shell afterwards for it to take effect.
-
-### Per-shell (bash/zsh)
-
-Alternatively, add the following to your `~/.bashrc` / `~/.zshrc`:
+Register `tk` (and `taskli`) per shell — add this to your `~/.bashrc` /
+`~/.zshrc`, then start a new shell:
 
 ```bash
 eval "$(register-python-argcomplete tk)"
 eval "$(register-python-argcomplete taskli)"
 ```
+
+`register-python-argcomplete` ships with the `argcomplete` package.
+Whether it's on your `PATH` depends on the install:
+
+- **Editable / venv install** (`pip install -e ".[dev]"`): it's already
+  on `PATH` whenever that venv is active.
+- **pipx install**: `pipx` keeps `argcomplete` inside `taskli`'s isolated
+  venv, off your `PATH`. Either `pipx install argcomplete` (puts the
+  script on `PATH` directly) or inject it and call the script by full
+  path:
+
+  ```bash
+  pipx inject taskli argcomplete
+  VENV="$(pipx environment --value PIPX_LOCAL_VENVS)/taskli"
+  eval "$("$VENV/bin/register-python-argcomplete" tk)"
+  ```
+
+### Troubleshooting
+
+Don't use `activate-global-python-argcomplete` for `tk` — it won't work.
+The global hook scans the installed script's first ~1 KB for a
+`# PYTHON_ARGCOMPLETE_OK` marker; `taskli`'s marker is in `cli.py`, and
+neither the generated `tk` console script nor the pipx shim
+(`~/.local/bin/tk`) carries one, so the global hook skips it. Per-shell
+`register-python-argcomplete` needs no marker and is the reliable route
+for every install method.
 
 Once registered, completion works as you'd expect:
 
@@ -286,17 +304,22 @@ what recolors an existing list.
 
 `--due` sets an item's due date on `-a`/`-e` and filters the default view
 otherwise. It accepts the keywords `today`, `tomorrow`, `next week`,
-`N days`, `N weeks`, or an explicit `MM-DD-YYYY` date — all normalized to
-that calendar day:
+`N days`, `N weeks`, a weekday name (`monday`/`mon` … `sunday`/`sun`), or
+an explicit `MM-DD-YYYY` date — all normalized to that calendar day:
 
 ```bash
 tk work -a "ship release" --due tomorrow
+tk work -a "submit timesheet" --due friday
 tk work -a "taxes" --due 04-15-2026
 tk work -e 3 --due "3 days"
 tk work --due overdue
 tk work --due today
 tk --config default_sort due_date
 ```
+
+A weekday name resolves to its closest upcoming occurrence; naming the
+current weekday (`--due tuesday` on a Tuesday) resolves to the following
+week.
 
 The items table gains a `Due` column: overdue items (due before today and
 not done) render red, items due today render yellow. On the default view,
@@ -671,7 +694,7 @@ given. Omitting an item-action flag defaults to the view action.
 
 | Flag | Modifiers | Notes |
 |---|---|---|
-| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next week`/`N weeks`/`MM-DD-YYYY`) · `--desc TEXT` · `--under PATH` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation; `--under PATH` nests each under the item at `PATH`. |
+| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next week`/`N weeks`/weekday name/`MM-DD-YYYY`) · `--desc TEXT` · `--under PATH` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation; `--under PATH` nests each under the item at `PATH`. |
 | `-d, --done ID...` | — | One or more ids, each a dotted item path (`1`, `1.2`); partial success on a bad id (see [Routing grammar](#routing-grammar)). |
 | `-u, --undone ID...` | — | Same batch behavior as `-d`. Resets an item to not started from either `-d` or `-i`. |
 | `-i, --in-progress ID...` | — | Same batch behavior as `-d`. |

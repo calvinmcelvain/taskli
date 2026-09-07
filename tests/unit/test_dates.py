@@ -26,6 +26,11 @@ class TestParseDueDate:
             ("1 week", datetime(2026, 3, 17)),
             ("2 weeks", datetime(2026, 3, 24)),
             ("04-15-2026", datetime(2026, 4, 15)),
+            ("monday", datetime(2026, 3, 16)),
+            ("mon", datetime(2026, 3, 16)),
+            ("Wed", datetime(2026, 3, 11)),
+            ("sunday", datetime(2026, 3, 15)),
+            ("tuesday", datetime(2026, 3, 17)),
         ],
         ids=[
             "today",
@@ -38,6 +43,11 @@ class TestParseDueDate:
             "one-week",
             "n-weeks",
             "explicit-date",
+            "weekday-full",
+            "weekday-abbrev",
+            "weekday-caps",
+            "weekday-later-this-week",
+            "weekday-today-rolls-to-next-week",
         ],
     )
     def test_accepts(self, raw, expected):
@@ -53,6 +63,8 @@ class TestParseDueDate:
             "0 days",
             "-3 days",
             "13-40-2026",
+            "tues",
+            "mondays",
         ],
         ids=[
             "empty",
@@ -62,6 +74,8 @@ class TestParseDueDate:
             "zero-days",
             "negative-days",
             "out-of-range-date",
+            "weekday-wrong-abbrev",
+            "weekday-plural",
         ],
     )
     def test_rejects(self, raw):
@@ -79,6 +93,7 @@ class TestParseDueDate:
         assert "next week" in message
         assert "N days" in message
         assert "N weeks" in message
+        assert "weekday" in message
         assert "MM-DD-YYYY" in message
 
 
