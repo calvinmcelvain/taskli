@@ -75,7 +75,7 @@ check a plan against.
    `render.py` call those functions; they do not open, read, or write project
    files themselves.
 4. **`render.py` owns all console output.** All `rich` usage — `Console`, `Table`,
-   `Tree` — lives in `render.py`. `cli.py` calls `render_*` functions and does not
+   `Tree`, `Text` — lives in `render.py`. `cli.py` calls `render_*` functions and does not
    construct `rich` objects or print results directly (no bare `print()`);
    user-facing errors and warnings go through `render_error` / `render_warning`,
    status lines through `render_message`, and raw values (a path, a config
