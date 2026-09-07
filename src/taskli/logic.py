@@ -110,6 +110,7 @@ def add(
     texts: list[str],
     modifiers: dict[str, object],
     config: Config,
+    parent_path: str | None = None,
 ) -> CommandResult:
     """Add one or more items to a list, creating the list if missing.
 
@@ -125,6 +126,9 @@ def add(
         config default.
     config : Config
         The active config, for the display name and default sort.
+    parent_path : str | None, optional
+        The dotted path of an existing item to nest the new items under,
+        or ``None`` to add them at the top level.
 
     Returns
     -------
@@ -143,7 +147,10 @@ def add(
     task_list = load_or_create_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
-    added = [task_list.add_item(text, _per_item(typed)) for text in texts]
+    added = [
+        task_list.add_item(text, _per_item(typed), parent_path=parent_path)
+        for text in texts
+    ]
 
     # resort before reading ids back: reindex can renumber the new items.
     task_list.resort(Sort.from_default_sort(config.default_sort))
@@ -186,7 +193,7 @@ def set_list_color(name: str, color: str, config: Config) -> CommandResult:
 
 def edit(
     list_name: str,
-    item_id: int,
+    item_id: str,
     modifiers: dict[str, object],
     config: Config,
 ) -> CommandResult:
@@ -196,7 +203,7 @@ def edit(
     ----------
     list_name : str
         The list holding the item.
-    item_id : int
+    item_id : str
         The item to edit.
     modifiers : dict[str, object]
         Raw modifier values keyed by field name. The reserved
@@ -226,7 +233,7 @@ def edit(
 
 
 def mark_done(
-    list_name: str, item_ids: list[int], config: Config
+    list_name: str, item_ids: list[str], config: Config
 ) -> CommandResult:
     """Mark one or more items done, tolerating missing ids.
 
@@ -234,7 +241,7 @@ def mark_done(
     ----------
     list_name : str
         The list holding the items.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to mark done.
     config : Config
         The active config, for the display name.
@@ -251,7 +258,7 @@ def mark_done(
 
 
 def mark_undone(
-    list_name: str, item_ids: list[int], config: Config
+    list_name: str, item_ids: list[str], config: Config
 ) -> CommandResult:
     """Mark one or more items not done, tolerating missing ids.
 
@@ -259,7 +266,7 @@ def mark_undone(
     ----------
     list_name : str
         The list holding the items.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to mark not done.
     config : Config
         The active config, for the display name.
@@ -276,7 +283,7 @@ def mark_undone(
 
 
 def mark_in_progress(
-    list_name: str, item_ids: list[int], config: Config
+    list_name: str, item_ids: list[str], config: Config
 ) -> CommandResult:
     """Mark one or more items in progress, tolerating missing ids.
 
@@ -284,7 +291,7 @@ def mark_in_progress(
     ----------
     list_name : str
         The list holding the items.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to mark in progress.
     config : Config
         The active config, for the display name.
@@ -305,11 +312,20 @@ def mark_in_progress(
 
 
 def _resolve_items(
-    task_list: TaskliList, item_ids: list[int]
-) -> tuple[list[tuple[int, TaskliItem]], list[str]]:
-    """Resolve ids to items once, deduped by identity, with per-id warnings."""
+    task_list: TaskliList,
+    item_ids: list[str],
+    *,
+    drop_covered: bool = False,
+) -> tuple[list[tuple[str, TaskliItem]], list[str]]:
+    """Resolve ids to items, deduped by identity, with per-id warnings.
 
-    resolved: list[tuple[int, TaskliItem]] = []
+    With ``drop_covered``, also drop any resolved item that lives inside
+    another resolved item's subtree -- for the whole-subtree ops
+    (remove / move / copy) the ancestor already carries it. The mark ops
+    leave it off, since marking does not cascade.
+    """
+
+    resolved: list[tuple[str, TaskliItem]] = []
     seen: set[int] = set()
     warnings: list[str] = []
     for item_id in item_ids:
@@ -323,12 +339,24 @@ def _resolve_items(
         seen.add(id(item))
         resolved.append((item_id, item))
 
+    if drop_covered:
+        # the ancestor carries the descendant, same as duplicate ids
+        # collapsing to one action.
+        covered = {item.id for _, item in resolved}
+        resolved = [
+            (item_id, item)
+            for item_id, item in resolved
+            if not any(
+                item.id.startswith(f"{ancestor}.") for ancestor in covered
+            )
+        ]
+
     return resolved, warnings
 
 
 def _batch_mark(
     list_name: str,
-    item_ids: list[int],
+    item_ids: list[str],
     config: Config,
     mark: Callable[[TaskliList, TaskliItem], object],
     label: str,
@@ -355,7 +383,7 @@ def _batch_mark(
 
 
 def remove_items(
-    list_name: str, item_ids: list[int], config: Config
+    list_name: str, item_ids: list[str], config: Config
 ) -> CommandResult:
     """Remove one or more items, tolerating missing ids.
 
@@ -363,7 +391,7 @@ def remove_items(
     ----------
     list_name : str
         The list holding the items.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to remove.
     config : Config
         The active config, for the display name.
@@ -379,7 +407,9 @@ def remove_items(
     display_name = task_list.display_name(config.sublist_delimiter)
 
     result = CommandResult()
-    resolved, result.warnings = _resolve_items(task_list, item_ids)
+    resolved, result.warnings = _resolve_items(
+        task_list, item_ids, drop_covered=True
+    )
     for item_id, item in resolved:
         task_list.remove_item_ref(item)
         result.messages.append(f"removed #{item_id} from '{display_name}'.")
@@ -394,7 +424,7 @@ def remove_items(
 def move(
     list_name: str,
     target_name: str,
-    item_ids: list[int],
+    item_ids: list[str],
     config: Config,
 ) -> CommandResult:
     """Move items from one list to another, tolerating missing ids.
@@ -405,7 +435,7 @@ def move(
         The source list.
     target_name : str
         The destination list, created if missing.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to move; empty moves every item in the source.
     config : Config
         The active config, for display names and default sort.
@@ -423,10 +453,13 @@ def move(
     display_name = task_list.display_name(config.sublist_delimiter)
     target_display_name = target_list.display_name(config.sublist_delimiter)
 
+    # top-level ids only; each child subtree travels with its root.
     ids = item_ids or [item.id for item in task_list.items]
 
     result = CommandResult()
-    resolved, result.warnings = _resolve_items(task_list, ids)
+    resolved, result.warnings = _resolve_items(
+        task_list, ids, drop_covered=True
+    )
     for item_id, item in resolved:
         task_list.move_item_ref(item, target_list)
         result.messages.append(
@@ -447,7 +480,7 @@ def move(
 def copy(
     list_name: str,
     target_name: str,
-    item_ids: list[int],
+    item_ids: list[str],
     config: Config,
 ) -> CommandResult:
     """Copy items from one list to another, tolerating missing ids.
@@ -458,7 +491,7 @@ def copy(
         The source list.
     target_name : str
         The destination list, created if missing.
-    item_ids : list[int]
+    item_ids : list[str]
         Ids to copy; empty copies every item in the source.
     config : Config
         The active config, for display names and default sort.
@@ -476,10 +509,13 @@ def copy(
     display_name = task_list.display_name(config.sublist_delimiter)
     target_display_name = target_list.display_name(config.sublist_delimiter)
 
+    # top-level ids only; each child subtree travels with its root.
     ids = item_ids or [item.id for item in task_list.items]
 
     result = CommandResult()
-    resolved, result.warnings = _resolve_items(task_list, ids)
+    resolved, result.warnings = _resolve_items(
+        task_list, ids, drop_covered=True
+    )
     for item_id, item in resolved:
         task_list.copy_item_ref(item, target_list)
         result.messages.append(
@@ -816,6 +852,7 @@ def _grouped_lists(
             name=list_name,
             color=task_list.color,
             items=task_list.filtered_items(item_filter),
+            view_only=True,
         )
     ]
 
@@ -830,6 +867,7 @@ def _grouped_lists(
                 name=descendant_name,
                 color=descendant_list.color,
                 items=descendant_list.filtered_items(item_filter),
+                view_only=True,
             )
         )
 

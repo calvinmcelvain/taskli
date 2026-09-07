@@ -347,13 +347,13 @@ class TestLoadList:
         task_list = TaskliList(name="work")
         task_list.add_item("a")
         task_list.add_item("b")
-        task_list.items[0].id = 5
-        task_list.items[1].id = 9
+        task_list.items[0].id = "5"
+        task_list.items[1].id = "9"
 
         save_list(tmp_path, task_list)
         reloaded = load_list(tmp_path, "work")
 
-        assert [item.id for item in reloaded.items] == [1, 2]
+        assert [item.id for item in reloaded.items] == ["1", "2"]
 
     def test_save_list_stamps_current_version(self, tmp_path):
         task_list = create_list(tmp_path, "work")
@@ -363,6 +363,10 @@ class TestLoadList:
 
         raw = json.loads(list_file_path(tmp_path, "work").read_text())
         assert raw["version"] == CURRENT_LIST_VERSION
+
+    def test_save_list_refuses_view_only_list(self, tmp_path):
+        with pytest.raises(RuntimeError, match="view-only"):
+            save_list(tmp_path, TaskliList(name="work", view_only=True))
 
     def test_raises_for_unversioned_legacy_file(self, tmp_path):
         path = tmp_path / "work.json"
@@ -456,7 +460,7 @@ class TestResortAllLists:
                 "high",
                 "low",
             ]
-            assert [item.id for item in reloaded.items] == [1, 2]
+            assert [item.id for item in reloaded.items] == ["1", "2"]
 
     def test_skips_corrupted_list(self, tmp_path):
         task_list = create_list(tmp_path, "work")

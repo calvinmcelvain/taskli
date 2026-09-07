@@ -106,6 +106,74 @@ class TestAdd:
         ]
 
 
+class TestSubtasks:
+    def test_under_nests_new_item(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-a", "child", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "added #1.1 to 'work'" in captured.out
+        child = load_list(taskli_env, "work").items[0].children[0]
+        assert child.text == "child"
+        assert child.id == "1.1"
+
+    def test_view_shows_nested_path(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "1.1" in captured.out
+        assert "child" in captured.out
+
+    def test_done_marks_nested_item(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-d", "1.1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "marked #1.1 done in 'work'" in captured.out
+        assert load_list(taskli_env, "work").items[0].children[0].done is True
+
+    def test_remove_parent_cascades_to_children(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-rm", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "removed #1 from 'work'" in captured.out
+        assert load_list(taskli_env, "work").items == []
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["work", "-d", "1", "--under", "1"],
+            ["work", "-e", "1", "--under", "1"],
+            ["work", "--under", "1"],
+            ["work", "--config", "--under", "1"],
+        ],
+        ids=["done", "edit", "view", "config"],
+    )
+    def test_under_rejected_outside_add(self, taskli_env, capsys, argv):
+        exit_code = main(argv)
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "error:" in captured.err
+
+
 class TestView:
     def test_shows_added_items(self, taskli_env, capsys):
         main(["work", "-a", "task", "--tag", "urgent"])
@@ -570,25 +638,54 @@ class TestMoveCopy:
         assert exit_code == 2
         assert "not allowed with argument" in captured.err
 
-    def test_move_rejects_non_integer_id(self, taskli_env, capsys):
+    def test_move_rejects_malformed_id(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
-        exit_code = main(["work", "-mv", "groceries", "x"])
+        exit_code = main(["work", "-mv", "groceries", "1.x"])
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "error:" in captured.err
+        assert "item path" in captured.err
 
-    def test_copy_rejects_non_integer_id(self, taskli_env, capsys):
+    def test_copy_rejects_malformed_id(self, taskli_env, capsys):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
-        exit_code = main(["work", "--copy", "groceries", "x"])
+        exit_code = main(["work", "--copy", "groceries", "1.x"])
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "error:" in captured.err
+        assert "item path" in captured.err
+
+    def test_move_accepts_dotted_id(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-mv", "groceries", "1.1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "moved #1.1 from 'work' to 'groceries'" in captured.out
+        assert load_list(taskli_env, "work").items[0].children == []
+        assert [i.text for i in load_list(taskli_env, "groceries").items] == [
+            "child"
+        ]
+
+    def test_copy_accepts_dotted_id(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--copy", "groceries", "1.1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "copied #1.1 from 'work' to 'groceries'" in captured.out
+        assert [i.text for i in load_list(taskli_env, "groceries").items] == [
+            "child"
+        ]
 
     @pytest.mark.parametrize(
         "argv",
@@ -1337,7 +1434,7 @@ class TestConfigCommand:
             "high task",
             "low task",
         ]
-        assert [item.id for item in task_list.items] == [1, 2]
+        assert [item.id for item in task_list.items] == ["1", "2"]
 
 
 class TestDefaultListAction:

@@ -72,7 +72,7 @@ ATTRIBUTES: dict[str, Attribute] = {
         name="id",
         column_header="ID",
         column_justify="right",
-        render_format=lambda item: str(item.id),
+        render_format=lambda item: item.id,
     ),
     "status": Attribute(
         name="status",
@@ -83,7 +83,8 @@ ATTRIBUTES: dict[str, Attribute] = {
     "text": Attribute(
         name="text",
         column_header="Text",
-        render_format=lambda item: item.text,
+        # indent nested rows by depth; depth is the dot count in the path.
+        render_format=lambda item: "  " * item.id.count(".") + item.text,
         render_style=lambda item: "dim" if item.done else None,
         modifier_ops=frozenset({"edit"}),
     ),

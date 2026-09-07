@@ -312,13 +312,65 @@ clears it. The list table shows only a `*` marker in a narrow column for
 items that have a description — the full text isn't rendered yet (a
 `--details` view is planned).
 
+### Subtasks
+
+Any item can carry **subtasks** — child items nested underneath it. Add
+one with `--under PATH`, where `PATH` is the parent item's id:
+
+```bash
+$ tk work -a "ship release"
+added #1 to 'work'.
+
+$ tk work -a "cut branch" --under 1
+added #1.1 to 'work'.
+
+$ tk work -a "tag build" --under 1
+added #1.2 to 'work'.
+```
+
+A subtask's id is its parent's id plus a positional suffix (`1.1`, `1.2`,
+`1.2.1`, ...). Item nesting is **unlimited depth** — unlike the two-level
+cap on [sublist names](#sublists). Nested items render as indented rows
+under their parent:
+
+```
+$ tk work
+work
+┏━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┳━━┳━━━━━━━━━━┳━━━━━━┳━━━━━┓
+┃  ID ┃ State ┃ Text         ┃  ┃ Priority ┃ Tags ┃ Due ┃
+┡━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━╇━━╇━━━━━━━━━━╇━━━━━━╇━━━━━┩
+│   1 │       │ ship release │  │ medium   │      │     │
+│ 1.1 │       │   cut branch │  │ medium   │      │     │
+│ 1.2 │       │   tag build  │  │ medium   │      │     │
+└─────┴───────┴──────────────┴──┴──────────┴──────┴─────┘
+```
+
+`-d`/`-u`/`-i`/`-e`/`-rm` all take a dotted path just like a flat id:
+
+```bash
+$ tk work -d 1.1
+marked #1.1 done in 'work'.
+```
+
+Marking a parent done does **not** cascade to its subtasks, and there's
+no `1/2`-style rollup — completion shows through the child rows and their
+own `State` markers.
+
+Removing a parent **cascade-deletes its whole subtree** — `tk work -rm 1`
+takes `1`, `1.1`, and `1.2` with it. `--prune` only removes a done item
+when its **entire subtree** is done, so a done parent that still has an
+un-done descendant is kept (done leaves always prune). `--copy`/`-mv`
+carry the whole subtree, with every copied item's state reset to not
+started.
+
 ## Routing grammar
 
 `tk [LIST] [FLAG] [MODIFIERS]` — `LIST` is an optional positional
 (defaults to `inbox`); every action, including list management, is an
 explicit flag (`-a`, `-d`, `-u`, `-i`, `-rm`, `-e`, `-mv`, `--copy`,
 `--prune`, `--new`, `--delete`, `--rename`, `--color`, `--config`,
-`--lists`, `--all`), never a bare word — a list can be named anything,
+`--lists`, `--all`, `--under`), never a bare word — a list can be named
+anything,
 including `add` or `config`, with no collision risk.
 
 | You type | Resolves to | Why |
@@ -357,8 +409,11 @@ separate calls if you want both.
 
 > [!IMPORTANT]
 > Item IDs are positions within a list, not permanent identifiers —
-> `-rm` and `--prune` renumber the remaining items starting from 1. Don't
-> hardcode an ID across a sequence of commands that also removes items.
+> subtasks extend that with a dotted path (`1.2`, `1.2.1`), still
+> positional within their sibling group. `-rm` and `--prune` renumber
+> the remaining items (and re-path their subtasks) starting from 1.
+> Don't hardcode an ID across a sequence of commands that also removes
+> items.
 
 Every example below builds on the same running session — `TASKLI_PATH`
 starts empty.
@@ -370,6 +425,7 @@ starts empty.
 | `-u, --undone ID...` | Mark one or more items not done (resets from done or in-progress) | `tk work -u 1 2` |
 | `-i, --in-progress ID...` | Mark one or more items in progress | `tk work -i 1 2` |
 | `-e, --edit ID` | Change an item's text, priority, tags, due date, or description | `tk work -e 1 --text "Ship v2.1"` |
+| `--under PATH` | Modifier: with `-a`, add the new item as a subtask of the item at `PATH` | `tk work -a "cut branch" --under 1` |
 | `--due WHEN` | Modifier: set an item's due date on `-a`/`-e`; on the default view, filter by due date instead | `tk work -a "taxes" --due 04-15-2026` / `tk work --due overdue` |
 | `--desc TEXT` | Modifier: set an item's description on `-a`/`-e` (`--desc ""` clears it) | `tk work -e 3 --desc "rollback plan"` |
 | `-mv, --move TARGET_LIST [ID...]` | Move item(s) from `LIST` to `TARGET_LIST` (creates `TARGET_LIST` if missing) | `tk work -mv groceries 1 2` |
@@ -615,18 +671,19 @@ given. Omitting an item-action flag defaults to the view action.
 
 | Flag | Modifiers | Notes |
 |---|---|---|
-| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next week`/`N weeks`/`MM-DD-YYYY`) · `--desc TEXT` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation. |
-| `-d, --done ID...` | — | One or more integer ids; partial success on a bad id (see [Routing grammar](#routing-grammar)). |
+| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next week`/`N weeks`/`MM-DD-YYYY`) · `--desc TEXT` · `--under PATH` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation; `--under PATH` nests each under the item at `PATH`. |
+| `-d, --done ID...` | — | One or more ids, each a dotted item path (`1`, `1.2`); partial success on a bad id (see [Routing grammar](#routing-grammar)). |
 | `-u, --undone ID...` | — | Same batch behavior as `-d`. Resets an item to not started from either `-d` or `-i`. |
 | `-i, --in-progress ID...` | — | Same batch behavior as `-d`. |
-| `-rm, --remove ID...` | — | Same batch behavior as `-d`. Remaining items are renumbered starting from 1. |
-| `-e, --edit ID` | `-t, --text TEXT` · `-p, --priority {low,medium,high}` · `--tag TAG` (repeatable, replaces) · `--add-tag TAG` (repeatable, appends) · `--due WHEN` · `--desc TEXT` (`--desc ""` clears) | Only the flags you pass are changed. `--tag` and `--add-tag` can't be combined in the same call. |
+| `-rm, --remove ID...` | — | Same batch behavior as `-d`. Removing an item takes its whole subtree; remaining items are renumbered starting from 1. |
+| `-e, --edit ID` | `-t, --text TEXT` · `-p, --priority {low,medium,high}` · `--tag TAG` (repeatable, replaces) · `--add-tag TAG` (repeatable, appends) · `--due WHEN` · `--desc TEXT` (`--desc ""` clears) | `ID` is a dotted item path like `-d`. Only the flags you pass are changed. `--tag` and `--add-tag` can't be combined in the same call. |
 | `-mv, --move TARGET_LIST [ID...]` | — | Moves item(s) into `TARGET_LIST`, auto-creating it (and missing ancestors) if needed. Omit `ID` to move every item. Same batch/partial-success behavior as `-d`. |
 | `--copy TARGET_LIST [ID...]` | — | Same as `-mv`, but leaves the source list unchanged. |
 | `--prune` | `--all` | Removes every done item from `LIST`. With `--all`, also prunes every descendant of `LIST`; without a `LIST` (falls back to `default_list`), `--all` prunes every list instead. Reports how many were removed, per list. |
 
 Passing a modifier that doesn't apply to the chosen action (e.g.
-`--tag`/`-p` with `-d`, or `--all` with `-a`) is an argument error (exit 2).
+`--tag`/`-p` with `-d`, `--all` with `-a`, or `--under` with anything
+but `-a`) is an argument error (exit 2).
 
 The default view shows only `LIST`'s own items; add `--all` to also
 render each descendant as its own titled section:

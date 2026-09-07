@@ -5,7 +5,7 @@ from rich.table import Table
 from rich.tree import Tree
 
 from .hierarchy import ancestor_chain
-from .models import Color, Config, TaskliItem, TaskliList, registry
+from .models import Color, Config, TaskliItem, TaskliList, registry, walk_items
 
 __all__ = [
     "render_items",
@@ -46,7 +46,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
     Parameters
     ----------
     items : list[TaskliItem]
-        The items to display.
+        The top-level items; children render as their own nested rows.
 
     Returns
     -------
@@ -62,7 +62,7 @@ def _items_table(items: list[TaskliItem], color: Color | None = None) -> Table:
             _add_color(column.header, color), justify=column.justify
         )
 
-    for item in items:
+    for item in walk_items(items):
         cells: list[str] = []
         for column in columns:
             cell = column.format(item)
@@ -86,7 +86,7 @@ def render_items(
     list_name : str
         The list's name, shown in the table title.
     items : list[TaskliItem]
-        The items to display.
+        The top-level items; children render as their own nested rows.
     color : Color | None, optional
         The list's display color, by default none.
     """

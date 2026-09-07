@@ -75,6 +75,10 @@ class Filter:
     def apply(self, items: Iterable[TaskliItem]) -> list[TaskliItem]:
         """Return the items that satisfy this filter, order preserved.
 
+        Flat: each item is tested on its own, with no descent into
+        ``children``. ``TaskliList.filtered_items`` is the tree-aware
+        entry point that keeps an item whose descendant matches.
+
         Parameters
         ----------
         items : Iterable[TaskliItem]
