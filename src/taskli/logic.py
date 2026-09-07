@@ -14,11 +14,15 @@ from .hierarchy import ancestor_chain, descendant_list_names
 from .models import (
     Color,
     Config,
+    Criterion,
     Filter,
+    Operator,
     Sort,
     TaskliItem,
     TaskliList,
+    due_to_criteria,
     registry,
+    walk_items,
 )
 from .storage import (
     create_list,
@@ -832,6 +836,38 @@ def has_any_lists() -> bool:
     """
 
     return bool(list_all_lists(resolve_storage_dir()))
+
+
+def check_reminders() -> tuple[int, int]:
+    """Count overdue and due-today items across every list on disk.
+
+    Returns
+    -------
+    tuple[int, int]
+        (overdue, due_today) item counts, including nested subtasks.
+        A list that fails to load is skipped rather than raising.
+    """
+
+    storage_dir = resolve_storage_dir()
+    overdue_filter = Filter(due_to_criteria("overdue"))
+    today_filter = Filter(
+        due_to_criteria("today") + (Criterion("done", Operator.EQ, False),)
+    )
+
+    overdue = due_today = 0
+    for name in list_all_lists(storage_dir):
+        try:
+            task_list = load_list(storage_dir, name)
+        except TaskliError:
+            continue
+
+        for item in walk_items(task_list.items):
+            if overdue_filter.matches(item):
+                overdue += 1
+            elif today_filter.matches(item):
+                due_today += 1
+
+    return overdue, due_today
 
 
 def _grouped_lists(

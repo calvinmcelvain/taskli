@@ -131,6 +131,11 @@ class TestConfig:
         with pytest.raises(UnknownConfigKeyError):
             config.set_value("nope", "x")
 
+    def test_show_reminders_defaults_true(self):
+        config = Config()
+
+        assert config.show_reminders is True
+
 
 class TestTaskliItem:
     def test_due_date_defaults_none(self):

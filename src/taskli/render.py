@@ -16,6 +16,7 @@ __all__ = [
     "render_value",
     "render_error",
     "render_warning",
+    "render_reminder",
 ]
 
 _console = Console()
@@ -267,5 +268,28 @@ def render_warning(message: str) -> None:
     """
 
     _console.print(f"[bold yellow]warning:[/bold yellow] {message}")
+
+    return None
+
+
+def render_reminder(overdue: int, due_today: int) -> None:
+    """Print a due/overdue reminder banner to stderr.
+
+    Parameters
+    ----------
+    overdue : int
+        The number of overdue, not-done items.
+    due_today : int
+        The number of items due today.
+    """
+
+    parts: list[str] = []
+    if overdue:
+        parts.append(f"{overdue} overdue")
+    if due_today:
+        parts.append(f"{due_today} due today")
+    message = ", ".join(parts)
+
+    _err_console.print(f"[bold yellow]⚠[/bold yellow]  {message}")
 
     return None
