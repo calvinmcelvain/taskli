@@ -183,6 +183,24 @@ class TestConfig:
         with pytest.raises(InvalidConfigValueError):
             config.set_value("agenda_window", "someday")
 
+    def test_inherit_sublist_color_defaults_true(self):
+        config = Config()
+
+        assert config.inherit_sublist_color is True
+
+    def test_set_value_inherit_sublist_color(self):
+        config = Config()
+
+        config.set_value("inherit_sublist_color", "false")
+
+        assert config.inherit_sublist_color is False
+
+    def test_set_value_rejects_bad_inherit_sublist_color(self):
+        config = Config()
+
+        with pytest.raises(InvalidConfigValueError):
+            config.set_value("inherit_sublist_color", "maybe")
+
 
 class TestTaskliItem:
     def test_due_date_defaults_none(self):

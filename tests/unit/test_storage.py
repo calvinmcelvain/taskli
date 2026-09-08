@@ -288,6 +288,74 @@ class TestListLifecycle:
         assert list_all_lists(tmp_path) == ["abc", "work"]
 
 
+class TestSublistColorInheritance:
+    def test_sublist_inherits_colored_parent(self, tmp_path):
+        create_list(tmp_path, "work", color=Color.CORAL)
+
+        sublist = create_list(tmp_path, "work.meetings", config=Config())
+
+        assert sublist.color is Color.CORAL
+        assert load_list(tmp_path, "work.meetings").color is Color.CORAL
+
+    def test_deep_auto_created_ancestor_inherits(self, tmp_path):
+        create_list(tmp_path, "work", color=Color.CORAL)
+
+        create_list(tmp_path, "work.meetings.q3", config=Config())
+
+        assert load_list(tmp_path, "work.meetings").color is Color.CORAL
+        assert load_list(tmp_path, "work.meetings.q3").color is Color.CORAL
+
+    def test_explicit_color_overrides_inheritance(self, tmp_path):
+        create_list(tmp_path, "work", color=Color.CORAL)
+
+        sublist = create_list(
+            tmp_path, "work.meetings", color=Color.TEAL, config=Config()
+        )
+
+        assert sublist.color is Color.TEAL
+
+    def test_inheritance_disabled_falls_back_to_default_color(self, tmp_path):
+        create_list(tmp_path, "work", color=Color.CORAL)
+        config = Config(inherit_sublist_color=False, default_color=Color.TEAL)
+
+        sublist = create_list(tmp_path, "work.meetings", config=config)
+
+        assert sublist.color is Color.TEAL
+
+    def test_root_list_takes_default_color(self, tmp_path):
+        config = Config(default_color=Color.TEAL)
+
+        task_list = create_list(tmp_path, "work", config=config)
+
+        assert task_list.color is Color.TEAL
+
+    def test_no_config_leaves_color_unset(self, tmp_path):
+        create_list(tmp_path, "work", color=Color.CORAL)
+
+        sublist = create_list(tmp_path, "work.sub")
+
+        assert sublist.color is None
+
+    def test_corrupt_ancestor_falls_back_to_default_color(self, tmp_path):
+        (tmp_path / "work.json").write_text(
+            resource_text("list_v0_legacy.json")
+        )
+        config = Config(default_color=Color.TEAL)
+
+        create_list(tmp_path, "work.meetings", config=config)
+
+        assert load_list(tmp_path, "work.meetings").color is Color.TEAL
+
+    def test_rename_into_nested_name_keeps_ancestor_white(self, tmp_path):
+        task_list = create_list(tmp_path, "work")
+        task_list.add_item("existing task")
+        save_list(tmp_path, task_list)
+
+        rename_list(tmp_path, "work", "team.work")
+
+        assert load_list(tmp_path, "team").color is Color.WHITE
+
+
 class TestLoadList:
     def test_auto_creates_default_list(self, tmp_path):
         task_list = load_list(tmp_path, "inbox")

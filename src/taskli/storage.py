@@ -162,7 +162,78 @@ def list_file_path(storage_dir: Path, name: str) -> Path:
     return storage_dir / f"{name}.json"
 
 
-def ensure_ancestors(storage_dir: Path, name: str) -> None:
+def _inherited_color(storage_dir: Path, name: str) -> Color | None:
+    """Return the nearest existing ancestor list's color, or None.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The list name whose ancestor colors to inspect.
+
+    Returns
+    -------
+    Color | None
+        The color of the nearest existing ancestor list, or None when
+        no ancestor exists or the nearest ones cannot be loaded.
+    """
+
+    for ancestor in reversed(ancestor_chain(name)):
+        if not list_exists(storage_dir, ancestor):
+            continue
+        try:
+            return load_list(storage_dir, ancestor).color
+        except TaskliError:
+            continue
+
+    return None
+
+
+def _new_list_color(
+    storage_dir: Path,
+    name: str,
+    explicit: Color | None,
+    config: Config | None,
+) -> Color | None:
+    """Resolve a new list's color: explicit > inherited > default.
+
+    Parameters
+    ----------
+    storage_dir : Path
+        The storage directory.
+    name : str
+        The new list's name.
+    explicit : Color | None
+        A caller-supplied color, which always wins when set.
+    config : Config | None
+        The active config, or None to keep the pre-inheritance behavior
+        (an explicit color, else None).
+
+    Returns
+    -------
+    Color | None
+        The resolved color for the new list.
+    """
+
+    if explicit is not None:
+        return explicit
+    if config is None:
+        return None
+    if config.inherit_sublist_color:
+        inherited = _inherited_color(storage_dir, name)
+        if inherited is not None:
+            return inherited
+
+    return config.default_color
+
+
+def ensure_ancestors(
+    storage_dir: Path,
+    name: str,
+    *,
+    config: Config | None = None,
+) -> None:
     """Create any missing ancestor lists in `name`'s dot-chain.
 
     Parameters
@@ -171,11 +242,34 @@ def ensure_ancestors(storage_dir: Path, name: str) -> None:
         The storage directory.
     name : str
         The list name whose ancestors should exist.
+    config : Config | None, optional
+        When given, each auto-created ancestor resolves its color via
+        `_new_list_color`; when None (the default), ancestors are
+        created with the bare model default, byte-identical to the
+        pre-inheritance behavior.
     """
 
+    # Each ancestor is saved before the next one is resolved: that
+    # write-then-resolve ordering is what lets a deep chain inherit
+    # ("work.meetings" sees "work" because "work" landed one iteration
+    # earlier). Do not reorder this loop.
     for ancestor in ancestor_chain(name):
         if not list_exists(storage_dir, ancestor):
-            save_list(storage_dir, TaskliList(name=ancestor))
+            # `config is None` is the legacy path: only `rename_list`
+            # reaches here without a config, and its ancestors keep the
+            # bare model default rather than `config.default_color`.
+            if config is None:
+                save_list(storage_dir, TaskliList(name=ancestor))
+            else:
+                save_list(
+                    storage_dir,
+                    TaskliList(
+                        name=ancestor,
+                        color=_new_list_color(
+                            storage_dir, ancestor, None, config
+                        ),
+                    ),
+                )
 
     return None
 
@@ -225,6 +319,7 @@ def create_list(
     name: str,
     *,
     color: Color | None = None,
+    config: Config | None = None,
 ) -> TaskliList:
     """Create and persist a new, empty list.
 
@@ -236,6 +331,10 @@ def create_list(
         The new list's name.
     color : Color | None, optional
         The list's display color, by default none.
+    config : Config | None, optional
+        When given, an unset `color` is resolved via `_new_list_color`
+        (nearest existing ancestor's color, else `config.default_color`);
+        when None (the default), an unset `color` stays None.
 
     Returns
     -------
@@ -248,9 +347,12 @@ def create_list(
 
     # if a descendant list (e.g., sublist), ensure all lists before it have
     # already been created.
-    ensure_ancestors(storage_dir, name)
+    ensure_ancestors(storage_dir, name, config=config)
 
-    task_list = TaskliList(name=name, color=color)
+    task_list = TaskliList(
+        name=name,
+        color=_new_list_color(storage_dir, name, color, config),
+    )
     save_list(storage_dir, task_list)
 
     return task_list
@@ -400,7 +502,12 @@ def load_list(storage_dir: Path, name: str) -> TaskliList:
     return task_list
 
 
-def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
+def load_or_create_list(
+    storage_dir: Path,
+    name: str,
+    *,
+    config: Config | None = None,
+) -> TaskliList:
     """Load a list, creating it empty if it doesn't exist yet.
 
     Parameters
@@ -409,6 +516,10 @@ def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
         The storage directory.
     name : str
         The list name.
+    config : Config | None, optional
+        When given, a newly created list resolves its color via
+        `_new_list_color`; when None (the default), it is created with
+        the bare model default.
 
     Returns
     -------
@@ -419,9 +530,17 @@ def load_or_create_list(storage_dir: Path, name: str) -> TaskliList:
     if list_exists(storage_dir, name):
         return load_list(storage_dir, name)
 
-    ensure_ancestors(storage_dir, name)
+    ensure_ancestors(storage_dir, name, config=config)
 
-    task_list = TaskliList(name=name)
+    # `config is None` is the legacy path (bare model default); every
+    # current caller in `logic` passes a config.
+    if config is None:
+        task_list = TaskliList(name=name)
+    else:
+        task_list = TaskliList(
+            name=name,
+            color=_new_list_color(storage_dir, name, None, config),
+        )
     save_list(storage_dir, task_list)
 
     return task_list

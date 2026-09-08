@@ -77,6 +77,15 @@ class TestAdd:
         assert first.tags is not second.tags
         assert first.tags == second.tags == ["t"]
 
+    def test_auto_created_sublist_inherits_parent_color(
+        self, taskli_env, config
+    ):
+        new_list("work", "blue", config)
+
+        add("work.meetings", ["sync"], {}, config)
+
+        assert load_list(taskli_env, "work.meetings").color is Color.BLUE
+
     def test_parent_path_nests_item(self, taskli_env, config):
         add("work", ["parent"], {}, config)
 
@@ -413,6 +422,11 @@ class TestSetConfig:
 
         assert result.messages == ["set 'auto_prune' to 'true'."]
         assert load_config(taskli_env).auto_prune is True
+
+    def test_persists_inherit_sublist_color(self, taskli_env, config):
+        set_config("inherit_sublist_color", "false")
+
+        assert load_config(taskli_env).inherit_sublist_color is False
 
     def test_default_sort_resorts_every_list(self, taskli_env, config):
         add("work", ["low task"], {"priority": "low"}, config)

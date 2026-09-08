@@ -48,7 +48,10 @@ on raw parsed file dicts before model validation; imported by `storage`).
   plus the `Operator` enum (`EQ`/`CONTAINS`/`LT`/`GTE`) and its `compare()`,
   `dates.py` for the due-date value parser, `paths.py` for the dotted
   item-path sort key, `config.py` for
-  `Config`/`SortBy`, `tasks.py` for `TaskliItem`/`TaskliList`, `query.py`
+  `Config`/`SortBy` (whose `inherit_sublist_color: bool = True` field,
+  alongside `auto_prune` / `show_reminders` / `agenda_window`, is additive
+  with a Python default so it needs no migration — `storage` reads it when
+  creating a sublist), `tasks.py` for `TaskliItem`/`TaskliList`, `query.py`
   for the `Filter`/`Criterion`/`Sort` value objects, `registry.py` for the
   per-attribute `Attribute` dataclass + `ATTRIBUTES` table) — Pydantic
   models and enums, plus the plain frozen dataclasses in `query.py` and
@@ -309,7 +312,17 @@ on raw parsed file dicts before model validation; imported by `storage`).
   (`list_file_path` raises `TooManyAncestorListsError` past that).
   `ensure_ancestors` auto-creates missing parent lists when a nested name is
   first written to — this is why `tk work.meetings -a "..."` works with no
-  prior `tk work --new`. `save_list` refuses to persist a `view_only`
+  prior `tk work --new`. `create_list` / `ensure_ancestors` /
+  `load_or_create_list` each take a `config: Config | None = None` keyword:
+  when a `Config` is passed, a new (sub)list created with no explicit color
+  inherits the nearest existing ancestor list's color (via module-private
+  `_inherited_color` walking `ancestor_chain` nearest-first, then
+  `_new_list_color` resolving explicit > inherited > `config.default_color`),
+  gated on `Config.inherit_sublist_color`; `config=None` keeps the prior
+  model-default behavior and only `rename_list` still calls that way. The
+  `ensure_ancestors` loop saves each ancestor before resolving the next, so
+  a deep chain inherits top-down (`work.meetings` sees `work` a beat before
+  `work.meetings.q3` sees `work.meetings`). `save_list` refuses to persist a `view_only`
   (filtered, deep-copied) list — `raise RuntimeError` — a never-happens
   backstop, since `logic` never hands a filtered view to it. `save_list`
   calls `sort_by_index()` before
