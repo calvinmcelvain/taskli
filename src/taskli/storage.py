@@ -249,15 +249,8 @@ def ensure_ancestors(
         pre-inheritance behavior.
     """
 
-    # Each ancestor is saved before the next one is resolved: that
-    # write-then-resolve ordering is what lets a deep chain inherit
-    # ("work.meetings" sees "work" because "work" landed one iteration
-    # earlier). Do not reorder this loop.
     for ancestor in ancestor_chain(name):
         if not list_exists(storage_dir, ancestor):
-            # `config is None` is the legacy path: only `rename_list`
-            # reaches here without a config, and its ancestors keep the
-            # bare model default rather than `config.default_color`.
             if config is None:
                 save_list(storage_dir, TaskliList(name=ancestor))
             else:
@@ -643,11 +636,8 @@ def _migrate_file(
         validate(migrated)
         _atomic_write(path, json.dumps(migrated, indent=2))
     except Exception:
-        # Any failure on one file (unparseable JSON, structure too
-        # malformed for the migration, a migrated form that won't
-        # validate, an I/O error) is reported and skipped rather than
-        # aborting the whole --migrate walk; every future migration step
-        # inherits this contract.
+        # any failure on one file is reported and skipped rather than
+        # aborting the whole --migrate walk.
         return "unreadable"
 
     return "migrated"
