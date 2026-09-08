@@ -149,7 +149,7 @@ def add(
     raw.setdefault("priority", config.default_priority.label)
     typed = _resolve_modifiers(raw)
 
-    task_list = load_or_create_list(storage_dir, list_name)
+    task_list = load_or_create_list(storage_dir, list_name, config=config)
     display_name = task_list.display_name(config.sublist_delimiter)
 
     added = [
@@ -454,7 +454,7 @@ def move(
 
     storage_dir = resolve_storage_dir()
     task_list = load_list(storage_dir, list_name)
-    target_list = load_or_create_list(storage_dir, target_name)
+    target_list = load_or_create_list(storage_dir, target_name, config=config)
     display_name = task_list.display_name(config.sublist_delimiter)
     target_display_name = target_list.display_name(config.sublist_delimiter)
 
@@ -510,7 +510,7 @@ def copy(
 
     storage_dir = resolve_storage_dir()
     task_list = load_list(storage_dir, list_name)
-    target_list = load_or_create_list(storage_dir, target_name)
+    target_list = load_or_create_list(storage_dir, target_name, config=config)
     display_name = task_list.display_name(config.sublist_delimiter)
     target_display_name = target_list.display_name(config.sublist_delimiter)
 
@@ -596,7 +596,8 @@ def new_list(name: str, color: str | None, config: Config) -> CommandResult:
     name : str
         The new list's name.
     color : str | None
-        Color name (lower-cased), or None to use the config default.
+        Color name (lower-cased), or None to inherit the nearest ancestor
+        list's color, falling back to the config default.
     config : Config
         The active config, for the default color and display name.
 
@@ -607,9 +608,9 @@ def new_list(name: str, color: str | None, config: Config) -> CommandResult:
     """
 
     storage_dir = resolve_storage_dir()
-    resolved_color = Color[color.upper()] if color else config.default_color
+    explicit = Color[color.upper()] if color else None
 
-    task_list = create_list(storage_dir, name, color=resolved_color)
+    task_list = create_list(storage_dir, name, color=explicit, config=config)
     display_name = task_list.display_name(config.sublist_delimiter)
 
     return CommandResult(

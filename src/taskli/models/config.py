@@ -34,6 +34,7 @@ class Config(BaseModel):
 
     auto_prune: bool = False
     show_reminders: bool = True
+    inherit_sublist_color: bool = True
     sublist_delimiter: Delimters = "."
     default_list: str = Field(default="inbox", min_length=1)
     default_sort: SortBy = "created_at"

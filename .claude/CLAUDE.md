@@ -62,7 +62,10 @@ cli → logic → {render, storage} → models/ → exceptions
 - **`storage.py`** — all filesystem I/O. One JSON file per list; enforces the
   "sibling order = id order" invariant on save (`sort_by_index`) and load
   (`reindex`). `load_*` raises `Outdated*FileError` on an old schema rather than
-  self-healing — only `tk --migrate` rewrites files.
+  self-healing — only `tk --migrate` rewrites files. The list-creation
+  functions take a `config` keyword; when passed, a new sublist with no
+  explicit `--color` inherits the nearest existing ancestor list's color at
+  creation, gated on `Config.inherit_sublist_color` (default `True`).
 - **`models/`** — pydantic models + enums + pure value objects, no I/O / `rich` /
   `argparse`. `TaskliItem` is a recursive tree (`children: list[TaskliItem]`,
   `id` a dotted string). `TaskliList` owns **all** item-mutation logic as methods.

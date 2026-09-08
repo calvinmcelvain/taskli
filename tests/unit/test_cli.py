@@ -1404,6 +1404,36 @@ class TestNewList:
         assert exit_code == 2
         assert "invalid choice" in captured.err
 
+    def test_sublist_inherits_parent_color(self, taskli_env, capsys):
+        main(["work", "--new", "--color", "blue"])
+        capsys.readouterr()
+
+        main(["work.meetings", "--new"])
+        capsys.readouterr()
+
+        assert load_list(taskli_env, "work.meetings").color is Color.BLUE
+
+    def test_explicit_color_overrides_inheritance(self, taskli_env, capsys):
+        main(["work", "--new", "--color", "blue"])
+        capsys.readouterr()
+
+        main(["work.other", "--new", "--color", "red"])
+        capsys.readouterr()
+
+        assert load_list(taskli_env, "work.other").color is Color.RED
+
+    def test_inheritance_disabled_falls_back_to_default(
+        self, taskli_env, capsys
+    ):
+        main(["--config", "inherit_sublist_color", "false"])
+        main(["work", "--new", "--color", "blue"])
+        capsys.readouterr()
+
+        main(["work.notes", "--new"])
+        capsys.readouterr()
+
+        assert load_list(taskli_env, "work.notes").color is Color.WHITE
+
     def test_new_sublist_creates_missing_parent(self, taskli_env, capsys):
         exit_code = main(["work.meetings", "--new"])
         capsys.readouterr()
