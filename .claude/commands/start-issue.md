@@ -13,7 +13,7 @@ outright (`.claude/**` is exempt). Run this first, every time.
 
 1. **Fetch each issue.** For every number in `$ARGUMENTS`:
    `gh issue view <n> --json number,title,labels,body,milestone`
-   (`GH_REPO` is set in `.claude/settings.json`, so the repo resolves without `-R`.)
+   (`GH_REPO` is set in `.claude/settings.local.json`, so the repo resolves without `-R`.)
    If `gh` is not installed, say so once, accept the bare numbers, and ask the user
    for a one-line description to name the branch from.
 
@@ -62,6 +62,7 @@ outright (`.claude/**` is exempt). Run this first, every time.
 
 3.5. **Decide whether to isolate this in a worktree.** Ask the user explicitly — do
    not decide silently — when either signal fires:
+
    - the request itself said "parallel", "worktree", or "isolated", or
    - `.claude/.current-issue` already exists and records a *different* branch than
      the one just derived (another issue is already active in this checkout).
@@ -70,10 +71,14 @@ outright (`.claude/**` is exempt). Run this first, every time.
 
 4. **Create the branch.**
 
-   **No worktree (default):** from an up-to-date default branch:
-   `git fetch origin && git switch -c <branch> origin/main`
-   If the branch already exists, `git switch <branch>` instead. (Use the repo's
-   actual default branch if it is not `main`.)
+   **No worktree (default):** resolve the default branch, then cut from it:
+
+   ```bash
+   BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || echo main)
+   git fetch origin && git switch -c <branch> "origin/$BASE"
+   ```
+
+   If the branch already exists, `git switch <branch>` instead.
 
    **Worktree (only if step 3.5 confirmed isolation):** call
    `EnterWorktree(name: <branch>)` instead. It creates the worktree under
@@ -130,7 +135,7 @@ outright (`.claude/**` is exempt). Run this first, every time.
    **Break the plan into isolated tasks**, each written with this structure so
    parallel-dispatch eligibility is obvious at a glance:
 
-   ```
+   ```text
    ### Task <N>: <short title> — issue #<issue-number>
    **Subagent:** implementer
    **Depends on:** Task <M> | independent

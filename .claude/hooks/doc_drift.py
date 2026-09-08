@@ -32,7 +32,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _hooklib import git, project_dir  # noqa: E402
+from _hooklib import base_ref, git, load_project_config, project_dir  # noqa: E402
 
 ACK_NAME = os.path.join(".claude", ".doc-drift-ack")
 # Literal forward-slash string, not os.path.join: changed_files() below builds its paths
@@ -40,27 +40,28 @@ ACK_NAME = os.path.join(".claude", ".doc-drift-ack")
 # `DOC in paths` (see main()) needs to match that exactly.
 DOC = ".claude/CLAUDE.md"
 
-# The repo's default branch -- the base for the "what changed on this branch" diff.
-BASE_BRANCH = "main"
-
 # Each entry backs a claim CLAUDE.md typically makes about this workflow. The
-# trailing project-specific paths (build config, CI workflow files) catch drift
-# in the toolchain the /check sweep mirrors.
-WATCHED = (
-    ".claude/settings.json",   # which hooks are wired, what is denied/allowed
-    ".claude/commands/",       # the command list
-    ".claude/hooks/",          # hook behaviour
-    ".claude/agents/",         # the subagents
-    ".claude/ARCHITECTURE.md",  # the architecture rules
-    "pyproject.toml",          # toolchain: lint / format / type / coverage config
-    ".github/workflows/",      # CI commands the /check sweep mirrors
+# .claude/ command/agent/hook trees are symlinks into the shared store, so their
+# edits do not show up as changes in this repo -- what a repo actually edits is
+# its local config, plus whatever `doc_drift_watch` in project.json names
+# (build config, CI files, source dirs, or the shared store checkout itself).
+WATCHED_BASE = (
+    ".claude/settings.local.json",  # the project's allow list / GH_REPO
+    ".claude/project.json",         # the check commands and source glob
+    ".claude/scripts/",             # todos.py -- the todo-tracking CLI
+    ".claude/ARCHITECTURE.md",      # the architecture rules
 )
+
+
+def watched():
+    extra = load_project_config().get("doc_drift_watch") or []
+    return WATCHED_BASE + tuple(str(p) for p in extra)
 
 
 def changed_files():
     """Every path this branch touches: committed since the base, plus uncommitted."""
     paths = set()
-    for line in git("diff", "--name-only", "origin/{}...HEAD".format(BASE_BRANCH)).splitlines():
+    for line in git("diff", "--name-only", "{}...HEAD".format(base_ref())).splitlines():
         paths.add(line.strip())
     # --porcelain columns are fixed-width; the path starts at column 3.
     for line in git("status", "--porcelain").splitlines():
@@ -111,7 +112,7 @@ def main():
     if not paths or DOC in paths:
         return 0
 
-    drifted = sorted(p for p in paths if p.startswith(WATCHED))
+    drifted = sorted(p for p in paths if p.startswith(watched()))
     if not drifted:
         return 0
 

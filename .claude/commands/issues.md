@@ -11,9 +11,10 @@ gh issue list --state open --limit 40 --json number,title,labels,assignees \
   --template '{{range .}}{{printf "%-5v" .number}} {{printf "%-10v" (index .labels 0).name}} {{.title}}{{"\n"}}{{end}}'
 ```
 
-`GH_REPO` is set in `.claude/settings.json`, so `gh` resolves the repo without `-R`.
+`GH_REPO` is set in `.claude/settings.local.json`, so `gh` resolves the repo without `-R`.
 
 Pass `$ARGUMENTS` through as appropriate:
+
 - bare words → `--search "<words>"`
 - `label:x` → `--label x`
 - `assignee:@me` → `--assignee @me`

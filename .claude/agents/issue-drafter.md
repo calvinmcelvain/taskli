@@ -16,8 +16,13 @@ question needs and hand it back; the main agent asks the user and resumes this a
 with the answers. You never skip the confirmation step — issue creation is not
 reversible the way a local edit is.
 
-`GH_REPO` is set in `.claude/settings.json`, so `gh` resolves the repo — do not pass
-`-R` and do not parse the git remote yourself.
+`GH_REPO` is set in `.claude/settings.local.json`, so `gh` resolves the repo — do
+not pass `-R` and do not parse the git remote yourself.
+
+Two knobs come from `.claude/project.json`: `issue_assignees` (default `@me`) and
+`uses_milestones` (default `true`). Read them:
+`python3 -c "import json;c=json.load(open('.claude/project.json'));print(c.get('issue_assignees','@me'));print(c.get('uses_milestones',True))"`.
+When `uses_milestones` is false, skip step 4 entirely.
 
 You only file issues. You never open the edit gate (`/start-issue`) and never touch
 tracked source files.
@@ -53,7 +58,7 @@ set, and draft a body matching those fields exactly. Type comes from the templat
 
 Generic body structure:
 
-```
+```markdown
 ## Summary
 <what the change is>
 
@@ -65,9 +70,8 @@ Generic body structure:
 ```
 
 Draft a title as `<type>: <description>`, Conventional-Commit style. Label is the
-type. Assignees: `calvinmcelvain` by default (matches this repo's
-`.github/ISSUE_TEMPLATE/` files; the main agent may pass an explicit list on
-resume).
+type. Assignees: `issue_assignees` from `project.json` (the main agent may pass an
+explicit list on resume).
 
 **Implementation follow-up.** If the request doesn't already say how the change
 should be approached — which files/modules it touches, which of several plausible
@@ -89,7 +93,8 @@ ordering — the parent must be created first so its number/id exists to link ag
 
 ## 4. Milestone
 
-Fetch open milestones:
+Skip this section entirely when `uses_milestones` (from `project.json`) is false.
+Otherwise, fetch open milestones:
 
 ```bash
 gh api repos/$GH_REPO/milestones --method GET -f state=open --jq '.[] | "\(.number)\t\(.title)"'

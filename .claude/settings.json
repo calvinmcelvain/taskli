@@ -1,8 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "env": {
-    "GH_REPO": "calvinmcelvain/taskli"
-  },
   "permissions": {
     "deny": [
       "Bash(git commit)",
@@ -18,17 +15,14 @@
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
+      "Bash(git ls-files*)",
       "Bash(gh issue list*)",
       "Bash(gh issue view*)",
       "Bash(gh issue status*)",
       "Bash(gh search issues*)",
       "Bash(gh issue create*)",
       "Bash(gh issue edit*)",
-      "Bash(ruff*)",
-      "Bash(black*)",
-      "Bash(isort*)",
-      "Bash(mypy*)",
-      "Bash(pytest*)"
+      "Bash(python3 -m json.tool*)"
     ]
   },
   "hooks": {
@@ -52,6 +46,16 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\" --session-start || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/issue_gate.py\" --session-start",
+            "timeout": 15,
+            "shell": "bash"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/workflow_notify.py\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/workflow_notify.py\"",
             "timeout": 15,
             "shell": "bash"
           }

@@ -2,8 +2,8 @@
 name: architecture-checker
 description: Checks a not-yet-implemented plan against .claude/ARCHITECTURE.md's rules and hands
   back any violations plus architecture-preserving alternatives, before any code is written.
-  Dispatched by /start-issue during plan mode, once per plan, before ExitPlanMode, only when the
-  plan touches source code.
+  Dispatched by the workflow's start command (/start-issue or /start-todo) during plan mode,
+  once per plan, before ExitPlanMode, only when the plan touches source code.
 tools: Read, Grep, Glob
 ---
 

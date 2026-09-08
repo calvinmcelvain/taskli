@@ -34,9 +34,10 @@ not shell redirection through `Bash`.
 **Enforcement:** `/check` is the final step of every plan. It runs in three parts:
 
 - **The formatter** is applied *in place* — formatting has one correct answer, so
-  it is fixed rather than reported.
-- **Lint and tests** then run (the exact commands are configured in
-  `.claude/commands/check.md`). Any failure aborts the change until fixed.
+  it is fixed rather than reported. Skipped when the project has none.
+- **Lint and tests** then run. The `format` / `lint` / `test` commands and the
+  source glob (`find_expr`) all come from `.claude/project.json`. Any failure
+  aborts the change until fixed.
 - **The `reviewer` agent** (`.claude/agents/reviewer.md`) then runs a read-only pass
   over the branch's source diff — structure, efficiency, long-term validity,
   isolation of units and behavior — once the checks above have passed. Skipped when
@@ -71,12 +72,15 @@ whether the change earns a CLAUDE.md update, so documentation is written with th
 code rather than bolted on.
 
 **Backstop:** `.claude/hooks/doc_drift.py` runs as a `Stop` hook. It compares the
-branch's changed files against a watch list (`.claude/settings.json`,
-`.claude/commands/`, `.claude/hooks/`, `.claude/agents/`, `.claude/ARCHITECTURE.md`,
-`pyproject.toml`, `.github/workflows/`) and, when any of those changed but
-`.claude/CLAUDE.md` did not, blocks the stop with the list. It fires once per
-distinct set of changes, recorded in `.claude/.doc-drift-ack` (gitignored). If the
-repo has no `.claude/CLAUDE.md`, the hook does nothing.
+branch's changed files against a watch list (`.claude/settings.local.json`,
+`.claude/project.json`, `.claude/scripts/`, `.claude/ARCHITECTURE.md`, plus any
+paths in `project.json`'s `doc_drift_watch`) and, when any of those changed but
+`.claude/CLAUDE.md` did not, blocks the stop with the list. The
+`.claude/commands/`, `.claude/agents/`, `.claude/hooks/` trees are core files
+delivered by `wf sync`, not hand-edited per project, so they're excluded from
+the watch list. It fires once per distinct set of changes, recorded in
+`.claude/.doc-drift-ack` (gitignored). If the repo has no `.claude/CLAUDE.md`,
+the hook does nothing.
 
 ---
 

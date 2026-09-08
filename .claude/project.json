@@ -1,0 +1,9 @@
+{
+  "find_expr": "find src -type f \\( -name '*.py' \\) -print0",
+  "format_cmd": ".venv/bin/black --line-length 79 . && .venv/bin/isort .",
+  "lint_cmd": ".venv/bin/ruff check . && .venv/bin/mypy src tests",
+  "test_cmd": ".venv/bin/pytest -q",
+  "doc_drift_watch": ["pyproject.toml", ".github/workflows/ci.yml"],
+  "issue_assignees": "@me",
+  "uses_milestones": true
+}
