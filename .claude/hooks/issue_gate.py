@@ -25,6 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from _hooklib import (  # noqa: E402
+    default_branch,
     git_branch,
     project_dir,
     read_payload,
@@ -33,8 +34,6 @@ from _hooklib import (  # noqa: E402
 )
 
 RECORD_NAME = os.path.join(".claude", ".current-issue")
-# The repo's default branch -- edits made directly on it are refused.
-MAIN_BRANCH = "main"
 EXEMPT_PREFIXES = (".claude/",)
 
 
@@ -125,11 +124,12 @@ def main():
         )
 
     branch = git_branch()
-    if branch == MAIN_BRANCH:
+    main_branch = default_branch()
+    if branch == main_branch:
         return deny(
             "Refusing to edit `{}` on `{}`. Work happens on a "
             "`<type>/<description>` branch -- run `/start-issue <number>` to "
-            "create one.".format(rel, MAIN_BRANCH)
+            "create one.".format(rel, main_branch)
         )
 
     recorded_branch = record.get("branch")

@@ -11,11 +11,12 @@ in `.claude/settings.json` — publishing is the user's call, always.
    tell the user to run `/start-issue <number>` — a PR without a linked issue is not
    allowed here.
 
-2. **Confirm `/check` is current.** Recompute the same hash `/check` stamps — use
-   the identical find globs from `/check` step 2:
+2. **Confirm `/check` is current.** Recompute the same hash `/check` stamps --
+   the file set is `find_expr` from `.claude/project.json`:
 
    ```bash
-   find src tests -type f -name "*.py" -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d" " -f1
+   FIND=$(python3 -c "import json;print(json.load(open('.claude/project.json')).get('find_expr',''))")
+   eval "$FIND" | sort -z | xargs -0 sha256sum | sha256sum | cut -d" " -f1
    ```
 
    Compare it to `.claude/.last-check` (gitignored, written by `/check`). If the file
@@ -25,7 +26,9 @@ in `.claude/settings.json` — publishing is the user's call, always.
 3. **Verify the branch.** Confirm `git rev-parse --abbrev-ref HEAD` matches the
    recorded branch, and that it is not the default branch.
 
-4. **Show what would ship.** `git status --short` and `git diff --stat origin/main...HEAD`.
+4. **Show what would ship.** Resolve the default branch first:
+   `BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || echo main)`.
+   Then `git status --short` and `git diff --stat origin/$BASE...HEAD`.
 
    Read these together: the diffstat shows only *committed* work, so uncommitted
    changes are invisible in it. If `git status` is not clean, say so loudly —
@@ -40,7 +43,7 @@ in `.claude/settings.json` — publishing is the user's call, always.
 6. **Write the body** to `.claude/.pr-body.md` (gitignored). If the repo has
    `.github/PULL_REQUEST_TEMPLATE.md`, follow it exactly. Otherwise use:
 
-   ```
+   ```markdown
    ## Summary
    <one or two plain sentences on what changed>
 
@@ -59,7 +62,7 @@ in `.claude/settings.json` — publishing is the user's call, always.
 
 7. **Print the handoff** and stop:
 
-   ```
+   ```text
    ! git add <the files from step 4>
    ! git commit -m "<type>: <Sentence-case description>"
    ! git push -u origin <branch>

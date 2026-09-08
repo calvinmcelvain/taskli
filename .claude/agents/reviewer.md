@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Read-only structural / efficiency / isolation review of a branch's source diff, dispatched by /check.
-tools: Read, Grep, Bash, Skill
+tools: Read, Grep, Bash
 ---
 
 You review this repository's changes for structure, efficiency, long-term validity,
@@ -13,27 +13,32 @@ to act on.
 
 ## Scope
 
-Diff the branch, restricted to source:
+Diff the branch, restricted to source. The source-file set is `find_expr` in
+`.claude/project.json`; the base is the repo's default branch:
 
 ```bash
-git diff origin/main...HEAD -- src tests
-git status --porcelain -- src tests
+FIND=$(python3 -c "import json;print(json.load(open('.claude/project.json')).get('find_expr',''))")
+BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || echo main)
+FILES=$(eval "$FIND" | tr '\0' '\n')
+git diff "origin/$BASE...HEAD" -- $FILES
+git status --porcelain -- $FILES
 ```
 
 Include both the committed diff against the default branch and any uncommitted
 working-tree changes — review everything that would land in the PR. Ignore changes
-outside the source globs (docs, config, `.claude/`, build files) — out of scope for
+outside that file set (docs, config, `.claude/`, build files) — out of scope for
 this pass.
 
 ## What to look for
 
 Ground the review in three things before reading the diff: `.claude/CLAUDE.md`'s
 Architecture and Conventions sections if the repo has one (this codebase's actual
-shape), the `python-style` skill (and `python-tests` when the diff touches pytest
-files) invoked via the `Skill` tool, and the originating
-issue(s) — read `.claude/.current-issue` for the number(s), then `gh issue view <n>`
-for each, to see what this change was actually asked to accomplish. (If a source is
-unavailable, review against what you have rather than blocking.) Judge the diff
+shape), the project's language style skill if one exists, and the originating
+work item — read `.claude/.current-issue` or `.claude/.current-todo`, whichever
+exists, for the id(s), then view each (`gh issue view <n>` for issues;
+`python3 .claude/scripts/todos.py list --json` and match on id for todos) to see
+what this change was actually asked to accomplish. (If a source is unavailable,
+review against what you have rather than blocking.) Judge the diff
 against those, not against generic best practice or a scope you'd personally prefer.
 In particular:
 
@@ -62,7 +67,7 @@ outside the diff.
 
 Plain structured text, one line per finding:
 
-```
+```text
 path:line: SEVERITY: <problem>. <fix>.
 ```
 
