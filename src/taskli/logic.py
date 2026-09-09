@@ -201,6 +201,7 @@ def edit(
     item_id: str,
     modifiers: dict[str, object],
     config: Config,
+    parent_path: str | None = None,
 ) -> CommandResult:
     """Edit an item's text, priority, tags, or other modifiers.
 
@@ -216,6 +217,10 @@ def edit(
         replacing them.
     config : Config
         The active config, for the display name.
+    parent_path : str | None, optional
+        The dotted path of an existing item to re-nest this item under,
+        or ``None`` to leave its position alone. An empty string
+        un-nests the item back to the top level.
 
     Returns
     -------
@@ -230,9 +235,19 @@ def edit(
         if add_tag:
             task_list.add_tags(item_id, add_tag)
 
+        new_id = item_id
+        if parent_path is not None:
+            moved = task_list.reparent_item(item_id, parent_path or None)
+            # reparent_item already reindexed, so moved.id is valid; the
+            # resort places the item in default_sort order within its new
+            # sibling group (renumbering again as a consequence), matching
+            # add/move/copy. A plain -e deliberately does not resort.
+            task_list.resort(Sort.from_default_sort(config.default_sort))
+            new_id = moved.id
+
         display_name = task_list.display_name(config.sublist_delimiter)
 
-        return f"updated #{item_id} in '{display_name}'."
+        return f"updated #{new_id} in '{display_name}'."
 
     return _mutate(list_name, mutate_fn)
 

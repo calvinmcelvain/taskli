@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from ..exceptions import ItemNotFoundError
+from ..exceptions import InvalidReparentError, ItemNotFoundError
 from . import registry
 from .attributes import Color, Priority, Status
 from .paths import path_key
@@ -690,3 +690,75 @@ class TaskliList(BaseModel):
         """
 
         return self.move_item_ref(self.get_item(item_id), target)
+
+    def reparent_item_ref(
+        self, item: TaskliItem, parent: TaskliItem | None
+    ) -> TaskliItem:
+        """Re-nest a resolved item under ``parent``, then reindex.
+
+        This is an identity splice: the same ``TaskliItem`` object (and
+        its whole subtree) is detached and re-appended, so ``status``,
+        ``completed_at``, ``modified_at``, and ``created_at`` are all
+        left untouched; only ``item.id`` is renumbered by ``reindex``.
+
+        Parameters
+        ----------
+        item : TaskliItem
+            The item to move; its children travel with it.
+        parent : TaskliItem | None
+            The item to nest ``item`` under, or ``None`` for the top
+            level.
+
+        Returns
+        -------
+        TaskliItem
+            The re-nested item.
+        """
+
+        if parent is not None and (
+            parent is item
+            or any(node is parent for node in walk_items(item.children))
+        ):
+            message = (
+                f"cannot nest #{item.id} under #{parent.id}: "
+                "a task cannot be its own ancestor."
+            )
+            raise InvalidReparentError(message)
+        container = _find_container(self.items, item)
+        if container is None:
+            raise ValueError("item is not in the list.")
+        container[:] = [
+            existing for existing in container if existing is not item
+        ]
+        destination = self.items if parent is None else parent.children
+        destination.append(item)
+        self.reindex()
+
+        return item
+
+    def reparent_item(
+        self, item_id: str | int, parent_path: str | None
+    ) -> TaskliItem:
+        """Re-nest an item under another item in the same list.
+
+        Parameters
+        ----------
+        item_id : str | int
+            The item's id.
+        parent_path : str | None
+            The dotted path of the item to nest under, or ``None`` to
+            un-nest to the top level.
+
+        Returns
+        -------
+        TaskliItem
+            The re-nested item.
+        """
+
+        item = self.get_item(item_id)
+        if parent_path is None:
+            parent = None
+        else:
+            parent = self.get_item(parent_path)
+
+        return self.reparent_item_ref(item, parent)

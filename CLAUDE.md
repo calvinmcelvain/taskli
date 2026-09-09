@@ -199,7 +199,9 @@ on raw parsed file dicts before model validation; imported by `storage`).
   trigger a resort, so under a non-`created_at` `default_sort` (including
   `default_sort due_date`) an edited item can visibly sit out of sort
   order until the next add or `default_sort` change — a known, accepted
-  gap. Every id-taking method (`get_item`, `edit_item`, `add_tags`,
+  gap. Re-parenting via `-e --under` **does** resort (the item lands in
+  `default_sort` order within its new sibling group), unlike other `-e`
+  edits. Every id-taking method (`get_item`, `edit_item`, `add_tags`,
   `mark_done`/`mark_undone`/`mark_in_progress`, `remove_item`,
   `copy_item`, `move_item`) accepts `str | int` and normalises via
   `str()`, so existing int-passing call sites keep working; `get_item`
@@ -210,7 +212,14 @@ on raw parsed file dicts before model validation; imported by `storage`).
   (`remove_item_ref`/`copy_item_ref`/`move_item_ref`/`mark_*_ref`) taking
   an already-resolved `TaskliItem`; `remove_item_ref` finds the
   containing sibling list by identity and drops the item with its whole
-  subtree (cascade), then `reindex()`es. Held refs survive `reindex()` (it
+  subtree (cascade), then `reindex()`es. `reparent_item` /
+  `reparent_item_ref` are the same wrapper/`*_ref` pair: an identity
+  splice that detaches the item + subtree and re-appends it under the
+  new parent (or `self.items` when `parent_path` is `None`), preserving
+  `status` / `completed_at` / `modified_at`, with a cycle guard raising
+  `InvalidReparentError` when the target is the item itself or one of
+  its descendants — `-mv`/`--move` stays cross-list only. Held refs
+  survive `reindex()` (it
   mutates `item.id` in place, not identity). `logic`'s batch commands
   (`-d`/`-u`/`-i`/`-rm`/`-mv`/`--copy`) resolve every id to a ref up front
   via `_resolve_items` and then mutate by reference, rather than looping
@@ -227,6 +236,8 @@ on raw parsed file dicts before model validation; imported by `storage`).
   untouched. `add_item`'s `parent_path` (a dotted item path) nests the
   new item under that parent's `children` instead of at the top level,
   with a provisional child id the following `resort`/`reindex` finalises.
+  `edit_item` itself has no `parent_path` — re-parenting is a separate
+  `reparent_item` call `logic.edit` makes after `edit_item`.
   `copy_item_ref` builds its attr mapping generically from
   `registry.modifiable("add")` (re-copying the `tags` list into a fresh
   object), so a new settable field is copied with no `copy_item_ref`
@@ -471,7 +482,8 @@ on raw parsed file dicts before model validation; imported by `storage`).
   only, each subtree travelling with its root.
   `add(list_name, texts, modifiers, config, parent_path=None)` and
   `edit(list_name,
-  item_id, modifiers, config)` take one raw `modifiers: dict[str, object]`
+  item_id, modifiers, config, parent_path=None)` take one raw
+  `modifiers: dict[str, object]`
   (field name → unparsed string) instead of per-field params.
   `_resolve_modifiers` runs each attribute's
   `registry.ATTRIBUTES[name].parse` (passthrough when `None`), wrapping
@@ -483,7 +495,10 @@ on raw parsed file dicts before model validation; imported by `storage`).
   reserved `add_tag` key (append semantics) before resolving the rest.
   `add` threads one `parent_path` (from `cli`'s `--under`) into every
   `add_item` call, so a repeated `-a` nests every new item under the
-  same parent.
+  same parent. `edit` likewise takes `parent_path` — when not `None` it
+  calls `TaskliList.reparent_item(item_id, parent_path or None)` (so
+  `--under ""` un-nests) then `resort`s before reading the id back for
+  the message; a plain `-e` with no `--under` still does not resort.
   `_all_items(storage_dir) -> list[tuple[str, TaskliItem]]` is the
   shared, filter-free walk both `check_reminders` and `agenda` build on:
   one pass over every list via `walk_items`, skipping one that fails to
@@ -527,8 +542,10 @@ on raw parsed file dicts before model validation; imported by `storage`).
     `-t/--text`, `--due`, `--desc`, `--color`) are a separate,
     non-mutually-exclusive group layered on top of whichever op is
     resolved. Every modifier except `--all` and `--under` (both scope
-    flags, not attributes — `--under PATH` is `-a`-only, naming the
-    parent item for a new subtask) is declared in one module-level
+    flags, not attributes — `--under PATH` works with `-a`, naming the
+    parent item for a new subtask, **and** with `-e`, re-nesting an
+    existing item + subtree under `PATH`, where `--under ""` un-nests to
+    the top level) is declared in one module-level
     `MODIFIER_FLAGS` table
     keyed by the same field-name strings the registry uses
     (`priority`/`tags`/`due_date`/`text`/`description`/`color`);
@@ -579,8 +596,8 @@ on raw parsed file dicts before model validation; imported by `storage`).
     `-d`/`-u`/`-i`/`-rm`/`-D`/`--config`/`--delete`/`--lists`/`--rename`/`--migrate`
     reject every modifier; `--prune` allows only `--all`; `--new` and bare
     `--color` allow only `--color`; `-a` allows
-    `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those (minus
-    `--under`) plus `-t`/`--add-tag`,
+    `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those plus
+    `-t`/`--add-tag`,
     both rejecting `--all`; the default VIEW allows
     `-p`/`--tag`/`--all`/`--due`; `-e`
     additionally rejects giving both `--tag` (replaces) and `--add-tag`
@@ -709,7 +726,8 @@ on raw parsed file dicts before model validation; imported by `storage`).
 - **`exceptions.py`** — flat `TaskliError` subclass hierarchy; every
   domain-level failure (missing list, missing item, invalid name,
   nesting too deep, corrupted JSON, outdated schema version, invalid
-  modifier value — `InvalidModifierValueError`) is caught
+  modifier value — `InvalidModifierValueError`, invalid re-parent —
+  `InvalidReparentError`) is caught
   centrally in `cli.py`, so new
   storage/model errors should extend `TaskliError` to get free CLI handling.
 
