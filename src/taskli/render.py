@@ -279,8 +279,7 @@ def render_agenda(
 
     table = Table()
     table.add_column("List")
-    table.add_column("ID", justify="right")
-    table.add_column("Text")
+    table.add_column("Task")
     table.add_column("Due")
 
     display_names: dict[str, str] = {}
@@ -290,7 +289,7 @@ def render_agenda(
 
         formatted, style = _due_display(item)
         due = _span(formatted, style) if style else formatted
-        table.add_row(display_names[name], item.id, item.text, due)
+        table.add_row(display_names[name], _task_cell(item, ""), due)
 
     _console.print(table)
 

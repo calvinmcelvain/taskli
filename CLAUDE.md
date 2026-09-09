@@ -416,13 +416,15 @@ on raw parsed file dicts before model validation; imported by `storage`).
   overdue" / "M due today" are nonzero into one line; `cli._dispatch`
   only calls it when at least one count is nonzero.
   `render_agenda(rows: list[tuple[str, TaskliItem]], delimiter=".")`
-  (#94) is `render_reminder`'s detailed companion — a flat `List` / `ID`
-  / `Text` / `Due` table across every list, one row per
+  (#94) is `render_reminder`'s detailed companion — a flat `List` /
+  `Task` / `Due` table across every list, one row per
   `(list_name, item)` pair from `logic.agenda`, already sorted
   chronologically. It's a deliberate bespoke table, **not** routed
   through `registry.renderable()`/`_items_table` — those are shaped for
   one list's items, not cross-list `(name, item)` pairs — but it does
-  build its own `Due` cell via module-local `_due_display(item)` (shared
+  build its `Task` cell via the shared `_task_cell(item, "")` (#116, same
+  helper `_items_table` and `render_item_details`'s subtasks block use)
+  and its `Due` cell via module-local `_due_display(item)` (shared
   with `render_item_details`) — `(formatted, style)` off
   `registry.ATTRIBUTES["due_date"]`'s `render_format`/`render_style`, the
   same red-overdue/yellow-due-today logic `_items_table`'s `Due` column
