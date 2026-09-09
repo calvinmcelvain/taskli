@@ -120,6 +120,26 @@ class TestRenderItems:
         row = next(line for line in lines if "high" in line)
         assert "\x1b[31mhigh\x1b[0m" in row
 
+    def test_description_shows_pilcrow(self, capsys):
+        todo = TaskliList(name="chores")
+        add_item(todo, "wash up", description="scrub the tub")
+
+        render_items("chores", todo.items)
+
+        out = capsys.readouterr().out
+        row = next(line for line in out.splitlines() if "wash up" in line)
+        assert "¶" in row
+
+    def test_no_description_omits_pilcrow(self, capsys):
+        todo = TaskliList(name="chores")
+        add_item(todo, "wash up")
+
+        render_items("chores", todo.items)
+
+        out = capsys.readouterr().out
+        row = next(line for line in out.splitlines() if "wash up" in line)
+        assert "¶" not in row
+
 
 class TestRenderReminder:
     def test_shows_both_counts(self, capsys):
@@ -194,6 +214,21 @@ class TestRenderAgenda:
 
         out = capsys.readouterr().out
         assert "work/meetings" in out
+
+    def test_description_shows_pilcrow(self, capsys):
+        work = TaskliList(name="work")
+        item = add_item(
+            work,
+            "sync",
+            due_date=datetime(2026, 9, 10),
+            description="agenda notes",
+        )
+
+        render_agenda([("work", item)])
+
+        out = capsys.readouterr().out
+        row = next(line for line in out.splitlines() if "sync" in line)
+        assert "¶" in row
 
     def test_overdue_and_due_today_styled_differently(
         self, recording_console, monkeypatch

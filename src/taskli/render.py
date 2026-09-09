@@ -72,7 +72,7 @@ def _task_rows(
 
 
 def _task_cell(item: TaskliItem, prefix: str) -> Text:
-    """Build the Task cell: branch prefix, state marker, id, and text."""
+    """Build the Task cell: prefix, state marker, id, text, and ¶."""
 
     result = Text()
     result.append(prefix, style="dim")
@@ -81,6 +81,8 @@ def _task_cell(item: TaskliItem, prefix: str) -> Text:
     # trailing dot at every level: "2" -> "2.", "2.1" -> "2.1."
     result.append(f"{item.id}. ", style=dim)
     result.append(item.text, style="dim strike" if item.done else "")
+    if item.description:
+        result.append(" ¶", style="dim strike" if item.done else "dim")
 
     return result
 
