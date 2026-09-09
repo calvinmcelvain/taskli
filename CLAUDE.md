@@ -160,9 +160,13 @@ on raw parsed file dicts before model validation; imported by `storage`).
   an old file, exactly as `completed_at` was added (a bump would raise
   `OutdatedListFileError` on every existing file until `tk --migrate`).
   `due_date` values are normalised to midnight on input; `description`
-  no longer renders in the items table at all (its `*` marker column
-  went with the `Task`-column collapse, #104 — display returns with
-  `--details`, #96).
+  lost its dedicated `*` marker column with the `Task`-column collapse
+  (#104) and full display still only returns with `--details` (#96), but
+  `render._task_cell` now appends a dim `¶` after the task text whenever
+  `item.description` is set (#117) — a bespoke indicator, not a
+  `registry.ATTRIBUTES["description"]` render facet, so it shows in both
+  the items table and (since `render_agenda` shares `_task_cell`, #116)
+  the `--agenda` table for free.
   **Invariant: sibling order is id order** — within each sibling group
   ids are assigned by position (`reindex`), and only a sort
   (`sort_by`) changes position.
