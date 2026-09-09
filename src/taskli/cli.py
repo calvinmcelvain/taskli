@@ -459,7 +459,11 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
         dest="under",
         default=None,
         metavar="PATH",
-        help="Add the new item as a subtask of the item at PATH. -a only.",
+        help=(
+            "With -a, add the new item under item PATH. With -e, re-nest"
+            ' the existing item (and its subtree) under PATH; pass "" to'
+            " un-nest to the top level."
+        ),
     )
 
 
@@ -660,7 +664,7 @@ def _validate(
                 namespace,
                 parser,
                 "--all is not valid with -e/--edit.",
-                {"priority", "tag", "add_tag", "text", "due", "desc"},
+                {"priority", "tag", "add_tag", "text", "due", "desc", "under"},
             )
         case (
             ItemActionCommands.REMOVE
@@ -777,6 +781,7 @@ def _run_item_action(
         namespace.edit[0],
         _modifier_values(ItemActionCommands.EDIT, namespace),
         config,
+        parent_path=namespace.under,
     )
 
 

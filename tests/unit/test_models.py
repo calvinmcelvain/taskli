@@ -7,6 +7,7 @@ from rich.color import Color as RichColor
 
 from taskli.exceptions import (
     InvalidConfigValueError,
+    InvalidReparentError,
     ItemNotFoundError,
     UnknownConfigKeyError,
 )
@@ -1042,3 +1043,104 @@ class TestTaskliListTree:
             "parent",
             "child",
         ]
+
+
+class TestReparentItem:
+    def test_subtree_travels_three_levels(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        add_item(todo_list, "mover")
+        add_subtask(todo_list, "2", "child")
+        grandchild = add_subtask(todo_list, "2.1", "grandchild")
+
+        todo_list.reparent_item("2", "1")
+
+        assert grandchild.id == "1.1.1.1"
+        assert grandchild.text == "grandchild"
+
+    def test_former_siblings_renumber(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "a")
+        add_item(todo_list, "b")
+        third = add_item(todo_list, "c")
+
+        todo_list.reparent_item("2", "1")
+
+        assert third.id == "2"
+        assert [item.id for item in todo_list.items] == ["1", "2"]
+
+    def test_preserves_status_and_timestamps(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        child = add_subtask(todo_list, "1", "child")
+        todo_list.mark_done("1.1")
+        child.modified_at = datetime(2020, 1, 1)
+        completed_at = child.completed_at
+        add_item(todo_list, "target")
+
+        todo_list.reparent_item("1.1", "2")
+
+        assert child.status == Status.DONE
+        assert child.completed_at == completed_at
+        assert child.modified_at == datetime(2020, 1, 1)
+
+    def test_unnest_to_top_level(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        child = add_subtask(todo_list, "1", "child")
+
+        todo_list.reparent_item("1.1", None)
+
+        assert child.id == "2"
+        assert child in todo_list.items
+
+    def test_unnest_already_top_level_survives(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "a")
+        add_item(todo_list, "b")
+
+        todo_list.reparent_item("1", None)
+
+        assert [item.text for item in todo_list.items] == ["b", "a"]
+        assert [item.id for item in todo_list.items] == ["1", "2"]
+
+    def test_reparent_under_current_parent_survives(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        child = add_subtask(todo_list, "1", "child")
+
+        todo_list.reparent_item("1.1", "1")
+
+        assert child.id == "1.1"
+        assert todo_list.get_item("1.1") is child
+
+    def test_reparent_under_self_raises(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "solo")
+
+        with pytest.raises(InvalidReparentError):
+            todo_list.reparent_item("1", "1")
+
+    def test_reparent_under_own_descendant_raises(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        add_subtask(todo_list, "1", "child")
+
+        with pytest.raises(InvalidReparentError):
+            todo_list.reparent_item("1", "1.1")
+
+    def test_missing_parent_path_raises(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "solo")
+
+        with pytest.raises(ItemNotFoundError):
+            todo_list.reparent_item("1", "9")
+
+    def test_held_ref_survives(self):
+        todo_list = TaskliList(name="work")
+        add_item(todo_list, "parent")
+        add_item(todo_list, "mover")
+
+        moved = todo_list.reparent_item("2", "1")
+
+        assert todo_list.get_item("1.1") is moved

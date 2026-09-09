@@ -12,6 +12,7 @@ __all__ = [
     "UnknownConfigKeyError",
     "InvalidConfigValueError",
     "InvalidModifierValueError",
+    "InvalidReparentError",
     "CorruptedConfigFileError",
     "OutdatedConfigFileError",
 ]
@@ -59,6 +60,10 @@ class InvalidConfigValueError(TaskliError):
 
 class InvalidModifierValueError(TaskliError):
     """Raised when a settable modifier value fails its registry parse."""
+
+
+class InvalidReparentError(TaskliError):
+    """Raised when re-nesting an item under itself or its own descendant."""
 
 
 class CorruptedConfigFileError(TaskliError):

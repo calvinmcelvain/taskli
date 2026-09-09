@@ -160,18 +160,115 @@ class TestSubtasks:
         "argv",
         [
             ["work", "-d", "1", "--under", "1"],
-            ["work", "-e", "1", "--under", "1"],
             ["work", "--under", "1"],
             ["work", "--config", "--under", "1"],
         ],
-        ids=["done", "edit", "view", "config"],
+        ids=["done", "view", "config"],
     )
-    def test_under_rejected_outside_add(self, taskli_env, capsys, argv):
+    def test_under_rejected_outside_add_and_edit(
+        self, taskli_env, capsys, argv
+    ):
         exit_code = main(argv)
 
         captured = capsys.readouterr()
         assert exit_code == 2
         assert "error:" in captured.err
+
+    def test_edit_under_renests_existing_item(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "orphan"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "2", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1.1 in 'work'" in captured.out
+        child = load_list(taskli_env, "work").items[0].children[0]
+        assert child.text == "orphan"
+        assert child.id == "1.1"
+
+    def test_edit_under_empty_unnests_to_top_level(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "child", "--under", "1"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1.1", "--under", ""])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #2 in 'work'" in captured.out
+        items = load_list(taskli_env, "work").items
+        assert len(items) == 2
+        assert items[0].children == []
+
+    def test_edit_under_preserves_done_state(self, taskli_env, capsys):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "task"])
+        main(["work", "-d", "2"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "2", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1.1 in 'work'" in captured.out
+        assert load_list(taskli_env, "work").items[0].children[0].done is True
+
+    def test_edit_under_self_is_rejected(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "error:" in captured.err
+
+    def test_edit_under_missing_parent_is_rejected(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", "--under", "9"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "error:" in captured.err
+
+    def test_edit_under_applies_modifiers_in_same_call(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "parent"])
+        main(["work", "-a", "mover"])
+        before = load_list(taskli_env, "work").items[1].modified_at
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "2", "-p", "high", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1.1 in 'work'" in captured.out
+        child = load_list(taskli_env, "work").items[0].children[0]
+        assert child.text == "mover"
+        assert child.priority is Priority.HIGH
+        assert child.modified_at != before
+
+    def test_edit_under_orders_new_sibling_by_default_sort(
+        self, taskli_env, capsys
+    ):
+        main(["work", "--config", "default_sort", "priority"])
+        main(["work", "-a", "parent", "-p", "high"])
+        main(["work", "-a", "low child", "-p", "low", "--under", "1"])
+        main(["work", "-a", "mover", "-p", "medium"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "2", "--under", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "updated #1.1 in 'work'" in captured.out
+        children = load_list(taskli_env, "work").items[0].children
+        assert [c.text for c in children] == ["mover", "low child"]
 
 
 class TestView:
