@@ -43,7 +43,7 @@ plan. The shape:
 
 ```
 cli → logic → {render, storage} → models/ → exceptions
-                                   (leaves: exceptions, hierarchy, migrations)
+                                   (leaves: exceptions, hierarchy, migrations, env)
 ```
 
 - **`cli.py`** — argparse routing only. Every action is a flag (no bare-word
@@ -52,20 +52,26 @@ cli → logic → {render, storage} → models/ → exceptions
   vocabulary** (flags, `nargs`, `dest`) lives in the `MODIFIER_FLAGS` table here —
   the one sanctioned `cli.py` module constant, because the registry can't carry
   argparse objects. `_dispatch` is wrapped in `_handle_errors` (renders any
-  `TaskliError` as exit 1).
+  `TaskliError` as exit 1). `logic`, `render`, and `storage.load_config` are
+  function-local imports (at module scope `cli.py` imports only `env` and the
+  pydantic-free `models` leaves), so the tab-completion path (`import
+  taskli.cli`) never loads pydantic or rich; `_complete_list_names` enumerates
+  list names via `env.scan_list_names`.
 - **`logic.py`** — one public function per command. Loads via `storage`, mutates
   via `TaskliList` methods, saves, returns a `CommandResult` (messages / warnings
   / exit_code / optional view) or plain data. Imports no `render`, prints nothing.
 - **`render.py`** — all `rich`. Every styled span is a `rich.text.Text`
   (`.append` / `Text.assemble`), never bracket-tag markup. `cli.py` calls
   `render_*` and never constructs `rich` objects or `print()`s.
-- **`storage.py`** — all filesystem I/O. One JSON file per list; enforces the
-  "sibling order = id order" invariant on save (`sort_by_index`) and load
-  (`reindex`). `load_*` raises `Outdated*FileError` on an old schema rather than
-  self-healing — only `tk --migrate` rewrites files. The list-creation
-  functions take a `config` keyword; when passed, a new sublist with no
-  explicit `--color` inherits the nearest existing ancestor list's color at
-  creation, gated on `Config.inherit_sublist_color` (default `True`).
+- **`storage.py`** — all list- and config-file content I/O. One JSON file per
+  list; enforces the "sibling order = id order" invariant on save
+  (`sort_by_index`) and load (`reindex`). `load_*` raises `Outdated*FileError`
+  on an old schema rather than self-healing — only `tk --migrate` rewrites
+  files. The list-creation functions take a `config` keyword; when passed, a new
+  sublist with no explicit `--color` inherits the nearest existing ancestor
+  list's color at creation, gated on `Config.inherit_sublist_color` (default
+  `True`). Delegates the storage-dir path and the list-name scan to the `env`
+  leaf (`resolve_storage_dir`, `scan_list_names`).
 - **`models/`** — pydantic models + enums + pure value objects, no I/O / `rich` /
   `argparse`. `TaskliItem` is a recursive tree (`children: list[TaskliItem]`,
   `id` a dotted string). `TaskliList` owns **all** item-mutation logic as methods.
@@ -73,10 +79,18 @@ cli → logic → {render, storage} → models/ → exceptions
   columns, and value parsing off one per-attribute entry — adding a
   filterable/sortable/settable attribute is a two-table edit (`registry.py` entry
   + `cli.MODIFIER_FLAGS` entry, kept honest by `TestModifierRegistryParity`).
+  `models/__init__.py` is empty — consumers deep-import from the leaf modules
+  (`from .models.tasks import TaskliList`), though the `registry` module stays
+  `from .models import registry`.
 - **`migrations.py`** — versioned schema migrations on raw parsed dicts before
   model validation, stdlib-only, historical label strings hard-coded (frozen
   contract). Extend the existing unreleased migration step rather than bumping
   `CURRENT_*_VERSION` when no real data is on the current version.
+- **`env.py`** — stdlib-only leaf (`os` + `pathlib`): `resolve_storage_dir`,
+  `scan_list_names`, and `CONFIG_FILE_NAME`. Exists so `cli.py`'s parser /
+  tab-completion path can resolve the storage dir and list names without
+  importing `storage.py` (and therefore pydantic); `storage.py` delegates
+  `config_file_path` / `list_all_lists` to it.
 
 ## Conventions
 

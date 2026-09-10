@@ -6,47 +6,33 @@ import functools
 import sys
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import argcomplete
 
-from . import logic
 from .__version__ import __version__
+from .env import resolve_storage_dir, scan_list_names
 from .exceptions import TaskliError
-from .models import (
-    Color,
-    Config,
-    Criterion,
-    Filter,
-    Priority,
-    TaskliList,
-    due_to_criteria,
-    path_key,
-    registry,
-)
-from .render import (
-    render_agenda,
-    render_config,
-    render_error,
-    render_item_details,
-    render_items,
-    render_list_names,
-    render_list_tree,
-    render_message,
-    render_reminder,
-    render_value,
-    render_warning,
-)
-from .storage import load_config, resolve_storage_dir
+from .models import registry
+from .models.attributes import Color, Priority
+from .models.paths import path_key
+from .models.query import Criterion, Filter, due_to_criteria
+
+if TYPE_CHECKING:
+    from .logic import CommandResult
+    from .models.config import Config
+    from .models.tasks import TaskliList
 
 
 def _handle_errors(func: Callable[..., int]) -> Callable[..., int]:
     @functools.wraps(func)
     def wrapper(*args: object, **kwargs: object) -> int:
+        from . import render
+
         try:
             return func(*args, **kwargs)
         except TaskliError as e:
-            render_error(str(e))
+            render.render_error(str(e))
 
             return 1
 
@@ -59,8 +45,10 @@ def _confirm(prompt: str) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
-def _print_list(task_list: TaskliList, config: Config) -> None:
-    render_items(
+def _print_list(task_list: "TaskliList", config: "Config") -> None:
+    from . import render
+
+    render.render_items(
         task_list.display_name(config.sublist_delimiter),
         task_list.items,
         task_list.color,
@@ -69,26 +57,30 @@ def _print_list(task_list: TaskliList, config: Config) -> None:
     return None
 
 
-def _render_notices(result: logic.CommandResult) -> None:
+def _render_notices(result: "CommandResult") -> None:
     """Render a result's messages, then its warnings."""
 
+    from . import render
+
     for message in result.messages:
-        render_message(message)
+        render.render_message(message)
     for warning in result.warnings:
-        render_warning(warning)
+        render.render_warning(warning)
 
     return None
 
 
-def _emit(result: logic.CommandResult, config: Config) -> int:
+def _emit(result: "CommandResult", config: "Config") -> int:
     """Render a command result: messages, warnings, then any list view."""
+
+    from . import render
 
     _render_notices(result)
 
     if result.item_view is not None:
         _print_list(result.item_view, config)
     if result.tree_view is not None:
-        render_list_tree(result.tree_view, config.sublist_delimiter)
+        render.render_list_tree(result.tree_view, config.sublist_delimiter)
 
     return result.exit_code
 
@@ -472,7 +464,7 @@ def _complete_list_names(
 ) -> list[str]:
     """argcomplete callback: existing list names for the LIST positional."""
 
-    return logic.list_names()
+    return scan_list_names(resolve_storage_dir())
 
 
 def _compose_parser() -> argparse.ArgumentParser:
@@ -569,6 +561,8 @@ def _resolve_config_op(
 
 
 def _resolve_op(namespace: argparse.Namespace) -> CommandOptions:
+    from . import render
+
     defined = [
         (label, op)
         for label, op in (
@@ -583,7 +577,7 @@ def _resolve_op(namespace: argparse.Namespace) -> CommandOptions:
     if len(defined) > 1:
         winner_label, winner_op = defined[0]
         ignored = ", ".join(label for label, _ in defined[1:])
-        render_warning(
+        render.render_warning(
             f"multiple option groups given; using {winner_label} "
             f"('{winner_op.value}'), ignoring {ignored}."
         )
@@ -771,8 +765,10 @@ def _run_item_action(
     action: ItemActionCommands,
     list_name: str,
     namespace: argparse.Namespace,
-    config: Config,
-) -> logic.CommandResult:
+    config: "Config",
+) -> "CommandResult":
+    from . import logic
+
     match action:
         case ItemActionCommands.ADD:
             texts = [" ".join(words) for words in namespace.add]
@@ -820,6 +816,9 @@ def _dispatch(
     namespace: argparse.Namespace,
     op: ListCommands | ItemActionCommands | ConfigCommands,
 ) -> int:
+    from . import logic, render
+    from .storage import load_config
+
     if op is ListCommands.MIGRATE:
         result = logic.migrate()
         _render_notices(result)
@@ -831,7 +830,7 @@ def _dispatch(
     if config.show_reminders and op is not ListCommands.AGENDA:
         overdue, due_today = logic.check_reminders()
         if overdue or due_today:
-            render_reminder(overdue, due_today)
+            render.render_reminder(overdue, due_today)
 
     if namespace.list:
         list_name = namespace.list.replace(config.sublist_delimiter, ".")
@@ -843,11 +842,11 @@ def _dispatch(
             default_name = config.default_list.replace(
                 config.sublist_delimiter, "."
             )
-            render_list_names(logic.list_entries(), default_name)
+            render.render_list_names(logic.list_entries(), default_name)
 
             return 0
         case ListCommands.AGENDA:
-            render_agenda(
+            render.render_agenda(
                 logic.agenda(namespace.agenda or None, config),
                 config.sublist_delimiter,
             )
@@ -858,11 +857,11 @@ def _dispatch(
             value = namespace.config[1] if len(namespace.config) > 1 else None
 
             if key is None:
-                render_config(config)
+                render.render_config(config)
 
                 return 0
             if value is None:
-                render_value(str(config.get_value(key)))
+                render.render_value(str(config.get_value(key)))
 
                 return 0
 
@@ -874,7 +873,7 @@ def _dispatch(
         case ListCommands.DELETE:
             prompt = logic.delete_prompt(list_name, config)
             if not _confirm(prompt):
-                render_message("aborted.")
+                render.render_message("aborted.")
 
                 return 1
 
@@ -902,7 +901,9 @@ def _dispatch(
             task_list, item = logic.item_details(
                 list_name, namespace.details[0]
             )
-            render_item_details(task_list, item, config.sublist_delimiter)
+            render.render_item_details(
+                task_list, item, config.sublist_delimiter
+            )
 
             return 0
         case ItemActionCommands():
@@ -946,13 +947,15 @@ def _dispatch(
                     # matched nothing or for genuinely-empty storage;
                     # has_any_lists tells the two apart.
                     if logic.has_any_lists():
-                        render_message("no items match the given filter.")
+                        render.render_message(
+                            "no items match the given filter."
+                        )
                     else:
-                        render_list_names([])
+                        render.render_list_names([])
 
                     return 0
                 for group in groups:
-                    render_list_tree(group, config.sublist_delimiter)
+                    render.render_list_tree(group, config.sublist_delimiter)
 
                 return 0
 
@@ -966,11 +969,11 @@ def _dispatch(
                 # --all branch): a missing target raises before list_view
                 # can return [], so [] always means the filter pruned
                 # every list from a --all view.
-                render_message("no items match the given filter.")
+                render.render_message("no items match the given filter.")
 
                 return 0
 
-            render_list_tree(views, config.sublist_delimiter)
+            render.render_list_tree(views, config.sublist_delimiter)
 
             return 0
 
@@ -984,7 +987,9 @@ def main(argv: list[str] | None = None) -> int:
         namespace = parser.parse_args(raw_argv)
 
         if namespace.path:
-            render_value(str(logic.storage_path()))
+            from . import logic, render
+
+            render.render_value(str(logic.storage_path()))
 
             return 0
 

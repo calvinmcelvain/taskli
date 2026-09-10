@@ -17,7 +17,6 @@ from taskli.logic import (
     has_any_lists,
     item_details,
     list_entries,
-    list_names,
     list_view,
     mark_done,
     mark_in_progress,
@@ -32,14 +31,9 @@ from taskli.logic import (
     set_list_color,
     storage_path,
 )
-from taskli.models import (
-    Color,
-    Filter,
-    Priority,
-    Status,
-    TaskliItem,
-    TaskliList,
-)
+from taskli.models.attributes import Color, Priority, Status
+from taskli.models.query import Filter
+from taskli.models.tasks import TaskliItem, TaskliList
 from taskli.storage import load_config, load_list
 from utils import priority_criterion, resource_text, tag_criterion
 
@@ -666,19 +660,6 @@ class TestItemDetails:
 
         with pytest.raises(ItemNotFoundError):
             item_details("work", "9")
-
-
-class TestListNames:
-    def test_returns_names_sorted(self, taskli_env, config):
-        add("work", ["a"], {}, config)
-        add("home", ["b"], {}, config)
-
-        names = list_names()
-
-        assert names == ["home", "work"]
-
-    def test_empty_when_no_lists(self, taskli_env):
-        assert list_names() == []
 
 
 class TestListView:

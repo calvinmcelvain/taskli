@@ -5,26 +5,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from .env import resolve_storage_dir
 from .exceptions import (
     InvalidModifierValueError,
     ItemNotFoundError,
     TaskliError,
 )
 from .hierarchy import ancestor_chain, descendant_list_names
-from .models import (
-    Color,
-    Config,
+from .models import registry
+from .models.attributes import Color, Operator
+from .models.config import Config
+from .models.query import (
     Criterion,
     Filter,
-    Operator,
     Sort,
-    TaskliItem,
-    TaskliList,
     agenda_criteria,
     due_to_criteria,
-    registry,
-    walk_items,
 )
+from .models.tasks import TaskliItem, TaskliList, walk_items
 from .storage import (
     create_list,
     delete_list,
@@ -34,7 +32,6 @@ from .storage import (
     load_or_create_list,
     migrate_all,
     rename_list,
-    resolve_storage_dir,
     resort_all_lists,
     save_config,
     save_list,
@@ -825,18 +822,6 @@ def migrate() -> CommandResult:
     result.exit_code = 1 if result.warnings else 0
 
     return result
-
-
-def list_names() -> list[str]:
-    """Return every list name currently on disk.
-
-    Returns
-    -------
-    list[str]
-        Sorted list names.
-    """
-
-    return list_all_lists(resolve_storage_dir())
 
 
 def list_entries() -> list[tuple[str, Color | None]]:

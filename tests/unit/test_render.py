@@ -4,7 +4,8 @@ import pytest
 from rich.console import Console
 
 import taskli.render as render_module
-from taskli.models import Priority, TaskliList
+from taskli.models.attributes import Priority
+from taskli.models.tasks import TaskliList
 from taskli.render import (
     render_agenda,
     render_error,

@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from taskli.models import Operator, Priority, TaskliList
+from taskli.models.attributes import Operator, Priority
 from taskli.models.dates import parse_due_date
 from taskli.models.registry import (
     ATTRIBUTES,
@@ -11,6 +11,7 @@ from taskli.models.registry import (
     renderable,
     sortable,
 )
+from taskli.models.tasks import TaskliList
 from utils import add_item, freeze_today
 
 

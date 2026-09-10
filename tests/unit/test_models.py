@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from datetime import datetime
 from typing import get_args
 
@@ -11,18 +13,11 @@ from taskli.exceptions import (
     ItemNotFoundError,
     UnknownConfigKeyError,
 )
-from taskli.models import (
-    Color,
-    Config,
-    Delimters,
-    Filter,
-    Priority,
-    Status,
-    TaskliItem,
-    TaskliList,
-    path_key,
-    walk_items,
-)
+from taskli.models.attributes import Color, Priority, Status
+from taskli.models.config import Config, Delimters
+from taskli.models.paths import path_key
+from taskli.models.query import Filter
+from taskli.models.tasks import TaskliItem, TaskliList, walk_items
 from utils import (
     add_item,
     add_subtask,
@@ -1144,3 +1139,18 @@ class TestReparentItem:
         moved = todo_list.reparent_item("2", "1")
 
         assert todo_list.get_item("1.1") is moved
+
+
+class TestLazyPackage:
+    def test_import_leaves_pydantic_unloaded(self):
+        result = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "import taskli.models, sys;"
+                " sys.exit('pydantic' in sys.modules)",
+            ],
+            capture_output=True,
+        )
+
+        assert result.returncode == 0, result.stderr.decode()

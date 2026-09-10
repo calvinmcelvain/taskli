@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from . import migrations
+from .env import CONFIG_FILE_NAME, scan_list_names
 from .exceptions import (
     CorruptedConfigFileError,
     CorruptedListFileError,
@@ -21,24 +22,10 @@ from .exceptions import (
     TooManyAncestorListsError,
 )
 from .hierarchy import ancestor_chain, descendant_list_names
-from .models import Color, Config, Sort, TaskliList
-
-
-def resolve_storage_dir() -> Path:
-    """Return the directory task lists are stored in, creating it.
-
-    Returns
-    -------
-    Path
-        The storage directory, guaranteed to exist.
-    """
-
-    path = Path(os.environ.get("TASKLI_PATH", Path.home() / ".taskli"))
-    storage_dir = path.expanduser()
-
-    storage_dir.mkdir(parents=True, exist_ok=True)
-
-    return storage_dir
+from .models.attributes import Color
+from .models.config import Config
+from .models.query import Sort
+from .models.tasks import TaskliList
 
 
 def config_file_path(storage_dir: Path) -> Path:
@@ -55,7 +42,7 @@ def config_file_path(storage_dir: Path) -> Path:
         Path to the config file, `.taskli.json`.
     """
 
-    return storage_dir / ".taskli.json"
+    return storage_dir / CONFIG_FILE_NAME
 
 
 def load_config(storage_dir: Path) -> Config:
@@ -300,11 +287,7 @@ def list_all_lists(storage_dir: Path) -> list[str]:
         Sorted list names.
     """
 
-    config_path = config_file_path(storage_dir)
-
-    return sorted(
-        path.stem for path in storage_dir.glob("*.json") if path != config_path
-    )
+    return scan_list_names(storage_dir)
 
 
 def create_list(
