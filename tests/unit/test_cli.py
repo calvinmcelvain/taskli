@@ -1,13 +1,32 @@
 import argparse
+import subprocess
+import sys
 from datetime import date, datetime, timedelta
 
 import pytest
 
 from taskli.__version__ import __version__
-from taskli.cli import MODIFIER_FLAGS, main
-from taskli.models import Color, Priority, Status, registry
+from taskli.cli import MODIFIER_FLAGS, _complete_list_names, main
+from taskli.models import registry
+from taskli.models.attributes import Color, Priority, Status
 from taskli.storage import config_file_path, load_config, load_list
 from utils import resource_text
+
+
+class TestColdImport:
+    def test_import_skips_pydantic_and_rich(self):
+        result = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "import taskli.cli, sys;"
+                " sys.exit(1 if ('pydantic' in sys.modules"
+                " or 'rich' in sys.modules) else 0)",
+            ],
+            capture_output=True,
+        )
+
+        assert result.returncode == 0, result.stderr.decode()
 
 
 class TestAdd:
@@ -2284,3 +2303,11 @@ class TestCompletion:
         capsys.readouterr()
         assert len(calls) == 1
         assert isinstance(calls[0], argparse.ArgumentParser)
+
+    def test_complete_list_names_returns_seeded_names(self, taskli_env):
+        main(["alpha", "-a", "first"])
+        main(["beta", "-a", "second"])
+
+        names = _complete_list_names("", argparse.Namespace())
+
+        assert names == ["alpha", "beta"]

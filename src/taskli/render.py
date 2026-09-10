@@ -10,7 +10,11 @@ from rich.text import Text
 from rich.tree import Tree
 
 from .hierarchy import ancestor_chain
-from .models import Color, Config, TaskliItem, TaskliList, registry, today
+from .models import registry
+from .models.attributes import Color
+from .models.config import Config
+from .models.dates import today
+from .models.tasks import TaskliItem, TaskliList
 
 __all__ = [
     "render_items",

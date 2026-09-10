@@ -6,16 +6,15 @@ from taskli.exceptions import (
     InvalidConfigValueError,
     InvalidModifierValueError,
 )
-from taskli.models import (
+from taskli.models.attributes import Operator, Priority
+from taskli.models.query import (
     Criterion,
     Filter,
-    Operator,
-    Priority,
     Sort,
-    TaskliList,
     agenda_criteria,
     due_to_criteria,
 )
+from taskli.models.tasks import TaskliList
 from utils import add_item, freeze_today
 
 

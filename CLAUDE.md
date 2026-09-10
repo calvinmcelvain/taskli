@@ -35,14 +35,22 @@ Drop `--check`/`--check-only` from `black`/`isort` to auto-fix.
 Single package, `src/taskli/`, with a strict dependency direction
 (`exceptions` → `models` → `{storage, render}` → `logic` → `cli`; nothing
 later is imported by something earlier — and `logic` imports `storage`
-but never `render`). `cli` also keeps a two-name bootstrap import of
-`storage` (`resolve_storage_dir`, `load_config`) for `_dispatch`.
+but never `render`). `cli` imports `resolve_storage_dir` / `scan_list_names`
+from the `env` leaf at module scope, and takes `logic` / `render` /
+`storage.load_config` as function-local imports so the tab-completion path
+(`import taskli.cli`) skips pydantic and rich.
 `hierarchy` is a second leaf beside `exceptions` — a pure-string module
 any layer may import — and `migrations` a third (stdlib-only, operating
 on raw parsed file dicts before model validation; imported by `storage`).
+`env` is a fourth (`os` + `pathlib` only — `resolve_storage_dir` /
+`scan_list_names` / `CONFIG_FILE_NAME`; the one leaf that touches the
+filesystem, imported by `storage`, `logic`, and `cli`).
 `models` is itself a small sub-package rather than one file (with
 `attributes.py`, `dates.py`, and `paths.py` the leaves inside it and
 `registry.py` layered on `attributes.py` + `dates.py`) — see below.
+`models/__init__.py` is empty: every symbol is imported from its owning
+leaf module directly (`from .models.tasks import TaskliItem`), though the
+`registry` module stays `from .models import registry`.
 
 - **`models/`** package (`attributes.py` for `Priority`/`Color`/`Status`
   plus the `Operator` enum (`EQ`/`CONTAINS`/`LT`/`GTE`) and its `compare()`,
@@ -126,7 +134,7 @@ on raw parsed file dicts before model validation; imported by `storage`).
   limit, it does not reach item paths). There is no `progress` / rollup
   property — completion shows through the indented child rows and their
   own state markers. Module helper `walk_items(items) -> list[TaskliItem]`
-  (pre-order DFS flatten, re-exported from `taskli.models`) is what
+  (pre-order DFS flatten, exposed by `taskli.models.tasks`) is what
   `TaskliList.get_item` and the model's own lookups iterate (`render`
   walks its own `_task_rows` tree instead, #104). `TaskliList` also carries
   `view_only: bool` (`Field(default=False, exclude=True)`) — a
@@ -316,9 +324,20 @@ on raw parsed file dicts before model validation; imported by `storage`).
   `tk --migrate` (`storage.migrate_all` → `logic.migrate`) is the only
   thing that rewrites an outdated file; `load_*` raises instead of
   healing.
+- **`env.py`** — stdlib-only leaf beside `hierarchy.py` / `migrations.py` /
+  `exceptions.py` (imports only `os` / `pathlib`, nothing from the package),
+  and the one leaf that touches the filesystem: `CONFIG_FILE_NAME`
+  (`.taskli.json`), `resolve_storage_dir() -> Path` (expands `TASKLI_PATH`
+  or `~/.taskli` and `mkdir`s it), and `scan_list_names(storage_dir) ->
+  list[str]` (a sorted `glob("*.json")` stem scan excluding the config
+  file). It exists so `cli.py`'s parser / tab-completion path
+  (`import taskli.cli`) can resolve the storage dir and enumerate list
+  names without importing `storage.py` — and therefore pydantic.
+  `storage.config_file_path` / `storage.list_all_lists` delegate to it, and
+  `logic.py` / `cli.py` import `resolve_storage_dir` from `env` directly.
 - **`storage.py`** — filesystem persistence. Each list is one JSON file at
   `$TASKLI_PATH/<name>.json` (`TASKLI_PATH` defaults to `~/.taskli`,
-  resolved by `resolve_storage_dir`). List names double as both the on-disk
+  resolved by `env.resolve_storage_dir`). List names double as both the on-disk
   filename and the sublist path: `work.meetings` is a real file
   `work.meetings.json`, not a directory — `hierarchy.py`'s
   `ancestor_chain`/`parent_list_name`/`child_list_names`/
@@ -445,7 +464,7 @@ on raw parsed file dicts before model validation; imported by `storage`).
   reuses `_task_rows`/`_task_cell` for the child tree. The `due` row calls
   `_due_display(item)` (shared with `render_agenda`) and appends a
   relative-day hint from module-local `_relative_due`, which reads the
-  `today()` seam (`from .models import today`).
+  `today()` seam (`from .models.dates import today`).
   `render_list_names` picks each node's style with a `bold` bool
   (`i == default_name`) fed to `_label`, not the old
   `_add_bold`-vs-`_add_color` function reference. `render_error`,
@@ -545,6 +564,16 @@ on raw parsed file dicts before model validation; imported by `storage`).
   `_compose_parser`; every command is a flag, so there's no
   `argv[0]`-based dispatch and no reserved bare word a list name could
   collide with.
+  - `logic` / `render` / `storage.load_config` are **function-local
+    imports**, so the argcomplete / tab-completion path (`import
+    taskli.cli`, reached on every `<TAB>`) never loads pydantic or rich —
+    module scope imports only `.__version__`, `.exceptions`, `.env`
+    (`resolve_storage_dir` / `scan_list_names`), `.models` (`registry`),
+    and the pydantic-free `models` leaves (`attributes`, `paths`,
+    `query`); `Config` / `TaskliList` / `CommandResult` annotations are
+    quoted forward refs under `TYPE_CHECKING`. `_complete_list_names`
+    enumerates list names via `env.scan_list_names(resolve_storage_dir())`,
+    not `logic`.
   - `list` is the only positional (defaults to `config.default_list`
     when omitted). Flags fall into four **option groups**, each backed
     by its own enum: list management (`ListCommands` —
@@ -632,7 +661,7 @@ on raw parsed file dicts before model validation; imported by `storage`).
     additionally rejects giving both `--tag` (replaces) and `--add-tag`
     (appends) in the same call; `-mv`/`--copy` reject every modifier too
     and additionally validate that every id after `TARGET_LIST` parses
-    as a dotted item path via `models.path_key` (error "ID must be an
+    as a dotted item path via `models.paths.path_key` (error "ID must be an
     item path like 1 or 1.2.", exit 2), since `nargs="+"` can't
     type-check the list itself.
   - `-d`/`-u`/`-i`/`-rm` (and `-e`/`-D`) no longer carry `type=int` — an id is

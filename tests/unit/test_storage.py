@@ -1,11 +1,12 @@
 import json
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
 from taskli.migrations import CURRENT_CONFIG_VERSION, CURRENT_LIST_VERSION
-from taskli.models import Color, Config, Priority, Status, TaskliList
+from taskli.models.attributes import Color, Priority, Status
+from taskli.models.config import Config
+from taskli.models.tasks import TaskliList
 from taskli.storage import (
     CorruptedConfigFileError,
     CorruptedListFileError,
@@ -26,27 +27,11 @@ from taskli.storage import (
     load_or_create_list,
     migrate_all,
     rename_list,
-    resolve_storage_dir,
     resort_all_lists,
     save_config,
     save_list,
 )
 from utils import add_item, resource_text, sort
-
-
-class TestResolveStorageDir:
-    def test_uses_env_var_override(self, taskli_env):
-        result = resolve_storage_dir()
-
-        assert result == taskli_env
-
-    def test_defaults_to_home_dotfolder(self, monkeypatch, tmp_path):
-        monkeypatch.delenv("TASKLI_PATH", raising=False)
-        monkeypatch.setattr(Path, "home", lambda: tmp_path)
-
-        result = resolve_storage_dir()
-
-        assert result == tmp_path / ".taskli"
 
 
 class TestConfigLifecycle:

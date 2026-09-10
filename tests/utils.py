@@ -7,15 +7,10 @@ from typing import Any
 
 import pytest
 
-from taskli.models import (
-    Criterion,
-    Operator,
-    Priority,
-    Sort,
-    SortBy,
-    TaskliItem,
-    TaskliList,
-)
+from taskli.models.attributes import Operator, Priority
+from taskli.models.config import SortBy
+from taskli.models.query import Criterion, Sort
+from taskli.models.tasks import TaskliItem, TaskliList
 
 _RESOURCES = Path(__file__).parent / "resources"
 
