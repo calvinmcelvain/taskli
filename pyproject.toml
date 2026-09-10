@@ -22,7 +22,7 @@ classifiers = [
 dependencies = [
     "rich>=13.0",
     "pydantic>=2.0",
-    "argcomplete>=3.0",
+    "argcomplete>=3.0,<4",
 ]
 
 [project.urls]
@@ -50,6 +50,7 @@ path = "src/taskli/__version__.py"
 include = [
     "/src",
     "/tests",
+    "/completions",
     "README.md",
 ]
 exclude = [
@@ -63,6 +64,9 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/taskli"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"completions" = "share/taskli/completions"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -159,7 +163,7 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "S603"]
 
 [tool.mypy]
 warn_return_any = true

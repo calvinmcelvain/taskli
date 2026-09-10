@@ -104,6 +104,13 @@ cli → logic → {render, storage} → models/ → exceptions
   for anything touching storage. CLI tests call `taskli.cli.main(argv)` directly
   and assert on return code + `capsys`. JSON fixtures live in `tests/resources/`,
   loaded via `tests/utils.py`.
+- `completions/` holds the **verbatim** `register-python-argcomplete` output
+  (`taskli.sh` for bash/zsh, `taskli.ps1` for PowerShell) — not hand-edited.
+  Provenance, the regeneration commands, and the generated-with `argcomplete`
+  version live in `completions/README.md`; `tests/test_completions.py` guards
+  the committed files against a fresh generation (version-gated on
+  `EXPECTED_ARGCOMPLETE`). `pyproject.toml` ships the dir in the sdist and maps
+  it into the wheel at `<prefix>/share/taskli/completions/`.
 
 ## Workflow
 
