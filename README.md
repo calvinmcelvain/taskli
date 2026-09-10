@@ -102,47 +102,44 @@ pipx install . --force
 
 **Taskli** ships [`argcomplete`](https://github.com/kislyuk/argcomplete)-based
 tab-completion for subcommands, flags, flag values (`--color`, `--priority`),
-and the names of lists you've already created. It needs a one-time shell
-registration. Freeform-value flags (`--due`, `--desc`, `-t/--text`) take no
-completion.
+and the names of lists you've already created. Freeform-value flags (`--due`,
+`--desc`, `-t/--text`) take no completion.
+
+The shim scripts are pre-generated — checked into `completions/` and installed
+to `<prefix>/share/taskli/completions/` — so there's no per-terminal
+generation cost and nothing needs to be on your `PATH`. You `source` one
+script, once, from your shell rc.
 
 ### Enable it
 
-Register `tk` (and `taskli`) per shell — add this to your `~/.bashrc` /
-`~/.zshrc`, then start a new shell:
+**bash** — add to `~/.bashrc`:
 
 ```bash
-eval "$(register-python-argcomplete tk)"
-eval "$(register-python-argcomplete taskli)"
+# from a source checkout
+source /path/to/taskli/completions/taskli.sh
+# installed via pipx
+source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
 ```
 
-`register-python-argcomplete` ships with the `argcomplete` package.
-Whether it's on your `PATH` depends on the install:
+**zsh** — add the same line to `~/.zshrc`, but it **must come after
+`compinit`**. When sourced (rather than placed on `fpath`), the script falls
+through to `compdef _python_argcomplete tk taskli`, which needs the completion
+system already initialized.
 
-- **Editable / venv install** (`pip install -e ".[dev]"`): it's already
-  on `PATH` whenever that venv is active.
-- **pipx install**: `pipx` keeps `argcomplete` inside `taskli`'s isolated
-  venv, off your `PATH`. Either `pipx install argcomplete` (puts the
-  script on `PATH` directly) or inject it and call the script by full
-  path:
+```zsh
+autoload -Uz compinit && compinit
+source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
+```
 
-  ```bash
-  pipx inject taskli argcomplete
-  VENV="$(pipx environment --value PIPX_LOCAL_VENVS)/taskli"
-  eval "$("$VENV/bin/register-python-argcomplete" tk)"
-  ```
+**PowerShell** — dot-source the `.ps1` into `$PROFILE` (PowerShell uses
+`. path`, not `source`):
 
-### Troubleshooting
+```powershell
+. "$(pipx environment --value PIPX_LOCAL_VENVS)\taskli\share\taskli\completions\taskli.ps1"
+# or, from a source checkout, the path to completions\taskli.ps1
+```
 
-Don't use `activate-global-python-argcomplete` for `tk` — it won't work.
-The global hook scans the installed script's first ~1 KB for a
-`# PYTHON_ARGCOMPLETE_OK` marker; `taskli`'s marker is in `cli.py`, and
-neither the generated `tk` console script nor the pipx shim
-(`~/.local/bin/tk`) carries one, so the global hook skips it. Per-shell
-`register-python-argcomplete` needs no marker and is the reliable route
-for every install method.
-
-Once registered, completion works as you'd expect:
+Start a new shell, and completion works as you'd expect:
 
 ```bash
 tk gro<TAB>                   # -> tk groceries
