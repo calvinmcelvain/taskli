@@ -5,7 +5,7 @@ import pytest
 
 from taskli.__version__ import __version__
 from taskli.cli import MODIFIER_FLAGS, main
-from taskli.models import Color, Priority, registry
+from taskli.models import Color, Priority, Status, registry
 from taskli.storage import config_file_path, load_config, load_list
 from utils import resource_text
 
@@ -75,7 +75,7 @@ class TestAdd:
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "not allowed with argument" in captured.err
+        assert "cannot be combined with" in captured.err
 
     def test_uses_configured_default_priority(self, taskli_env, capsys):
         main(["--config", "default_priority", "high"])
@@ -523,6 +523,117 @@ class TestDoneUndoneRemove:
         )
         task_list = load_list(taskli_env, "work")
         assert [item.text for item in task_list.items] == ["b", "d"]
+
+
+class TestCombinedActions:
+    def test_all_four_flags_in_one_call(self, taskli_env, capsys):
+        for text in ("a", "b", "c", "d", "e"):
+            main(["work", "-a", text])
+        capsys.readouterr()
+
+        exit_code = main(
+            ["work", "-d", "1", "4", "-i", "2", "-u", "3", "-rm", "5"]
+        )
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        for fragment in (
+            "marked #1 done",
+            "marked #4 done",
+            "marked #2 in progress",
+            "marked #3 not done",
+            "removed #5",
+        ):
+            assert fragment in captured.out
+        task_list = load_list(taskli_env, "work")
+        statuses = [item.status for item in task_list.items]
+        assert statuses == [
+            Status.DONE,
+            Status.IN_PROGRESS,
+            Status.TODO,
+            Status.DONE,
+        ]
+
+    def test_mark_then_remove_same_call(self, taskli_env, capsys):
+        for text in ("a", "b", "c"):
+            main(["work", "-a", text])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-d", "1", "-rm", "3"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "marked #1 done" in captured.out
+        assert "removed #3" in captured.out
+
+    def test_cross_flag_duplicate_id_errors(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-d", "2", "-i", "2"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "id 2 given to more than one action flag." in captured.err
+
+    def test_cross_flag_duplicate_id_errors_reversed(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-rm", "2", "-d", "2"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "id 2 given to more than one action flag." in captured.err
+
+    def test_within_flag_duplicate_stays_silent(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-d", "1", "1"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.out.count("marked #1 done") == 1
+
+    @pytest.mark.parametrize(
+        "other",
+        [
+            ["-a", "x"],
+            ["-e", "1"],
+            ["-D", "1"],
+            ["-mv", "other"],
+            ["--copy", "other"],
+        ],
+        ids=["add", "edit", "details", "move", "copy"],
+    )
+    def test_conflict_with_other_item_action_errors(
+        self, taskli_env, capsys, other
+    ):
+        exit_code = main(["work", "-d", "1", *other])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "cannot be combined with" in captured.err
+
+    def test_modifier_rejected(self, taskli_env, capsys):
+        exit_code = main(["work", "-d", "1", "-i", "2", "--tag", "urgent"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "no modifiers are valid" in captured.err
+
+    def test_missing_id_across_flags_taints_exit(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-d", "1", "-i", "99"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "99" in captured.out
+        task_list = load_list(taskli_env, "work")
+        assert task_list.items[0].status is Status.DONE
 
 
 class TestEdit:

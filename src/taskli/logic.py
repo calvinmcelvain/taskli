@@ -272,9 +272,7 @@ def mark_done(
         One message per marked id, one warning per missing id.
     """
 
-    return _batch_mark(
-        list_name, item_ids, config, TaskliList.mark_done_ref, "done"
-    )
+    return batch_actions(list_name, config, done=item_ids)
 
 
 def mark_undone(
@@ -297,9 +295,7 @@ def mark_undone(
         One message per marked id, one warning per missing id.
     """
 
-    return _batch_mark(
-        list_name, item_ids, config, TaskliList.mark_undone_ref, "not done"
-    )
+    return batch_actions(list_name, config, undone=item_ids)
 
 
 def mark_in_progress(
@@ -322,13 +318,7 @@ def mark_in_progress(
         One message per marked id, one warning per missing id.
     """
 
-    return _batch_mark(
-        list_name,
-        item_ids,
-        config,
-        TaskliList.mark_in_progress_ref,
-        "in progress",
-    )
+    return batch_actions(list_name, config, in_progress=item_ids)
 
 
 def _resolve_items(
@@ -374,26 +364,70 @@ def _resolve_items(
     return resolved, warnings
 
 
-def _batch_mark(
+def batch_actions(
     list_name: str,
-    item_ids: list[str],
     config: Config,
-    mark: Callable[[TaskliList, TaskliItem], object],
-    label: str,
+    *,
+    done: list[str] | None = None,
+    undone: list[str] | None = None,
+    in_progress: list[str] | None = None,
+    remove: list[str] | None = None,
 ) -> CommandResult:
-    """Apply ``mark`` to each resolved item, collecting messages/warnings."""
+    """Apply status marks and removals to one list in a single pass.
+
+    Parameters
+    ----------
+    list_name : str
+        The list holding the items.
+    config : Config
+        The active config, for the display name.
+    done, undone, in_progress : list[str] | None
+        Ids to mark done / not done / in progress, respectively.
+    remove : list[str] | None
+        Ids to remove, each with its whole subtree.
+
+    Returns
+    -------
+    CommandResult
+        One message per acted-on id, one warning per missing id; the
+        exit code is 1 when any id was missing.
+
+    Notes
+    -----
+    Marks are applied before removals so a removed subtree's cascade and
+    reindex cannot strand a just-marked reference. An id under both a
+    mark flag and ``remove`` (only possible via distinct raw strings, as
+    ``-d 1.1 -rm 1``) is honoured for both -- the CLI rejects the same
+    raw string under two flags before this is called.
+    """
+
+    marks = [
+        (TaskliList.mark_done_ref, "done", done or []),
+        (TaskliList.mark_in_progress_ref, "in progress", in_progress or []),
+        (TaskliList.mark_undone_ref, "not done", undone or []),
+    ]
 
     storage_dir = resolve_storage_dir()
     task_list = load_list(storage_dir, list_name)
     display_name = task_list.display_name(config.sublist_delimiter)
 
     result = CommandResult()
-    resolved, result.warnings = _resolve_items(task_list, item_ids)
+    for mark, label, ids in marks:
+        resolved, warnings = _resolve_items(task_list, ids)
+        result.warnings.extend(warnings)
+        for item_id, item in resolved:
+            mark(task_list, item)
+            result.messages.append(
+                f"marked #{item_id} {label} in '{display_name}'."
+            )
+
+    resolved, warnings = _resolve_items(
+        task_list, remove or [], drop_covered=True
+    )
+    result.warnings.extend(warnings)
     for item_id, item in resolved:
-        mark(task_list, item)
-        result.messages.append(
-            f"marked #{item_id} {label} in '{display_name}'."
-        )
+        task_list.remove_item_ref(item)
+        result.messages.append(f"removed #{item_id} from '{display_name}'.")
 
     save_list(storage_dir, task_list)
     result.item_view = task_list
@@ -422,23 +456,7 @@ def remove_items(
         One message per removed id, one warning per missing id.
     """
 
-    storage_dir = resolve_storage_dir()
-    task_list = load_list(storage_dir, list_name)
-    display_name = task_list.display_name(config.sublist_delimiter)
-
-    result = CommandResult()
-    resolved, result.warnings = _resolve_items(
-        task_list, item_ids, drop_covered=True
-    )
-    for item_id, item in resolved:
-        task_list.remove_item_ref(item)
-        result.messages.append(f"removed #{item_id} from '{display_name}'.")
-
-    save_list(storage_dir, task_list)
-    result.item_view = task_list
-    result.exit_code = 1 if result.warnings else 0
-
-    return result
+    return batch_actions(list_name, config, remove=item_ids)
 
 
 def move(

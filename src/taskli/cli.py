@@ -111,10 +111,7 @@ class ConfigCommands(StrEnum):
 
 class ItemActionCommands(StrEnum):
     ADD = "add"
-    REMOVE = "remove"
-    DONE = "done"
-    UNDONE = "undone"
-    IN_PROGRESS = "in_progress"
+    STATUS = "status"
     EDIT = "edit"
     MOVE = "move"
     COPY = "copy"
@@ -364,7 +361,10 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         metavar="TEXT",
         help="Add an item to LIST. Repeatable for multiple items.",
     )
-    ops.add_argument(
+    # -d/-i/-u/-rm sit on the plain group, not `ops`: they combine with
+    # each other in one invocation (resolved as ItemActionCommands.STATUS),
+    # and `_validate` rejects pairing them with -a/-e/-D/-mv/--copy.
+    actions_group.add_argument(
         "-rm",
         "--remove",
         dest="remove",
@@ -372,7 +372,7 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         metavar="ID",
         help="Remove an item, or items, from LIST.",
     )
-    ops.add_argument(
+    actions_group.add_argument(
         "-d",
         "--done",
         dest="done",
@@ -380,7 +380,7 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         metavar="ID",
         help="Mark an item, or items, as done.",
     )
-    ops.add_argument(
+    actions_group.add_argument(
         "-u",
         "--undone",
         dest="undone",
@@ -388,7 +388,7 @@ def _register_item_action_args(parser: argparse.ArgumentParser) -> None:
         metavar="ID",
         help="Mark an item, or items, as not done.",
     )
-    ops.add_argument(
+    actions_group.add_argument(
         "-i",
         "--in-progress",
         dest="in_progress",
@@ -536,16 +536,17 @@ def _resolve_list_op(namespace: argparse.Namespace) -> ListCommands | None:
 def _resolve_item_action_op(
     namespace: argparse.Namespace,
 ) -> ItemActionCommands | None:
+    # STATUS first: a -a/-e/... paired with -d/-i/-u/-rm must land in the
+    # STATUS validation case so `_validate` can name the real conflict.
+    if (
+        namespace.done
+        or namespace.undone
+        or namespace.in_progress
+        or namespace.remove
+    ):
+        return ItemActionCommands.STATUS
     if namespace.add:
         return ItemActionCommands.ADD
-    if namespace.remove:
-        return ItemActionCommands.REMOVE
-    if namespace.done:
-        return ItemActionCommands.DONE
-    if namespace.undone:
-        return ItemActionCommands.UNDONE
-    if namespace.in_progress:
-        return ItemActionCommands.IN_PROGRESS
     if namespace.edit:
         return ItemActionCommands.EDIT
     if namespace.details:
@@ -666,19 +667,49 @@ def _validate(
                 "--all is not valid with -e/--edit.",
                 {"priority", "tag", "add_tag", "text", "due", "desc", "under"},
             )
-        case (
-            ItemActionCommands.REMOVE
-            | ItemActionCommands.DONE
-            | ItemActionCommands.UNDONE
-            | ItemActionCommands.IN_PROGRESS
-            | ItemActionCommands.DETAILS
-        ):
+        case ItemActionCommands.DETAILS:
             _reject_modifiers(
                 namespace,
                 parser,
                 f"no modifiers are valid with --{op.value}.",
                 set(),
             )
+        case ItemActionCommands.STATUS:
+            # -d/-i/-u/-rm are the one item action off the exclusive
+            # `ops` group, so argparse no longer guards them against a
+            # second item action -- re-resolve with the status flags
+            # blanked to catch any other one, without hardcoding the
+            # list. conflict first: for `-e 1 --text x -d 2` the real
+            # problem is -e + -d, not the modifier.
+            others = argparse.Namespace(**vars(namespace))
+            others.done = others.undone = None
+            others.in_progress = others.remove = None
+            if _resolve_item_action_op(others) is not None:
+                parser.error(
+                    "-d/-i/-u/-rm cannot be combined with"
+                    " -a/-e/-D/-mv/--copy."
+                )
+            _reject_modifiers(
+                namespace,
+                parser,
+                "no modifiers are valid with -d/-i/-u/-rm.",
+                set(),
+            )
+            seen: dict[str, str] = {}
+            groups = {
+                "-d": namespace.done or [],
+                "-i": namespace.in_progress or [],
+                "-u": namespace.undone or [],
+                "-rm": namespace.remove or [],
+            }
+            for flag, ids in groups.items():
+                for item_id in ids:
+                    if seen.get(item_id, flag) != flag:
+                        parser.error(
+                            f"id {item_id} given to more than one action"
+                            " flag."
+                        )
+                    seen.setdefault(item_id, flag)
         case ItemActionCommands.MOVE | ItemActionCommands.COPY:
             ids = (
                 namespace.move
@@ -753,16 +784,15 @@ def _run_item_action(
                 config,
                 parent_path=namespace.under,
             )
-        case ItemActionCommands.DONE:
-            return logic.mark_done(list_name, namespace.done, config)
-        case ItemActionCommands.UNDONE:
-            return logic.mark_undone(list_name, namespace.undone, config)
-        case ItemActionCommands.IN_PROGRESS:
-            return logic.mark_in_progress(
-                list_name, namespace.in_progress, config
+        case ItemActionCommands.STATUS:
+            return logic.batch_actions(
+                list_name,
+                config,
+                done=namespace.done,
+                undone=namespace.undone,
+                in_progress=namespace.in_progress,
+                remove=namespace.remove,
             )
-        case ItemActionCommands.REMOVE:
-            return logic.remove_items(list_name, namespace.remove, config)
         case ItemActionCommands.MOVE:
             target, *ids = namespace.move
             target_name = target.replace(config.sublist_delimiter, ".")

@@ -96,7 +96,10 @@ cli → logic → {render, storage} → models/ → exceptions
 This repo runs the `issue-gated` workflow (`.claude/WORKFLOW.md`): every change
 traces to a GitHub issue, goes through plan mode with a `### Task N` breakdown,
 is built by `implementer` agents, and passes `/check` (format, lint, tests,
-`reviewer`) before `/pr`. Claude never commits or pushes. Local config — the
+`reviewer`) before `/pr`. Claude never commits or pushes. Commit messages and
+PR descriptions carry **no Claude attribution** — no `Co-Authored-By: Claude`,
+no `Claude-Session:` trailer, no "Generated with Claude Code" footer, no
+`claude.ai/code` link. Draft them as the user would. Local config — the
 check commands, source glob, `GH_REPO` (`calvinmcelvain/taskli`), architecture
 rules, and `doc_drift` watch paths — lives in `.claude/project.json`,
 `.claude/settings.local.json`, and `.claude/ARCHITECTURE.md`.

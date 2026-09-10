@@ -8,6 +8,7 @@ from taskli.logic import (
     add,
     agenda,
     all_views,
+    batch_actions,
     check_reminders,
     copy,
     delete_confirmed,
@@ -249,6 +250,60 @@ class TestRemoveItems:
         assert result.exit_code == 0
         assert result.messages == ["removed #1 from 'work'."]
         assert result.item_view.items == []
+
+
+class TestBatchActions:
+    def test_marks_run_before_removals(self, taskli_env, config):
+        add("work", ["a", "b", "c", "d"], {}, config)
+
+        result = batch_actions(
+            "work", config, done=["1"], in_progress=["2"], remove=["4"]
+        )
+
+        assert result.exit_code == 0
+        assert result.messages == [
+            "marked #1 done in 'work'.",
+            "marked #2 in progress in 'work'.",
+            "removed #4 from 'work'.",
+        ]
+        items = result.item_view.items
+        assert [item.text for item in items] == ["a", "b", "c"]
+        assert items[0].status is Status.DONE
+        assert items[1].status is Status.IN_PROGRESS
+
+    def test_missing_id_taints_exit_other_groups_applied(
+        self, taskli_env, config
+    ):
+        add("work", ["a", "b"], {}, config)
+
+        result = batch_actions("work", config, done=["1"], remove=["99"])
+
+        assert result.exit_code == 1
+        assert result.messages == ["marked #1 done in 'work'."]
+        assert len(result.warnings) == 1
+        assert result.item_view.items[0].status is Status.DONE
+
+    def test_ancestor_removal_after_descendant_mark(self, taskli_env, config):
+        add("work", ["parent"], {}, config)
+        add("work", ["child"], {}, config, parent_path="1")
+
+        result = batch_actions("work", config, done=["1.1"], remove=["1"])
+
+        assert result.exit_code == 0
+        assert result.messages == [
+            "marked #1.1 done in 'work'.",
+            "removed #1 from 'work'.",
+        ]
+        assert result.item_view.items == []
+
+    def test_empty_call_is_noop(self, taskli_env, config):
+        add("work", ["a"], {}, config)
+
+        result = batch_actions("work", config)
+
+        assert result.exit_code == 0
+        assert result.messages == []
+        assert [item.text for item in result.item_view.items] == ["a"]
 
 
 class TestMove:

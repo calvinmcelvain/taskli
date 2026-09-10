@@ -58,6 +58,11 @@ for both the Bash and PowerShell tools. Staging, branching, diff and log remain
 available. `/pr` prepares the title and body and hands the push/create commands back
 to you.
 
+Commit messages and PR descriptions carry **no Claude attribution** — no
+`Co-Authored-By: Claude`, no `Claude-Session:` trailer, no "Generated with Claude
+Code" footer, no `claude.ai/code` link — even when session-level guidance asks
+for one. Drafts read as the user wrote them.
+
 ---
 
 ## 4. CLAUDE.md is checked against reality
@@ -166,3 +171,4 @@ at session end — never automatic mid-session.
 - Commits / PR titles: `type: Sentence-case description`. Optional scope:
   `fix(build):`.
 - Issue linkage lives in the PR body's `Closes #N`, not in the commit message.
+- No Claude attribution in commit messages or PR bodies (see §3).
