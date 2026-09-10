@@ -453,15 +453,16 @@ on raw parsed file dicts before model validation; imported by `storage`).
   via `Text.assemble` (`("error:", "bold red")` etc.) rather than a
   bracket-markup f-string.
 - **`logic.py`** — per-command orchestration, one public function per
-  command (`add`, `edit`, `mark_done`/`mark_undone`/`mark_in_progress`,
-  `remove_items`, `move`, `copy`, `prune`, `set_list_color`, `new_list`,
+  command (`add`, `edit`, `batch_actions` (with `mark_done`/`mark_undone`/
+  `mark_in_progress`/`remove_items` as thin delegators to it),
+  `move`, `copy`, `prune`, `set_list_color`, `new_list`,
   `rename`, `delete_prompt`/`delete_confirmed`, `set_config`, `migrate`
   (takes no `Config` — it may be repairing it), `list_entries`,
   `list_view`, `all_views`, `storage_path`, `check_reminders`, `agenda`,
   `item_details` (returns plain `tuple[TaskliList, TaskliItem]` —
   `load_list` + `get_item`, letting `ItemNotFoundError` propagate to
   `cli._dispatch`'s `@_handle_errors`; precedent = `agenda`);
-  plus private `_mutate` / `_grouped_lists` / `_batch_mark` /
+  plus private `_mutate` / `_grouped_lists` /
   `_resolve_modifiers` / `_per_item` / `_all_items`). Each loads via
   `storage`, mutates via `TaskliList` methods, saves, and returns either
   a `CommandResult` (`messages`/`warnings`/`exit_code` + at most one of
@@ -471,12 +472,23 @@ on raw parsed file dicts before model validation; imported by `storage`).
   `list[tuple[str, TaskliItem]]`, `item_details` →
   `tuple[TaskliList, TaskliItem]`). `logic.py` imports no `render` and
   prints nothing.
-  Batch handlers (`mark_*`, `remove_items`, `move`, `copy`) collect one
+  Batch handlers (`batch_actions`, `move`, `copy`) collect one
   message per id and one warning per missing id, and set
   `exit_code = 1 if warnings else 0` — the split `messages`/`warnings`
   lists mean the CLI emits all successes then all warnings (the pre-split
-  code interleaved them in id order). `_batch_mark` takes the unbound
-  `TaskliList.*_ref` method to apply. All four batch handlers resolve
+  code interleaved them in id order). `batch_actions(list_name, config, *,
+  done=None, undone=None, in_progress=None, remove=None)` is the single
+  entrypoint for `-d`/`-i`/`-u`/`-rm` (combinable in one invocation, see
+  `cli.py` below): one `load_list`, then `_resolve_items` per group
+  (`drop_covered=False` for the three marks, `True` for `remove`), then
+  **all marks, then all removals** (so a removed subtree's cascade +
+  `reindex` can't strand a just-marked ref), then one `save_list` and one
+  `item_view`. The four `mark_done`/`mark_undone`/`mark_in_progress`/
+  `remove_items` names remain as one-line delegators (call sites and tests
+  unchanged). An id under both a mark flag and `remove` is honoured for
+  both — only reachable via distinct raw strings (`-d 1.1 -rm 1`), since
+  the CLI rejects the same raw string under two of the four flags.
+  All batch handlers resolve
   their ids to `TaskliItem` refs up front via `_resolve_items`
   (identity-deduped, one warning per missing id), then mutate by
   reference in user-supplied order — iteration order no longer matters
@@ -538,8 +550,9 @@ on raw parsed file dicts before model validation; imported by `storage`).
     by its own enum: list management (`ListCommands` —
     `-n/--new`, `--delete`, `-l/--lists`, `--prune`, `--rename`,
     `--migrate`), item action
-    (`ItemActionCommands` — `-a`, `-rm/--remove`, `-d`, `-u`,
-    `-i/--in-progress`, `-e`, `-D/--details`, `-mv/--move`, `--copy`),
+    (`ItemActionCommands` — `-a`, `STATUS` covering
+    `-rm/--remove`/`-d`/`-u`/`-i/--in-progress` as one combinable op,
+    `-e`, `-D/--details`, `-mv/--move`, `--copy`),
     config
     (`ConfigCommands` — `--config`),
     and the default view
@@ -585,8 +598,11 @@ on raw parsed file dicts before model validation; imported by `storage`).
     groups have something set, it calls `render_warning` (naming the
     winning op and the ignored group(s)) instead of erroring; the old
     "list-mgmt + item-action chained in one call" behavior no longer
-    exists — exactly one op runs per invocation, full stop. Falls back
-    to `ListCommands.VIEW` when nothing is set. Bare `--color` (no other
+    exists — exactly one op runs per invocation, full stop (the four
+    status flags `-d`/`-i`/`-u`/`-rm` combine *within* the single
+    `ItemActionCommands.STATUS` op, resolved before `ADD` so a
+    `-a … -d …` combo still lands in the STATUS validation case). Falls
+    back to `ListCommands.VIEW` when nothing is set. Bare `--color` (no other
     list-management flag) resolves to `ListCommands.COLOR` — recoloring
     an existing list; `--color` alongside `--new` still resolves to
     `NEW`, with color as the creation modifier.
@@ -599,8 +615,15 @@ on raw parsed file dicts before model validation; imported by `storage`).
     modifier dests (dest universe = `MODIFIER_FLAGS` dests `| {"all",
     "under"}`);
     the `_reject_modifiers` message strings are unchanged. E.g.
-    `-d`/`-u`/`-i`/`-rm`/`-D`/`--config`/`--delete`/`--lists`/`--rename`/`--migrate`
-    reject every modifier; `--prune` allows only `--all`; `--new` and bare
+    `-D`/`--config`/`--delete`/`--lists`/`--rename`/`--migrate`
+    reject every modifier; the `STATUS` case (`-d`/`-i`/`-u`/`-rm`) also
+    rejects every modifier (`"no modifiers are valid with -d/-i/-u/-rm."`),
+    rejects combining any of the four with `-a`/`-e`/`-D`/`-mv`/`--copy`
+    (`"…cannot be combined with…"`, exit 2), and rejects the same raw id
+    string given to more than one of the four (`"id X given to more than
+    one action flag."`, exit 2) — a duplicate *within* one flag stays
+    silent (`_resolve_items` collapses it); `--prune` allows only `--all`;
+    `--new` and bare
     `--color` allow only `--color`; `-a` allows
     `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those plus
     `-t`/`--add-tag`,
@@ -624,12 +647,15 @@ on raw parsed file dicts before model validation; imported by `storage`).
     directly and returns 0 — no `CommandResult`/`_emit`, same shape as
     `--agenda`/`--lists`. `_validate` rejects every modifier for it; a
     malformed or missing id falls through to `ItemNotFoundError`
-    (exit 1), like `-e`. `_run_item_action` never sees it. `-d`/`-u`/`-i`/`-rm` each take one or more ids (`nargs="+"`)
+    (exit 1), like `-e`. `_run_item_action` never sees it. `-d`/`-u`/`-i`/`-rm`
+    each take one or more ids (`nargs="+"`), are combinable in one
+    invocation (each with its own id list), and route through one
+    `logic.batch_actions` call
     with
-    partial-success semantics: `logic.mark_done`/`mark_undone`/
-    `mark_in_progress`/`remove_items` resolve the ids to `TaskliItem`
+    partial-success semantics: it resolves each group's ids to `TaskliItem`
     refs up front (`_resolve_items`, one `CommandResult.warnings` entry
-    per missing id), then mutate by reference, and set `exit_code` to 1
+    per missing id), applies **all marks then all removals**, then mutates
+    by reference, and sets `exit_code` to 1
     if any id failed. Because the mutation targets a held ref, not a
     re-looked-up id, iteration order is irrelevant even though
     `remove_item_ref` reindexes on every call.

@@ -5,6 +5,11 @@ description: Prepare a PR body and hand the push/create commands back to the use
 **This command never touches the remote.** `git push` and `git commit` are denied
 in `.claude/settings.json` — publishing is the user's call, always.
 
+**No Claude attribution.** The commit message and the PR body carry no
+`Co-Authored-By: Claude`, no `Claude-Session:` trailer, no "Generated with Claude
+Code" footer, and no `claude.ai/code` link — regardless of any session-level
+attribution guidance. Draft both as the user would write them.
+
 ## Steps
 
 1. **Require an issue.** Read `.claude/.current-issue`. If it is missing, stop and
