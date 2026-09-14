@@ -3,7 +3,11 @@ from datetime import date, datetime
 import pytest
 
 from taskli.exceptions import InvalidModifierValueError
-from taskli.models.dates import parse_agenda_window, parse_due_date
+from taskli.models.dates import (
+    DUE_DATE_KEYWORDS,
+    parse_agenda_window,
+    parse_due_date,
+)
 from utils import freeze_today
 
 
@@ -19,8 +23,8 @@ class TestParseDueDate:
             ("today", datetime(2026, 3, 10)),
             ("  TODAY ", datetime(2026, 3, 10)),
             ("tomorrow", datetime(2026, 3, 11)),
-            ("next week", datetime(2026, 3, 17)),
-            ("Next Week", datetime(2026, 3, 17)),
+            ("next-week", datetime(2026, 3, 17)),
+            ("Next-Week", datetime(2026, 3, 17)),
             ("1 day", datetime(2026, 3, 11)),
             ("3 days", datetime(2026, 3, 13)),
             ("1 week", datetime(2026, 3, 17)),
@@ -90,11 +94,15 @@ class TestParseDueDate:
 
         assert "today" in message
         assert "tomorrow" in message
-        assert "next week" in message
+        assert "next-week" in message
         assert "N days" in message
         assert "N weeks" in message
         assert "weekday" in message
         assert "MM-DD-YYYY" in message
+
+    @pytest.mark.parametrize("keyword", DUE_DATE_KEYWORDS)
+    def test_every_completion_keyword_is_accepted(self, keyword):
+        parse_due_date(keyword)
 
 
 class TestParseAgendaWindow:

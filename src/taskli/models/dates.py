@@ -25,6 +25,9 @@ WEEKDAY_INDEX = {
     "sun": 6,
 }
 
+# discrete keyword tokens for --due, used by the shell completer.
+DUE_DATE_KEYWORDS = ("today", "tomorrow", "next-week")
+
 
 def today() -> date:
     """Return the current calendar day.
@@ -80,7 +83,7 @@ def parse_due_date(raw: str) -> datetime:
         return midnight(today())
     if keyword == "tomorrow":
         return midnight(today() + timedelta(days=1))
-    if keyword == "next week":
+    if keyword == "next-week":
         return midnight(today() + timedelta(days=7))
 
     if keyword in WEEKDAY_INDEX:
@@ -103,7 +106,7 @@ def parse_due_date(raw: str) -> datetime:
         explicit = datetime.strptime(text, "%m-%d-%Y")
     except ValueError as error:
         raise InvalidModifierValueError(
-            "due date must be one of: today, tomorrow, next week, "
+            "due date must be one of: today, tomorrow, next-week, "
             "N days, N weeks, a weekday name (e.g. monday), or "
             "MM-DD-YYYY"
         ) from error

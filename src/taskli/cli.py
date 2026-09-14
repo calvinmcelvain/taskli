@@ -117,12 +117,29 @@ class ModifierArg(NamedTuple):
     flags: tuple[str, ...]
     dest: str
     kwargs: dict[str, Any]
+    completer: Callable[..., list[str]] | None = None
 
 
 class ModifierSpec(NamedTuple):
     args: tuple[ModifierArg, ...]
     to_criteria: Callable[[str], tuple[Criterion, ...]] | None = None
     filter_dest: str | None = None
+
+
+def _complete_due_keywords(
+    prefix: str, parsed_args: argparse.Namespace, **kwargs: object
+) -> list[str]:
+    """argcomplete callback: keyword tokens accepted by --due."""
+
+    from .models.dates import DUE_DATE_KEYWORDS, WEEKDAY_INDEX
+
+    keywords = [*DUE_DATE_KEYWORDS, *WEEKDAY_INDEX]
+    if not (
+        getattr(parsed_args, "add", None) or getattr(parsed_args, "edit", None)
+    ):
+        keywords.append("overdue")
+
+    return keywords
 
 
 MODIFIER_FLAGS: dict[str, ModifierSpec] = {
@@ -190,10 +207,11 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                     "help": (
                         "Set (with -a/-e) or filter (default view) an"
                         " item's due date. Accepts: today, tomorrow,"
-                        " 'N days', 'next week', 'N weeks', MM-DD-YYYY."
+                        " 'N days', 'next-week', 'N weeks', MM-DD-YYYY."
                         " Filtering also accepts 'overdue'."
                     ),
                 },
+                completer=_complete_due_keywords,
             ),
         ),
         filter_dest="due",
@@ -436,7 +454,11 @@ def _register_modifier_args(parser: argparse.ArgumentParser) -> None:
 
     for spec in MODIFIER_FLAGS.values():
         for arg in spec.args:
-            modifiers.add_argument(*arg.flags, dest=arg.dest, **arg.kwargs)
+            action = modifiers.add_argument(
+                *arg.flags, dest=arg.dest, **arg.kwargs
+            )
+            if arg.completer is not None:
+                action.completer = arg.completer  # type: ignore[attr-defined]
     modifiers.add_argument(
         "--all",
         dest="all",

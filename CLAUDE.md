@@ -75,7 +75,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `migrations.py` step. `dates.py` is a leaf beside `attributes.py`
   (imports only `re`, `datetime`, `..exceptions` — nothing from
   `models/`): `parse_due_date(str) -> datetime` accepts the keywords
-  `today`/`tomorrow`/`next week`/`N days`/`N weeks`, a bare weekday name
+  `today`/`tomorrow`/`next-week`/`N days`/`N weeks`, a bare weekday name
   (full or 3-letter, via the module-level `WEEKDAY_INDEX` map — resolves
   to the closest upcoming occurrence, today-is-that-weekday means +7),
   and explicit

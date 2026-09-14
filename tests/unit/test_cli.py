@@ -6,7 +6,12 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from taskli.__version__ import __version__
-from taskli.cli import MODIFIER_FLAGS, _complete_list_names, main
+from taskli.cli import (
+    MODIFIER_FLAGS,
+    _complete_due_keywords,
+    _complete_list_names,
+    main,
+)
 from taskli.models import registry
 from taskli.models.attributes import Color, Priority, Status
 from taskli.storage import config_file_path, load_config, load_list
@@ -715,7 +720,7 @@ class TestDue:
     def test_add_sets_due_from_relative_span(self, taskli_env):
         expected = date.today() + timedelta(days=7)
 
-        exit_code = main(["work", "-a", "ship", "--due", "next week"])
+        exit_code = main(["work", "-a", "ship", "--due", "next-week"])
 
         assert exit_code == 0
         item = load_list(taskli_env, "work").items[0]
@@ -2311,3 +2316,20 @@ class TestCompletion:
         names = _complete_list_names("", argparse.Namespace())
 
         assert names == ["alpha", "beta"]
+
+    @pytest.mark.parametrize(
+        ("namespace", "expects_overdue"),
+        [
+            (argparse.Namespace(add=None, edit=None), True),
+            (argparse.Namespace(add=[["x"]], edit=None), False),
+            (argparse.Namespace(add=None, edit=["1"]), False),
+        ],
+        ids=["filter", "add", "edit"],
+    )
+    def test_complete_due_keywords(self, namespace, expects_overdue):
+        keywords = _complete_due_keywords("", namespace)
+
+        assert "today" in keywords
+        assert "next-week" in keywords
+        assert "monday" in keywords
+        assert ("overdue" in keywords) is expects_overdue
