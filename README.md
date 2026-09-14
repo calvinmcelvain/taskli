@@ -300,7 +300,7 @@ what recolors an existing list.
 ### Due dates
 
 `--due` sets an item's due date on `-a`/`-e` and filters the default view
-otherwise. It accepts the keywords `today`, `tomorrow`, `next week`,
+otherwise. It accepts the keywords `today`, `tomorrow`, `next-week`,
 `N days`, `N weeks`, a weekday name (`monday`/`mon` … `sunday`/`sun`), or
 an explicit `MM-DD-YYYY` date — all normalized to that calendar day:
 
@@ -691,7 +691,7 @@ given. Omitting an item-action flag defaults to the view action.
 
 | Flag | Modifiers | Notes |
 |---|---|---|
-| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next week`/`N weeks`/weekday name/`MM-DD-YYYY`) · `--desc TEXT` · `--under PATH` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation; `--under PATH` nests each under the item at `PATH`. |
+| `-a, --add TEXT...` | `--tag TAG` (repeatable) · `-p, --priority {low,medium,high}` (default `medium`) · `--due WHEN` (`today`/`tomorrow`/`N days`/`next-week`/`N weeks`/weekday name/`MM-DD-YYYY`) · `--desc TEXT` · `--under PATH` | Repeatable — each `-a` adds one item. Auto-creates `LIST` (and missing ancestors) if needed. Modifiers apply to every item added in the same invocation; `--under PATH` nests each under the item at `PATH`. |
 | `-d, --done ID...` | — | One or more ids, each a dotted item path (`1`, `1.2`); partial success on a bad id (see [Routing grammar](#routing-grammar)). |
 | `-u, --undone ID...` | — | Same batch behavior as `-d`. Resets an item to not started from either `-d` or `-i`. |
 | `-i, --in-progress ID...` | — | Same batch behavior as `-d`. |
