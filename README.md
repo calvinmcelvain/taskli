@@ -816,6 +816,7 @@ set 'default_priority' to 'high'.
 | `default_sort` | `tags`/`priority`/`due_date`/`created_at` | `created_at` | Sort key applied to items shown by `tk LIST`/`tk --all`. `due_date` sorts undated items last. |
 | `default_priority` | `low`/`medium`/`high` | `medium` | Priority used for new items added via `-a` when `-p` is omitted. |
 | `default_color` | color name (see [Colors](#colors)) | `white` | Default color for lists created via `--new` when `--color` is omitted. |
+| `agenda_include_overdue` | `true`/`false` | `true` | Whether `tk --agenda` also lists not-done items already overdue, in addition to the `today`/`week`/N-day window. Set to `false` to show only items due inside the window. The `overdue` window is unaffected. |
 
 An unknown key or an invalid value for a key is an error (exit 1):
 

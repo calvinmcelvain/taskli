@@ -581,6 +581,25 @@ class TestAgenda:
 
         assert [item.text for _, item in rows] == ["late"]
 
+    def test_window_includes_overdue_by_default(self, taskli_env, config):
+        past = (date.today() - timedelta(days=2)).strftime("%m-%d-%Y")
+        add("work", ["late"], {"due_date": past}, config)
+        add("work", ["due today"], {"due_date": "today"}, config)
+
+        rows = agenda("today", config)
+
+        assert [item.text for _, item in rows] == ["late", "due today"]
+
+    def test_window_excludes_overdue_when_disabled(self, taskli_env, config):
+        config.agenda_include_overdue = False
+        past = (date.today() - timedelta(days=2)).strftime("%m-%d-%Y")
+        add("work", ["late"], {"due_date": past}, config)
+        add("work", ["due today"], {"due_date": "today"}, config)
+
+        rows = agenda("today", config)
+
+        assert [item.text for _, item in rows] == ["due today"]
+
     def test_override_beats_config_default(self, taskli_env, config):
         config.agenda_window = "today"
         add("work", ["in range"], {"due_date": "3 days"}, config)

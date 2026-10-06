@@ -277,7 +277,7 @@ class TestAgendaCriteria:
     def test_today_bounds_single_day(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 
-        criteria = agenda_criteria("today")
+        criteria = agenda_criteria("today", include_overdue=False)
 
         assert criteria == (
             Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
@@ -288,7 +288,7 @@ class TestAgendaCriteria:
     def test_week_bounds_eight_days(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 
-        criteria = agenda_criteria("week")
+        criteria = agenda_criteria("week", include_overdue=False)
 
         assert criteria == (
             Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
@@ -299,7 +299,7 @@ class TestAgendaCriteria:
     def test_n_days_bounds_n_plus_one_days(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 
-        criteria = agenda_criteria("3")
+        criteria = agenda_criteria("3", include_overdue=False)
 
         assert criteria == (
             Criterion("due_date", Operator.GTE, datetime(2026, 3, 10)),
@@ -307,13 +307,32 @@ class TestAgendaCriteria:
             Criterion("done", Operator.EQ, False),
         )
 
+    def test_include_overdue_drops_lower_bound(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        criteria = agenda_criteria("week", include_overdue=True)
+
+        assert criteria == (
+            Criterion("due_date", Operator.LT, datetime(2026, 3, 18)),
+            Criterion("done", Operator.EQ, False),
+        )
+
     def test_overdue_matches_due_to_criteria(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 
-        assert agenda_criteria("overdue") == due_to_criteria("overdue")
+        assert agenda_criteria(
+            "overdue", include_overdue=False
+        ) == due_to_criteria("overdue")
+
+    def test_overdue_ignores_include_overdue(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        assert agenda_criteria(
+            "overdue", include_overdue=True
+        ) == due_to_criteria("overdue")
 
     def test_rejects_unparseable_token(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 
         with pytest.raises(InvalidModifierValueError):
-            agenda_criteria("someday")
+            agenda_criteria("someday", include_overdue=False)

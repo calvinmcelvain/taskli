@@ -57,16 +57,18 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `dates.py` for the due-date value parser, `paths.py` for the dotted
   item-path sort key, `config.py` for
   `Config`/`SortBy` (whose `inherit_sublist_color: bool = True` field,
-  alongside `auto_prune` / `show_reminders` / `agenda_window`, is additive
-  with a Python default so it needs no migration — `storage` reads it when
-  creating a sublist), `tasks.py` for `TaskliItem`/`TaskliList`, `query.py`
+  alongside `auto_prune` / `show_reminders` / `agenda_window` /
+  `agenda_include_overdue`, is additive with a Python default so it needs
+  no migration — `storage` reads it when creating a sublist), `tasks.py`
+  for `TaskliItem`/`TaskliList`, `query.py`
   for the `Filter`/`Criterion`/`Sort` value objects, `registry.py` for the
   per-attribute `Attribute` dataclass + `ATTRIBUTES` table) — Pydantic
   models and enums, plus the plain frozen dataclasses in `query.py` and
   `registry.py`. The `Operator.LT`/`Operator.GTE` `compare()` branches are
   generic (not date-named) and short-circuit to `False` when either side
   is `None`; `GTE` (`value >= operand`) exists solely for
-  `query.agenda_criteria`'s window lower bound and, like `LT`, carries no
+  `query.agenda_criteria`'s window lower bound (omitted when
+  `agenda_include_overdue` is true) and, like `LT`, carries no
   `registry.filter_operators` entry — both are built into `Criterion`s
   directly by `due_to_criteria`/`agenda_criteria`, bypassing that facet.
   `Priority._missing_` / `Status._missing_` accept only a
@@ -551,7 +553,8 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   (`Config.show_reminders` below).
   `agenda(window: str | None, config) -> list[tuple[str, TaskliItem]]`
   is `check_reminders`'s detailed companion (`tk --agenda`, #94): resolves
-  `window or config.agenda_window`, builds one `Filter(agenda_criteria(token))`
+  `window or config.agenda_window`, builds one
+  `Filter(agenda_criteria(token, include_overdue=config.agenda_include_overdue))`
   (`query.py`), filters an `_all_items` pass, and sorts the result by
   `registry.ATTRIBUTES["due_date"].sort_key` — chronological, cross-list,
   subtasks included via the same `walk_items` flatten. Returns plain
@@ -783,7 +786,10 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `dates.parse_agenda_window`) is the fallback when `--agenda` is given
     with no override; `--config agenda_window week` already works for
     free through the generic `Config.set_value`/`get_value` path, same
-    as `show_reminders`/`auto_prune` above.
+    as `show_reminders`/`auto_prune` above. `Config.agenda_include_overdue:
+    bool = True` (#130) folds not-done overdue items into the today/week/N
+    windows (the `overdue` token is unaffected); `--config
+    agenda_include_overdue false` restores window-only output.
 - **`exceptions.py`** — flat `TaskliError` subclass hierarchy; every
   domain-level failure (missing list, missing item, invalid name,
   nesting too deep, corrupted JSON, outdated schema version, invalid
