@@ -134,6 +134,75 @@ class TestFilter:
 
         assert [i.text for i in result] == ["both"]
 
+    def test_any_of_matches_either_group(self):
+        todo = TaskliList(name="t")
+        add_item(todo, "urgent", tags=["urgent"])
+        add_item(todo, "high", priority=Priority.HIGH)
+        add_item(todo, "neither", tags=["later"], priority=Priority.LOW)
+        item_filter = Filter(
+            any_of=(
+                (Criterion("tags", Operator.CONTAINS, "urgent"),),
+                (Criterion("priority", Operator.EQ, Priority.HIGH),),
+            )
+        )
+
+        result = item_filter.apply(todo.items)
+
+        assert [i.text for i in result] == ["urgent", "high"]
+
+    def test_any_of_matches_nothing_when_no_group_matches(self):
+        todo = TaskliList(name="t")
+        add_item(todo, "plain")
+        item_filter = Filter(
+            any_of=(
+                (Criterion("tags", Operator.CONTAINS, "urgent"),),
+                (Criterion("priority", Operator.EQ, Priority.HIGH),),
+            )
+        )
+
+        assert item_filter.apply(todo.items) == []
+
+    def test_any_of_group_is_and_combined(self):
+        todo = TaskliList(name="t")
+        add_item(todo, "both", tags=["urgent"], priority=Priority.HIGH)
+        add_item(todo, "tag only", tags=["urgent"], priority=Priority.LOW)
+        item_filter = Filter(
+            any_of=(
+                (
+                    Criterion("tags", Operator.CONTAINS, "urgent"),
+                    Criterion("priority", Operator.EQ, Priority.HIGH),
+                ),
+            )
+        )
+
+        result = item_filter.apply(todo.items)
+
+        assert [i.text for i in result] == ["both"]
+
+    def test_criteria_and_any_of_combine(self):
+        todo = TaskliList(name="t")
+        add_item(todo, "keep", tags=["urgent"], priority=Priority.HIGH)
+        add_item(todo, "drop", tags=["later"], priority=Priority.HIGH)
+        add_item(todo, "also drop", tags=["urgent"], priority=Priority.LOW)
+        item_filter = Filter(
+            criteria=(Criterion("priority", Operator.EQ, Priority.HIGH),),
+            any_of=(
+                (Criterion("tags", Operator.CONTAINS, "urgent"),),
+                (Criterion("tags", Operator.CONTAINS, "home"),),
+            ),
+        )
+
+        result = item_filter.apply(todo.items)
+
+        assert [i.text for i in result] == ["keep"]
+
+    def test_active_true_with_any_of_only(self):
+        item_filter = Filter(
+            any_of=((Criterion("tags", Operator.CONTAINS, "x"),),)
+        )
+
+        assert item_filter.active is True
+
 
 class TestSort:
     def test_key_orders_by_created_at(self):

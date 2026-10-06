@@ -10,6 +10,7 @@ from taskli.cli import (
     MODIFIER_FLAGS,
     _complete_due_keywords,
     _complete_list_names,
+    _register_modifier_args,
     main,
 )
 from taskli.models import registry
@@ -645,7 +646,7 @@ class TestCombinedActions:
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "no modifiers are valid" in captured.err
+        assert "--tag is not valid with -d/-i/-u/-rm." in captured.err
 
     def test_missing_id_across_flags_taints_exit(self, taskli_env, capsys):
         main(["work", "-a", "task"])
@@ -797,6 +798,77 @@ class TestDue:
         assert "alpha" not in captured.out
         assert "charlie" not in captured.out
 
+    def test_today_flag_matches_only_today(self, taskli_env, capsys):
+        past = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+        main(["work", "-a", "alpha", "--due", past])
+        main(["work", "-a", "bravo", "--due", "today"])
+        main(["work", "-a", "charlie"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "bravo" in captured.out
+        assert "alpha" not in captured.out
+        assert "charlie" not in captured.out
+
+    def test_today_all_spans_lists(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["groceries", "-a", "bravo", "--due", "today"])
+        main(["work", "-a", "charlie", "--due", "tomorrow"])
+        capsys.readouterr()
+
+        exit_code = main(["--today", "--all"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
+    def test_today_ors_with_due(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo", "--due", "tomorrow"])
+        main(["work", "-a", "charlie", "--due", "next-week"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--due", "tomorrow", "--today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
+    def test_today_or_due_ignores_flag_order(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo", "--due", "tomorrow"])
+        capsys.readouterr()
+
+        main(["work", "--due", "tomorrow", "--today"])
+        forward = capsys.readouterr().out
+        main(["work", "--today", "--due", "tomorrow"])
+        reverse = capsys.readouterr().out
+
+        assert forward == reverse
+        assert "alpha" in reverse
+        assert "bravo" in reverse
+
+    def test_repeated_due_ors(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo", "--due", "tomorrow"])
+        main(["work", "-a", "charlie", "--due", "next-week"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--due", "today", "--due", "tomorrow"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
     def test_config_default_sort_by_due_orders_none_last(
         self, taskli_env, capsys
     ):
@@ -945,7 +1017,7 @@ class TestAgenda:
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "no modifiers are valid with --agenda." in captured.err
+        assert "--priority is not valid with --agenda." in captured.err
 
     def test_conflicts_with_sibling_list_flag(self, taskli_env, capsys):
         exit_code = main(["--agenda", "--lists"])
@@ -1806,7 +1878,7 @@ class TestRenameList:
 
         captured = capsys.readouterr()
         assert exit_code == 2
-        assert "no modifiers are valid" in captured.err
+        assert "--tag is not valid with --rename." in captured.err
 
 
 class TestColorCommand:
@@ -2148,6 +2220,12 @@ class TestFlagCombinations:
             ["work", "--prune", "--due", "today"],
             ["work", "-mv", "groceries", "--due", "today"],
             ["work", "--desc", "x"],
+            ["work", "-a", "task", "--today"],
+            ["work", "-e", "1", "--today"],
+            ["work", "-a", "task", "--due", "today", "--due", "tomorrow"],
+            ["work", "-e", "1", "--due", "today", "--due", "tomorrow"],
+            ["--config", "--today"],
+            ["--agenda", "--today"],
         ],
         ids=[
             "done-tag",
@@ -2161,6 +2239,12 @@ class TestFlagCombinations:
             "prune-due",
             "move-due",
             "view-desc",
+            "add-today",
+            "edit-today",
+            "add-repeated-due",
+            "edit-repeated-due",
+            "config-today",
+            "agenda-today",
         ],
     )
     def test_modifier_rejected_for_op(self, taskli_env, capsys, argv):
@@ -2169,6 +2253,44 @@ class TestFlagCombinations:
         captured = capsys.readouterr()
         assert exit_code == 2
         assert "error:" in captured.err
+
+    def test_today_on_edit_names_today(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", "--today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "--today is not valid with -e/--edit." in captured.err
+
+    def test_today_on_add_names_today(self, taskli_env, capsys):
+        exit_code = main(["work", "-a", "x", "--today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "--today is not valid with -a/--add." in captured.err
+
+    def test_repeated_due_on_add_names_flag(self, taskli_env, capsys):
+        exit_code = main(
+            ["work", "-a", "x", "--due", "today", "--due", "tomorrow"]
+        )
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "-a/--add takes one --due value." in captured.err
+
+    def test_repeated_due_on_edit_names_flag(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(
+            ["work", "-e", "1", "--due", "today", "--due", "tomorrow"]
+        )
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "-e/--edit takes one --due value." in captured.err
 
     def test_empty_desc_on_view_is_ignored_not_rejected(
         self, taskli_env, capsys
@@ -2293,6 +2415,26 @@ class TestModifierRegistryParity:
 
     def test_color_is_not_an_item_modifier(self):
         assert registry.ATTRIBUTES["color"].modifier_ops == frozenset()
+
+    def test_due_date_spec_is_multi_with_today_token(self):
+        spec = MODIFIER_FLAGS["due_date"]
+
+        assert spec.multi
+        (today_arg,) = (arg for arg in spec.args if arg.dest == "today")
+        assert today_arg.filter_word == "today"
+
+    def test_hand_wired_dests_are_all_and_under(self):
+        # _reject_modifiers guards every MODIFIER_FLAGS dest plus these two
+        # hand-wired scope flags; any other dest would escape the guard.
+        parser = argparse.ArgumentParser()
+        _register_modifier_args(parser)
+        flagged = {
+            arg.dest for spec in MODIFIER_FLAGS.values() for arg in spec.args
+        }
+
+        dests = set(vars(parser.parse_args([])))
+
+        assert dests - flagged == {"all", "under"}
 
 
 class TestCompletion:

@@ -113,8 +113,9 @@ ATTRIBUTES: dict[str, Attribute] = {
             item.due_date.date().isoformat() if item.due_date else ""
         ),
         render_style=_due_render_style,
-        # the operators due_to_criteria emits; the view path routes
-        # --due through that, not the generic single-operator filter.
+        # the operators due_to_criteria emits. The view path routes --due
+        # through the due_date spec's per-token to_criteria, not the generic
+        # single-operator filter.
         filter_operators=(Operator.EQ, Operator.LT),
         filter_default_operator=Operator.EQ,
         sort_key=lambda item: (
