@@ -185,18 +185,25 @@ def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
     return (Criterion("due_date", Operator.EQ, parse_due_date(raw)),)
 
 
-def agenda_criteria(window: str) -> tuple[Criterion, ...]:
+def agenda_criteria(
+    window: str, *, include_overdue: bool
+) -> tuple[Criterion, ...]:
     """Build the criteria for a ``--agenda`` window.
 
-    ``overdue`` matches not-done items due before today; any other
+    ``overdue`` matches not-done items due before today. Any other
     token bounds a forward-looking, inclusive window of not-done items
     due from today through ``today + N`` days (``today`` is ``N=0``,
-    ``week`` is ``N=7``).
+    ``week`` is ``N=7``). When ``include_overdue`` is true, that window
+    also takes in not-done items due before today, so the window's
+    lower bound is dropped and only its upper bound is applied.
 
     Parameters
     ----------
     window : str
         The user-supplied ``--agenda`` value.
+    include_overdue : bool
+        Whether a non-``overdue`` window also includes items already
+        past due (``Config.agenda_include_overdue``).
 
     Returns
     -------
@@ -214,8 +221,13 @@ def agenda_criteria(window: str) -> tuple[Criterion, ...]:
     start = midnight(today())
     end = start + timedelta(days=days + 1)
 
+    lower = (
+        ()
+        if include_overdue
+        else (Criterion("due_date", Operator.GTE, start),)
+    )
     return (
-        Criterion("due_date", Operator.GTE, start),
+        *lower,
         Criterion("due_date", Operator.LT, end),
         Criterion("done", Operator.EQ, False),
     )

@@ -41,6 +41,7 @@ class Config(BaseModel):
     default_priority: Priority = Priority.MEDIUM
     default_color: Color | None = Color.WHITE
     agenda_window: str = "week"
+    agenda_include_overdue: bool = True
 
     @field_serializer("default_priority")
     def _serialize_priority(self, value: Priority) -> str:

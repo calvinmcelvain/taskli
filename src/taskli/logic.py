@@ -919,7 +919,9 @@ def agenda(window: str | None, config: Config) -> list[tuple[str, TaskliItem]]:
 
     storage_dir = resolve_storage_dir()
     token = window or config.agenda_window
-    item_filter = Filter(agenda_criteria(token))
+    item_filter = Filter(
+        agenda_criteria(token, include_overdue=config.agenda_include_overdue)
+    )
 
     rows = [
         (name, item)
