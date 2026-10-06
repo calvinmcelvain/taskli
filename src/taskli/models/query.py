@@ -54,17 +54,21 @@ class Criterion:
 @dataclass(frozen=True)
 class Filter:
     criteria: tuple[Criterion, ...] = ()
+    any_of: tuple[tuple[Criterion, ...], ...] = ()
 
     @property
     def active(self) -> bool:
-        """Whether this filter carries any criteria."""
+        """Whether this filter carries any criteria or OR-groups."""
 
-        return bool(self.criteria)
+        return bool(self.criteria or self.any_of)
 
     def matches(self, item: TaskliItem) -> bool:
-        """Whether ``item`` satisfies every criterion.
+        """Whether ``item`` satisfies every criterion and any OR-group.
 
-        An empty filter matches every item.
+        ``criteria`` are AND-combined. When ``any_of`` is non-empty, the
+        item must also fully match at least one of its groups, each group
+        being an AND-combined tuple of criteria. An empty filter matches
+        every item.
 
         Parameters
         ----------
@@ -74,10 +78,16 @@ class Filter:
         Returns
         -------
         bool
-            True when all criteria match, or there are none.
+            True when all criteria match and either ``any_of`` is empty or
+            some group fully matches.
         """
 
-        return all(c.matches(item) for c in self.criteria)
+        if not all(c.matches(item) for c in self.criteria):
+            return False
+
+        return not self.any_of or any(
+            all(c.matches(item) for c in group) for group in self.any_of
+        )
 
     def apply(self, items: Iterable[TaskliItem]) -> list[TaskliItem]:
         """Return the items that satisfy this filter, order preserved.

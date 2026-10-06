@@ -118,12 +118,14 @@ class ModifierArg(NamedTuple):
     dest: str
     kwargs: dict[str, Any]
     completer: Callable[..., list[str]] | None = None
+    filter_word: str | None = None
 
 
 class ModifierSpec(NamedTuple):
     args: tuple[ModifierArg, ...]
-    to_criteria: Callable[[str], tuple[Criterion, ...]] | None = None
     filter_dest: str | None = None
+    multi: bool = False
+    to_criteria: Callable[[str], tuple[Criterion, ...]] | None = None
 
 
 def _complete_due_keywords(
@@ -202,19 +204,34 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                 flags=("--due",),
                 dest="due",
                 kwargs={
-                    "default": None,
+                    "action": "append",
+                    "default": [],
                     "metavar": "WHEN",
                     "help": (
                         "Set (with -a/-e) or filter (default view) an"
                         " item's due date. Accepts: today, tomorrow,"
                         " 'N days', 'next-week', 'N weeks', MM-DD-YYYY."
-                        " Filtering also accepts 'overdue'."
+                        " Filtering also accepts 'overdue', and may repeat"
+                        " (values OR together)."
                     ),
                 },
                 completer=_complete_due_keywords,
             ),
+            ModifierArg(
+                flags=("--today",),
+                dest="today",
+                kwargs={
+                    "action": "store_true",
+                    "help": (
+                        "On the default view, show only items due today"
+                        " (--due today)."
+                    ),
+                },
+                filter_word="today",
+            ),
         ),
         filter_dest="due",
+        multi=True,
         to_criteria=due_to_criteria,
     ),
     "text": ModifierSpec(
@@ -614,16 +631,40 @@ def _resolve_op(namespace: argparse.Namespace) -> CommandOptions:
 def _reject_modifiers(
     namespace: argparse.Namespace,
     parser: argparse.ArgumentParser,
-    message: str,
+    context: str,
     allowed: set[str],
 ) -> None:
-    # every modifier dest, plus the hand-wired --all/--under scope flags.
-    dests = {"all", "under"} | {
-        arg.dest for spec in MODIFIER_FLAGS.values() for arg in spec.args
+    # every modifier dest, plus the hand-wired --all/--under scope flags,
+    # each mapped to its long option string for the error message.
+    flags = {"all": "--all", "under": "--under"} | {
+        arg.dest: arg.flags[-1]
+        for spec in MODIFIER_FLAGS.values()
+        for arg in spec.args
     }
-    for dest in sorted(dests - allowed):
+    for dest in sorted(flags.keys() - allowed):
         if getattr(namespace, dest):
-            parser.error(message)
+            parser.error(f"{flags[dest]} is not valid with {context}.")
+
+    return None
+
+
+def _reject_multi_values(
+    namespace: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    op: ItemActionCommands,
+    context: str,
+) -> None:
+    for name, spec in MODIFIER_FLAGS.items():
+        if not spec.multi:
+            continue
+        if op not in registry.ATTRIBUTES[name].modifier_ops:
+            continue
+        dest = spec.filter_dest
+
+        assert dest is not None  # multi specs set it.
+
+        if len(getattr(namespace, dest)) > 1:
+            parser.error(f"{context} takes one {spec.args[0].flags[0]} value.")
 
     return None
 
@@ -641,35 +682,22 @@ def _validate(
             | ListCommands.MIGRATE
             | ListCommands.AGENDA
         ):
-            _reject_modifiers(
-                namespace,
-                parser,
-                f"no modifiers are valid with --{op.value}.",
-                set(),
-            )
+            _reject_modifiers(namespace, parser, f"--{op.value}", set())
         case ListCommands.NEW | ListCommands.COLOR:
             # --color is the only modifier that means anything for either:
             # the initial color on creation, or the new color on recolor.
-            _reject_modifiers(
-                namespace,
-                parser,
-                "only --color is valid with --new/when recoloring an"
-                " existing list.",
-                {"color"},
-            )
+            _reject_modifiers(namespace, parser, "--new/--color", {"color"})
         case ListCommands.PRUNE:
-            _reject_modifiers(
-                namespace,
-                parser,
-                "only --all is valid with --prune.",
-                {"all"},
-            )
+            _reject_modifiers(namespace, parser, "--prune", {"all"})
         case ItemActionCommands.ADD:
             _reject_modifiers(
                 namespace,
                 parser,
-                "--add-tag/--text/--all are not valid with -a/--add.",
+                "-a/--add",
                 {"priority", "tag", "due", "desc", "under"},
+            )
+            _reject_multi_values(
+                namespace, parser, ItemActionCommands.ADD, "-a/--add"
             )
         case ItemActionCommands.EDIT:
             if namespace.tag and namespace.add_tag:
@@ -677,19 +705,17 @@ def _validate(
                     "--tag and --add-tag cannot both be given; --tag"
                     " replaces, --add-tag appends."
                 )
+            _reject_multi_values(
+                namespace, parser, ItemActionCommands.EDIT, "-e/--edit"
+            )
             _reject_modifiers(
                 namespace,
                 parser,
-                "--all is not valid with -e/--edit.",
+                "-e/--edit",
                 {"priority", "tag", "add_tag", "text", "due", "desc", "under"},
             )
         case ItemActionCommands.DETAILS:
-            _reject_modifiers(
-                namespace,
-                parser,
-                f"no modifiers are valid with --{op.value}.",
-                set(),
-            )
+            _reject_modifiers(namespace, parser, "-D/--details", set())
         case ItemActionCommands.STATUS:
             # -d/-i/-u/-rm are the one item action off the exclusive
             # `ops` group, so argparse no longer guards them against a
@@ -705,12 +731,7 @@ def _validate(
                     "-d/-i/-u/-rm cannot be combined with"
                     " -a/-e/-D/-mv/--copy."
                 )
-            _reject_modifiers(
-                namespace,
-                parser,
-                "no modifiers are valid with -d/-i/-u/-rm.",
-                set(),
-            )
+            _reject_modifiers(namespace, parser, "-d/-i/-u/-rm", set())
             seen: dict[str, str] = {}
             groups = {
                 "-d": namespace.done or [],
@@ -739,25 +760,19 @@ def _validate(
             _reject_modifiers(
                 namespace,
                 parser,
-                f"no modifiers are valid with --{op.value}.",
+                "-mv/--move" if op == ItemActionCommands.MOVE else "--copy",
                 set(),
             )
         case ConfigCommands.CONFIG:
             if namespace.config and len(namespace.config) > 2:
                 parser.error("--config takes at most KEY and VALUE.")
-            _reject_modifiers(
-                namespace,
-                parser,
-                "no modifiers are valid with --config.",
-                set(),
-            )
+            _reject_modifiers(namespace, parser, "--config", set())
         case ListCommands.VIEW:
             _reject_modifiers(
                 namespace,
                 parser,
-                "--add-tag/--text/--color are not valid with the"
-                " default view.",
-                {"priority", "tag", "all", "due"},
+                "the default view",
+                {"priority", "tag", "all", "due", "today"},
             )
 
     return None
@@ -776,7 +791,15 @@ def _modifier_values(
             if op is ItemActionCommands.EDIT and namespace.add_tag:
                 values["add_tag"] = namespace.add_tag
             continue
-        value = getattr(namespace, spec.args[0].dest)
+        if spec.multi:
+            dest = spec.filter_dest
+
+            assert dest is not None  # multi specs set it.
+
+            values_list = getattr(namespace, dest)
+            value = values_list[0] if values_list else None
+        else:
+            value = getattr(namespace, spec.args[0].dest)
         if value is not None:
             values[name] = value
 
@@ -936,6 +959,7 @@ def _dispatch(
             # only ListCommands.VIEW reaches here; it's the fallback when
             # nothing else matched, so it's never named explicitly.
             criteria: list[Criterion] = []
+            any_of: tuple[tuple[Criterion, ...], ...] = ()
             for name, attr in registry.filterable().items():
                 spec = MODIFIER_FLAGS[name]
                 dest = spec.filter_dest
@@ -943,14 +967,20 @@ def _dispatch(
                 assert dest is not None  # filterable entries set it.
 
                 raw = getattr(namespace, dest)
+                if spec.multi:
+                    # each token is one OR-alternative from to_criteria.
+                    tokens: list[str] = list(raw)
+                    for arg in spec.args:
+                        if arg.filter_word and getattr(namespace, arg.dest):
+                            tokens.append(arg.filter_word)
+                    assert spec.to_criteria is not None  # multi sets it.
+                    assert not any_of  # one repeatable view filter
+                    any_of = tuple(spec.to_criteria(t) for t in tokens)
+                    continue
                 if not raw:
                     continue
 
                 value = raw[0] if isinstance(raw, list) else raw
-
-                if spec.to_criteria is not None:
-                    criteria.extend(spec.to_criteria(value))
-                    continue
 
                 parse = attr.parse
                 operand = parse(value) if parse is not None else value
@@ -960,7 +990,7 @@ def _dispatch(
 
                 criteria.append(Criterion(name, operator, operand))
 
-            item_filter = Filter(tuple(criteria))
+            item_filter = Filter(tuple(criteria), any_of=any_of)
 
             if not namespace.list and namespace.all:
                 groups = logic.all_views(item_filter)

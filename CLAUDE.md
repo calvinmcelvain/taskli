@@ -262,9 +262,12 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   returns **deep-copied** narrowed subtrees — an item is kept when it or
   any descendant matches, `children` pruned to the kept copies and the
   originals left untouched (so a filtered forest can never reach
-  `save_list`). AND-combining multiple criteria
-  (tag + priority) lives in `Filter.matches` / `Criterion.matches`,
-  not in this method. `prune()` works bottom-up: it drops a done item
+  `save_list`). Combining criteria lives in `Filter.matches` /
+  `Criterion.matches`, not in this method: `Filter.criteria` are
+  AND-combined (tag + priority), and `Filter.any_of` (a tuple of
+  AND-groups, used for repeated `--due` / `--today`) is OR-combined
+  across groups, with an item needing to fully match at least one.
+  `Filter.active` counts either. `prune()` works bottom-up: it drops a done item
   only when its *entire* subtree is done (a done leaf always goes, a done
   parent with a surviving un-done descendant stays), returns every
   removed item as one flat list, and `reindex()`es. `add_tags(item_id,
@@ -590,7 +593,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     and the default view
     (`ListCommands.VIEW`, when nothing from the other three is given).
     Modifiers (`-p/--priority`, `--tag`, `--add-tag`, `--all`, `--under`,
-    `-t/--text`, `--due`, `--desc`, `--color`) are a separate,
+    `-t/--text`, `--due`, `--today`, `--desc`, `--color`) are a separate,
     non-mutually-exclusive group layered on top of whichever op is
     resolved. Every modifier except `--all` and `--under` (both scope
     flags, not attributes — `--under PATH` works with `-a`, naming the
@@ -602,9 +605,14 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     (`priority`/`tags`/`due_date`/`text`/`description`/`color`);
     `_register_modifier_args` iterates it to emit the `add_argument`
     calls. Each value is a `ModifierSpec` carrying the argparse args plus
-    an optional `filter_dest` (filterable ones) and `to_criteria` (a
-    token → `tuple[Criterion, ...]` builder — only `due_date` sets one,
-    to `query.due_to_criteria`); it no longer carries `parse` — that
+    an optional `filter_dest` (filterable ones), `multi` (a repeatable,
+    OR-combined filter), and `to_criteria` (a token →
+    `tuple[Criterion, ...]` builder, set by `due_date` to
+    `query.due_to_criteria`); a `ModifierArg` may carry a `filter_word`
+    that it contributes as one more token to a `multi` filter (`--today`
+    → `"today"`). A `multi` spec must set `filter_dest`, which is where
+    its repeated values are read from (never `spec.args[0]`). `due_date`'s `--due` values and `--today` become the
+    `Filter.any_of` OR-groups. It no longer carries `parse` — that
     moved onto the registry entry. This table is the deliberate,
     developer-approved exception to the "no new `cli.py` module
     constants" rule — the registry can't carry argparse vocabulary
@@ -620,9 +628,14 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `--desc ""` is included (and `description`'s `parse`, `lambda s: s or
     None`, then turns it into a clear) while an omitted `--desc`
     (namespace default `None`) is left untouched.
-    The VIEW filter loop in `_dispatch` iterates `registry.filterable()`,
-    reading `MODIFIER_FLAGS[name].filter_dest` off the namespace, then
-    branching on `spec.to_criteria` if set, else falling back to the
+    The VIEW filter loop in `_dispatch` iterates `registry.filterable()`
+    with no name-based skip, reading `MODIFIER_FLAGS[name].filter_dest`
+    off the namespace. For a `multi` spec it collects the `filter_dest`
+    values plus each `filter_word` whose namespace flag is set, and
+    builds `Filter.any_of` from `spec.to_criteria` per token; the loop
+    asserts at most one `multi` filter contributes (`assert not any_of`),
+    so a second repeatable filter fails loudly rather than overwriting the
+    first. Every other filter takes the generic path, falling back to the
     registry entry's `parse` + `filter_default_operator`.
   - `_resolve_op` picks the op to run: it checks the three flag groups
     in a fixed priority order — list management, then item action, then
@@ -642,14 +655,22 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     exclusive by construction, since `_resolve_op` already picked one),
     rejecting modifiers that don't apply via `parser.error(...)` (exit
     2). The ~8 repeated `(namespace.priority or namespace.tag or ...)`
-    tuples are now one `_reject_modifiers(namespace, parser, message,
+    tuples are now one `_reject_modifiers(namespace, parser, context,
     allowed)` helper, called per case with a per-op set of allowed
     modifier dests (dest universe = `MODIFIER_FLAGS` dests `| {"all",
-    "under"}`);
-    the `_reject_modifiers` message strings are unchanged. E.g.
+    "under"}`) and the op's label as `context` (e.g. `-a/--add`,
+    `-e/--edit`, `--prune`, `--config`, `--new/--color`, or the bare
+    phrase `the default view` for VIEW). Each offending dest is mapped to its long option string
+    (`MODIFIER_FLAGS` `flags[-1]`, or `--all`/`--under`), and the error is
+    derived as `"<flag> is not valid with <context>."` (exit 2) — so
+    `tk work -e 1 --today` names `--today`. Repeated-value checks use the
+    generic `_reject_multi_values(namespace, parser, op, context)`: for
+    every `multi` spec whose `modifier_ops` include `op`, more than one
+    value in `filter_dest` errors `"<context> takes one <flag> value."`
+    (today: `-a/--add` and `-e/--edit` with two `--due`). E.g.
     `-D`/`--config`/`--delete`/`--lists`/`--rename`/`--migrate`
     reject every modifier; the `STATUS` case (`-d`/`-i`/`-u`/`-rm`) also
-    rejects every modifier (`"no modifiers are valid with -d/-i/-u/-rm."`),
+    rejects every modifier (`"--tag is not valid with -d/-i/-u/-rm."`),
     rejects combining any of the four with `-a`/`-e`/`-D`/`-mv`/`--copy`
     (`"…cannot be combined with…"`, exit 2), and rejects the same raw id
     string given to more than one of the four (`"id X given to more than
@@ -660,7 +681,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those plus
     `-t`/`--add-tag`,
     both rejecting `--all`; the default VIEW allows
-    `-p`/`--tag`/`--all`/`--due`; `-e`
+    `-p`/`--tag`/`--all`/`--due`/`--today`; `-e`
     additionally rejects giving both `--tag` (replaces) and `--add-tag`
     (appends) in the same call; `-mv`/`--copy` reject every modifier too
     and additionally validate that every id after `TARGET_LIST` parses

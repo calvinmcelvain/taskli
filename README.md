@@ -311,8 +311,16 @@ tk work -a "taxes" --due 04-15-2026
 tk work -e 3 --due "3 days"
 tk work --due overdue
 tk work --due today
+tk work --due today --due tomorrow   # repeated values OR together
+tk work --today                      # shorthand for --due today
+tk work --due tomorrow --today       # items due tomorrow or today
 tk --config default_sort due_date
 ```
+
+On the default view `--due` is repeatable, and the values OR together: an
+item is shown when it is due on any of them. `--today` is one more such
+value, so `--due tomorrow --today` shows items due tomorrow or today, in
+either flag order.
 
 A weekday name resolves to its closest upcoming occurrence; naming the
 current weekday (`--due tuesday` on a Tuesday) resolves to the following
@@ -446,7 +454,8 @@ starts empty.
 | `-i, --in-progress ID...` | Mark one or more items in progress | `tk work -i 1 2` |
 | `-e, --edit ID` | Change an item's text, priority, tags, due date, or description | `tk work -e 1 --text "Ship v2.1"` |
 | `--under PATH` | Modifier: with `-a`, add the new item as a subtask of the item at `PATH` | `tk work -a "cut branch" --under 1` |
-| `--due WHEN` | Modifier: set an item's due date on `-a`/`-e`; on the default view, filter by due date instead | `tk work -a "taxes" --due 04-15-2026` / `tk work --due overdue` |
+| `--due WHEN` | Modifier: set an item's due date on `-a`/`-e` (one value); on the default view, filter by due date instead, and `--due` is repeatable with the values OR-combined | `tk work -a "taxes" --due 04-15-2026` / `tk work --due overdue` / `tk work --due today --due tomorrow` |
+| `--today` | Modifier: on the default view, filter to items due today; OR-combined with `--due` (`--today --due tomorrow` shows items due today or tomorrow) | `tk work --today` / `tk --today --all` |
 | `--desc TEXT` | Modifier: set an item's description on `-a`/`-e` (`--desc ""` clears it) | `tk work -e 3 --desc "rollback plan"` |
 | `-mv, --move TARGET_LIST [ID...]` | Move item(s) from `LIST` to `TARGET_LIST` (creates `TARGET_LIST` if missing) | `tk work -mv groceries 1 2` |
 | `--copy TARGET_LIST [ID...]` | Copy item(s) from `LIST` to `TARGET_LIST`, leaving `LIST` unchanged | `tk work --copy groceries 1 2` |
