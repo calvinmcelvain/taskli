@@ -869,6 +869,89 @@ class TestDue:
         assert "bravo" in captured.out
         assert "charlie" not in captured.out
 
+    def test_filter_none_matches_only_undated_not_done(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo"])
+        main(["work", "-a", "charlie"])
+        main(["work", "-d", "3"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--due", "none"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "bravo" in captured.out
+        assert "alpha" not in captured.out
+        assert "charlie" not in captured.out
+
+    def test_undated_flag_matches_only_undated_not_done(
+        self, taskli_env, capsys
+    ):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo"])
+        main(["work", "-a", "charlie"])
+        main(["work", "-d", "3"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--undated"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "bravo" in captured.out
+        assert "alpha" not in captured.out
+        assert "charlie" not in captured.out
+
+    def test_undated_all_spans_sublists(self, taskli_env, capsys):
+        main(["work", "-a", "alpha"])
+        main(["work.meetings", "-a", "bravo"])
+        main(["work.meetings", "-a", "charlie", "--due", "today"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--undated", "--all"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
+    def test_undated_all_spans_root_lists(self, taskli_env, capsys):
+        main(["work", "-a", "alpha"])
+        main(["groceries", "-a", "bravo"])
+        main(["groceries", "-a", "charlie", "--due", "today"])
+        capsys.readouterr()
+
+        exit_code = main(["--undated", "--all"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
+    def test_undated_ors_with_due(self, taskli_env, capsys):
+        main(["work", "-a", "alpha", "--due", "today"])
+        main(["work", "-a", "bravo"])
+        main(["work", "-a", "charlie", "--due", "tomorrow"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--undated", "--due", "today"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "alpha" in captured.out
+        assert "bravo" in captured.out
+        assert "charlie" not in captured.out
+
+    def test_rejects_none_on_set_path(self, taskli_env, capsys):
+        exit_code = main(["work", "-a", "x", "--due", "none"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "MM-DD-YYYY" in captured.out + captured.err
+
     def test_config_default_sort_by_due_orders_none_last(
         self, taskli_env, capsys
     ):
@@ -2271,6 +2354,23 @@ class TestFlagCombinations:
         assert exit_code == 2
         assert "--today is not valid with -a/--add." in captured.err
 
+    def test_undated_on_add_names_undated(self, taskli_env, capsys):
+        exit_code = main(["work", "-a", "x", "--undated"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "--undated is not valid with -a/--add." in captured.err
+
+    def test_undated_on_edit_names_undated(self, taskli_env, capsys):
+        main(["work", "-a", "task"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", "--undated"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "--undated is not valid with -e/--edit." in captured.err
+
     def test_repeated_due_on_add_names_flag(self, taskli_env, capsys):
         exit_code = main(
             ["work", "-a", "x", "--due", "today", "--due", "tomorrow"]
@@ -2475,3 +2575,4 @@ class TestCompletion:
         assert "next-week" in keywords
         assert "monday" in keywords
         assert ("overdue" in keywords) is expects_overdue
+        assert ("none" in keywords) is expects_overdue

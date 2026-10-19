@@ -552,7 +552,8 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `_all_items` pass, items matching `due_to_criteria("overdue")` against
   those matching `due_to_criteria("today")` plus a `done EQ False`
   criterion — reusing `due_to_criteria` rather than rebuilding its LT/EQ
-  formula by hand. It backs the `cli._dispatch` reminder banner
+  formula by hand (`due_to_criteria("none")` is `due_date EQ None` plus
+  `done EQ False`, backing `--due none` / `--undated`). It backs the `cli._dispatch` reminder banner
   (`Config.show_reminders` below).
   `agenda(window: str | None, config) -> list[tuple[str, TaskliItem]]`
   is `check_reminders`'s detailed companion (`tk --agenda`, #94): resolves
@@ -610,7 +611,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `tuple[Criterion, ...]` builder, set by `due_date` to
     `query.due_to_criteria`); a `ModifierArg` may carry a `filter_word`
     that it contributes as one more token to a `multi` filter (`--today`
-    → `"today"`). A `multi` spec must set `filter_dest`, which is where
+    → `"today"`, `--undated` → `"none"`). A `multi` spec must set `filter_dest`, which is where
     its repeated values are read from (never `spec.args[0]`). `due_date`'s `--due` values and `--today` become the
     `Filter.any_of` OR-groups. It no longer carries `parse` — that
     moved onto the registry entry. This table is the deliberate,
@@ -681,7 +682,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those plus
     `-t`/`--add-tag`,
     both rejecting `--all`; the default VIEW allows
-    `-p`/`--tag`/`--all`/`--due`/`--today`; `-e`
+    `-p`/`--tag`/`--all`/`--due`/`--today`/`--undated`; `-e`
     additionally rejects giving both `--tag` (replaces) and `--add-tag`
     (appends) in the same call; `-mv`/`--copy` reject every modifier too
     and additionally validate that every id after `TARGET_LIST` parses

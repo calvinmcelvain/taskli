@@ -314,6 +314,11 @@ tk work --due today
 tk work --due today --due tomorrow   # repeated values OR together
 tk work --today                      # shorthand for --due today
 tk work --due tomorrow --today       # items due tomorrow or today
+tk work --due none                   # items with no due date
+tk work --undated                    # shorthand for --due none
+tk work --due none --all
+tk --undated --all
+tk work --undated --due today        # undated items or items due today
 tk --config default_sort due_date
 ```
 
@@ -332,6 +337,11 @@ not done) render red, items due today render yellow. On the default view,
 today; any keyword or date value filters to that exact day. `--due
 overdue` is filter-only — it's rejected on `-a`/`-e`. There is no way to
 clear a due date.
+
+`--due none` (or `--undated`) shows only not-done items with no due date;
+done items are hidden. Like `--today`, it is one more OR-combined value, and
+it works with `--all`. It is view-only: `-a`/`-e` reject `--undated`, and
+`-a --due none` fails as an invalid value.
 
 ### Descriptions
 
@@ -456,6 +466,7 @@ starts empty.
 | `--under PATH` | Modifier: with `-a`, add the new item as a subtask of the item at `PATH` | `tk work -a "cut branch" --under 1` |
 | `--due WHEN` | Modifier: set an item's due date on `-a`/`-e` (one value); on the default view, filter by due date instead, and `--due` is repeatable with the values OR-combined | `tk work -a "taxes" --due 04-15-2026` / `tk work --due overdue` / `tk work --due today --due tomorrow` |
 | `--today` | Modifier: on the default view, filter to items due today; OR-combined with `--due` (`--today --due tomorrow` shows items due today or tomorrow) | `tk work --today` / `tk --today --all` |
+| `--undated` | Modifier: on the default view, filter to not-done items with no due date (same as `--due none`); OR-combined with `--due`/`--today`; view-only, rejected on `-a`/`-e` | `tk work --undated` / `tk --undated --all` |
 | `--desc TEXT` | Modifier: set an item's description on `-a`/`-e` (`--desc ""` clears it) | `tk work -e 3 --desc "rollback plan"` |
 | `-mv, --move TARGET_LIST [ID...]` | Move item(s) from `LIST` to `TARGET_LIST` (creates `TARGET_LIST` if missing) | `tk work -mv groceries 1 2` |
 | `--copy TARGET_LIST [ID...]` | Copy item(s) from `LIST` to `TARGET_LIST`, leaving `LIST` unchanged | `tk work --copy groceries 1 2` |

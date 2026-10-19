@@ -170,8 +170,9 @@ class Sort:
 def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
     """Build the due-date view criteria for a ``--due`` token.
 
-    ``overdue`` matches not-done items due before today; any other
-    token is parsed as a single day and matched exactly.
+    ``overdue`` matches not-done items due before today; ``none``
+    matches not-done items with no due date; any other token is parsed
+    as a single day and matched exactly.
 
     Parameters
     ----------
@@ -187,6 +188,12 @@ def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
     if raw.strip().casefold() == "overdue":
         return (
             Criterion("due_date", Operator.LT, midnight(today())),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    if raw.strip().casefold() == "none":
+        return (
+            Criterion("due_date", Operator.EQ, None),
             Criterion("done", Operator.EQ, False),
         )
 

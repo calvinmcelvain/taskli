@@ -309,6 +309,29 @@ class TestDueToCriteria:
             Criterion("done", Operator.EQ, False),
         )
 
+    @pytest.mark.parametrize("raw", ["none", " None "])
+    def test_none_builds_undated_and_not_done_criteria(self, monkeypatch, raw):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        criteria = due_to_criteria(raw)
+
+        assert criteria == (
+            Criterion("due_date", Operator.EQ, None),
+            Criterion("done", Operator.EQ, False),
+        )
+
+    def test_none_filter_keeps_only_undated_not_done_items(self, monkeypatch):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+        todo = TaskliList(name="t")
+        add_item(todo, "dated", due_date=datetime(2026, 3, 11))
+        add_item(todo, "undated")
+        done_undated = add_item(todo, "done")
+        todo.mark_done(done_undated.id)
+
+        result = Filter(due_to_criteria("none")).apply(todo.items)
+
+        assert [i.text for i in result] == ["undated"]
+
     def test_rejects_unparseable_token(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 

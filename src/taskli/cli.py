@@ -139,7 +139,7 @@ def _complete_due_keywords(
     if not (
         getattr(parsed_args, "add", None) or getattr(parsed_args, "edit", None)
     ):
-        keywords.append("overdue")
+        keywords.extend(["overdue", "none"])
 
     return keywords
 
@@ -211,7 +211,8 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                         "Set (with -a/-e) or filter (default view) an"
                         " item's due date. Accepts: today, tomorrow,"
                         " 'N days', 'next-week', 'N weeks', MM-DD-YYYY."
-                        " Filtering also accepts 'overdue', and may repeat"
+                        " Filtering also accepts 'overdue' and 'none'"
+                        " (items with no due date), and may repeat"
                         " (values OR together)."
                     ),
                 },
@@ -228,6 +229,18 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                     ),
                 },
                 filter_word="today",
+            ),
+            ModifierArg(
+                flags=("--undated",),
+                dest="undated",
+                kwargs={
+                    "action": "store_true",
+                    "help": (
+                        "On the default view, show only not-done items"
+                        " with no due date (--due none)."
+                    ),
+                },
+                filter_word="none",
             ),
         ),
         filter_dest="due",
@@ -772,7 +785,7 @@ def _validate(
                 namespace,
                 parser,
                 "the default view",
-                {"priority", "tag", "all", "due", "today"},
+                {"priority", "tag", "all", "due", "today", "undated"},
             )
 
     return None
