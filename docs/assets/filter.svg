@@ -1,0 +1,107 @@
+<svg class="rich-terminal" viewBox="0 0 763 342.79999999999995" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .filter-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .filter-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .filter-r1 { fill: #3b82f6;font-weight: bold }
+.filter-r2 { fill: #c5c8c6 }
+.filter-r3 { fill: #c5c8c6;font-weight: bold }
+.filter-r4 { fill: #f8fafc }
+.filter-r5 { fill: #868887 }
+.filter-r6 { fill: #cc555a }
+    </style>
+
+    <defs>
+    <clipPath id="filter-clip-terminal">
+      <rect x="0" y="0" width="743.1999999999999" height="291.79999999999995" />
+    </clipPath>
+    <clipPath id="filter-line-0">
+    <rect x="0" y="1.5" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-1">
+    <rect x="0" y="25.9" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-2">
+    <rect x="0" y="50.3" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-3">
+    <rect x="0" y="74.7" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-4">
+    <rect x="0" y="99.1" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-5">
+    <rect x="0" y="123.5" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-6">
+    <rect x="0" y="147.9" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-7">
+    <rect x="0" y="172.3" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-8">
+    <rect x="0" y="196.7" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-9">
+    <rect x="0" y="221.1" width="744.2" height="24.65"/>
+            </clipPath>
+<clipPath id="filter-line-10">
+    <rect x="0" y="245.5" width="744.2" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="761" height="340.8" rx="8"/><text class="filter-title" fill="#c5c8c6" text-anchor="middle" x="380" y="27">tk&#160;work&#160;--all&#160;-p&#160;high</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#filter-clip-terminal)">
+    
+    <g class="filter-matrix">
+    <text class="filter-r1" x="0" y="20" textLength="48.8" clip-path="url(#filter-line-0)">work</text><text class="filter-r2" x="744.2" y="20" textLength="12.2" clip-path="url(#filter-line-0)">
+</text><text class="filter-r2" x="0" y="44.4" textLength="732" clip-path="url(#filter-line-1)">┏━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┓</text><text class="filter-r2" x="744.2" y="44.4" textLength="12.2" clip-path="url(#filter-line-1)">
+</text><text class="filter-r2" x="0" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">┃</text><text class="filter-r1" x="24.4" y="68.8" textLength="48.8" clip-path="url(#filter-line-2)">Task</text><text class="filter-r2" x="305" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">┃</text><text class="filter-r1" x="329.4" y="68.8" textLength="97.6" clip-path="url(#filter-line-2)">Priority</text><text class="filter-r2" x="439.2" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">┃</text><text class="filter-r1" x="463.6" y="68.8" textLength="48.8" clip-path="url(#filter-line-2)">Tags</text><text class="filter-r2" x="561.2" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">┃</text><text class="filter-r1" x="585.6" y="68.8" textLength="36.6" clip-path="url(#filter-line-2)">Due</text><text class="filter-r2" x="719.8" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">┃</text><text class="filter-r2" x="744.2" y="68.8" textLength="12.2" clip-path="url(#filter-line-2)">
+</text><text class="filter-r2" x="0" y="93.2" textLength="732" clip-path="url(#filter-line-3)">┡━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━┩</text><text class="filter-r2" x="744.2" y="93.2" textLength="12.2" clip-path="url(#filter-line-3)">
+</text><text class="filter-r2" x="0" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">│</text><text class="filter-r4" x="24.4" y="117.6" textLength="24.4" clip-path="url(#filter-line-4)">☐&#160;</text><text class="filter-r2" x="48.8" y="117.6" textLength="219.6" clip-path="url(#filter-line-4)">1.&#160;Ship&#160;v2&#160;release</text><text class="filter-r5" x="268.4" y="117.6" textLength="24.4" clip-path="url(#filter-line-4)">&#160;¶</text><text class="filter-r2" x="305" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">│</text><text class="filter-r6" x="329.4" y="117.6" textLength="48.8" clip-path="url(#filter-line-4)">high</text><text class="filter-r2" x="439.2" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">│</text><text class="filter-r2" x="463.6" y="117.6" textLength="85.4" clip-path="url(#filter-line-4)">release</text><text class="filter-r2" x="561.2" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">│</text><text class="filter-r6" x="585.6" y="117.6" textLength="122" clip-path="url(#filter-line-4)">2026-03-09</text><text class="filter-r2" x="719.8" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">│</text><text class="filter-r2" x="744.2" y="117.6" textLength="12.2" clip-path="url(#filter-line-4)">
+</text><text class="filter-r2" x="0" y="142" textLength="732" clip-path="url(#filter-line-5)">└────────────────────────┴──────────┴─────────┴────────────┘</text><text class="filter-r2" x="744.2" y="142" textLength="12.2" clip-path="url(#filter-line-5)">
+</text><text class="filter-r2" x="0" y="166.4" textLength="48.8" clip-path="url(#filter-line-6)">└──&#160;</text><text class="filter-r1" x="48.8" y="166.4" textLength="97.6" clip-path="url(#filter-line-6)">meetings</text><text class="filter-r2" x="744.2" y="166.4" textLength="12.2" clip-path="url(#filter-line-6)">
+</text><text class="filter-r2" x="48.8" y="190.8" textLength="622.2" clip-path="url(#filter-line-7)">┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━┓</text><text class="filter-r2" x="744.2" y="190.8" textLength="12.2" clip-path="url(#filter-line-7)">
+</text><text class="filter-r2" x="48.8" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">┃</text><text class="filter-r1" x="73.2" y="215.2" textLength="48.8" clip-path="url(#filter-line-8)">Task</text><text class="filter-r2" x="341.6" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">┃</text><text class="filter-r1" x="366" y="215.2" textLength="97.6" clip-path="url(#filter-line-8)">Priority</text><text class="filter-r2" x="475.8" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">┃</text><text class="filter-r1" x="500.2" y="215.2" textLength="48.8" clip-path="url(#filter-line-8)">Tags</text><text class="filter-r2" x="585.6" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">┃</text><text class="filter-r1" x="610" y="215.2" textLength="36.6" clip-path="url(#filter-line-8)">Due</text><text class="filter-r2" x="658.8" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">┃</text><text class="filter-r2" x="744.2" y="215.2" textLength="12.2" clip-path="url(#filter-line-8)">
+</text><text class="filter-r2" x="48.8" y="239.6" textLength="622.2" clip-path="url(#filter-line-9)">┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━┩</text><text class="filter-r2" x="744.2" y="239.6" textLength="12.2" clip-path="url(#filter-line-9)">
+</text><text class="filter-r2" x="48.8" y="264" textLength="12.2" clip-path="url(#filter-line-10)">│</text><text class="filter-r4" x="73.2" y="264" textLength="24.4" clip-path="url(#filter-line-10)">☐&#160;</text><text class="filter-r2" x="97.6" y="264" textLength="231.8" clip-path="url(#filter-line-10)">2.&#160;Sync&#160;with&#160;design</text><text class="filter-r2" x="341.6" y="264" textLength="12.2" clip-path="url(#filter-line-10)">│</text><text class="filter-r6" x="366" y="264" textLength="48.8" clip-path="url(#filter-line-10)">high</text><text class="filter-r2" x="475.8" y="264" textLength="12.2" clip-path="url(#filter-line-10)">│</text><text class="filter-r2" x="500.2" y="264" textLength="73.2" clip-path="url(#filter-line-10)">urgent</text><text class="filter-r2" x="585.6" y="264" textLength="12.2" clip-path="url(#filter-line-10)">│</text><text class="filter-r2" x="658.8" y="264" textLength="12.2" clip-path="url(#filter-line-10)">│</text><text class="filter-r2" x="744.2" y="264" textLength="12.2" clip-path="url(#filter-line-10)">
+</text><text class="filter-r2" x="48.8" y="288.4" textLength="622.2" clip-path="url(#filter-line-11)">└───────────────────────┴──────────┴────────┴─────┘</text><text class="filter-r2" x="744.2" y="288.4" textLength="12.2" clip-path="url(#filter-line-11)">
+</text>
+    </g>
+    </g>
+</svg>
