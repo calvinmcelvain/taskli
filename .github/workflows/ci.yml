@@ -47,6 +47,31 @@ jobs:
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
 
+  test-matrix:
+    name: Test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest -q
+
   build:
     name: Build Package
     runs-on: ubuntu-latest
@@ -64,6 +89,9 @@ jobs:
       - name: Build package
         run: uv build
 
+      - name: Check package metadata
+        run: uvx twine check --strict dist/*
+
       - name: Verify built wheel
         run: |
           export UV_TOOL_DIR="$RUNNER_TEMP/uv-tools"
@@ -72,8 +100,8 @@ jobs:
           uv tool install dist/*.whl
           "$UV_TOOL_BIN_DIR/tk" --help
           "$UV_TOOL_BIN_DIR/taskli" --help
-          test -f "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
-          test -f "$(uv tool dir)/taskli/share/taskli/completions/taskli.ps1"
+          test -f "$(uv tool dir)/taskli-cli/share/taskli/completions/taskli.sh"
+          test -f "$(uv tool dir)/taskli-cli/share/taskli/completions/taskli.ps1"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

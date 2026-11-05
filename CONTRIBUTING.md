@@ -5,7 +5,7 @@ change so the work is tracked.
 
 ## Setup
 
-Requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
+Requires Python 3.12+ and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/calvinmcelvain/taskli.git

@@ -14,7 +14,7 @@ file — see the `## Shell completion` section of the top-level `README.md`.
 
 Packaging (`pyproject.toml`) ships this directory in the sdist and maps it into
 the wheel at `<prefix>/share/taskli/completions/` (for a `uv tool install`, that
-is `$(uv tool dir)/taskli/share/taskli/completions/`).
+is `$(uv tool dir)/taskli-cli/share/taskli/completions/`).
 
 ## Regenerating
 

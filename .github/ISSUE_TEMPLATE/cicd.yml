@@ -23,7 +23,6 @@ body:
       options:
         - CI (ci.yml)
         - Release (release.yml)
-        - PyPI publish (pypi.yaml)
         - Packaging (pyproject.toml)
         - Other
     validations:

@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repo is
 
 `taskli` is a single-package Python CLI for tracking nested task lists, installed
-as `tk` / `taskli` (both entry points → `taskli.cli:main`). Each list is one
+as `tk` / `taskli` (both entry points → `taskli.cli:main`). The PyPI distribution
+is `taskli-cli`; the `tk` / `taskli` commands and `import taskli` are unchanged. Each list is one
 JSON file under `$TASKLI_PATH` (`~/.taskli` by default); list names are dotted
 (`work.meetings` is the file `work.meetings.json`), capped at two sublist levels.
 Items form a recursive tree addressed by dotted positional paths (`1`, `1.2`,
@@ -33,10 +34,13 @@ source .venv/bin/activate
 | Type-check | `mypy src tests` |
 | Format (in place) | `black --line-length 79 . && isort .` |
 
-CI (`.github/workflows/ci.yml`, Python 3.12) runs ruff, `black --check`
+CI (`.github/workflows/ci.yml`) runs ruff, `black --check`
 + `isort --check-only`, `mypy src tests`, and `pytest` with a **95% coverage
-gate** (`--cov-fail-under=95`); a `build` job also smoke-tests the wheel via `uv tool install`. Line
-length is 79 everywhere.
+gate** (`--cov-fail-under=95`) on Python 3.12, and a separate matrix job runs
+`pytest` on 3.12–3.14; a `build` job also smoke-tests the wheel via `uv tool install`. Line
+length is 79 everywhere. `.github/workflows/release.yml` builds, tags and releases on a
+`__version__.py` bump on main, then publishes to PyPI (trusted publishing, `prod`
+environment); a manual `workflow_dispatch` dry-runs to TestPyPI.
 
 ## Architecture
 

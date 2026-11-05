@@ -3,21 +3,27 @@ requires = ["hatchling>=1.28.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "taskli"
+name = "taskli-cli"
 description = "Simple CLI for tracking todo lists."
 readme = "README.md"
 authors = [
     {name = "Calvin W. McElvain", email = "mcelvain1@hotmail.com"},
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 dynamic = ["version"]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
+keywords = ["todo", "tasks", "cli", "task-list", "productivity", "terminal"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "rich>=13.0",
@@ -28,6 +34,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/calvinmcelvain/taskli"
 Repository = "https://github.com/calvinmcelvain/taskli"
+Issues = "https://github.com/calvinmcelvain/taskli/issues"
+Changelog = "https://github.com/calvinmcelvain/taskli/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/calvinmcelvain/taskli/blob/main/docs/reference.md"
 
 [project.scripts]
 taskli = "taskli.cli:main"
@@ -51,6 +60,8 @@ include = [
     "/src",
     "/tests",
     "/completions",
+    "/docs",
+    "/CHANGELOG.md",
     "README.md",
 ]
 exclude = [
