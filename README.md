@@ -831,6 +831,7 @@ set 'default_priority' to 'high'.
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `auto_prune` | `true`/`false` | `false` | Automatically removes done items whenever a list is viewed (`tk LIST`/`tk --all`), same effect as `--prune`. |
+| `silent_prune` | `true`/`false` | `false` | With `--prune`, print only the per-list `pruned N item(s)` summary lines and skip re-rendering the pruned list tree(s). Does not affect `auto_prune`. |
 | `sublist_delimiter` | one of `.`, `/`, `-`, `\|` | `.` | The delimiter used when typing or displaying nested list names. Storage always uses `.` internally, so lists created under one delimiter are unaffected by later changing it, but existing nested list names containing the old delimiter character may stop resolving as sublists until renamed. Like `.` today, the configured character can't appear literally inside a single segment's name — it always denotes a nesting boundary (e.g. with `-`, `my-list` is parsed as sublist `list` under `my`). |
 | `default_list` | string | `inbox` | The list used when `LIST` is omitted, and the list auto-created on first read. |
 | `default_sort` | `tags`/`priority`/`due_date`/`created_at` | `created_at` | Sort key applied to items shown by `tk LIST`/`tk --all`. `due_date` sorts undated items last. |

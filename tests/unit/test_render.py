@@ -247,6 +247,64 @@ class TestRenderAgenda:
         assert "\x1b[31m" in overdue_line
         assert "\x1b[33m" in due_today_line
 
+    def test_priority_column_between_task_and_due(self, capsys):
+        work = TaskliList(name="work")
+        item = add_item(work, "sync", due_date=datetime(2026, 9, 10))
+
+        render_agenda([("work", item)])
+
+        header = next(
+            line
+            for line in capsys.readouterr().out.splitlines()
+            if "Priority" in line
+        )
+        assert header.index("Task") < header.index("Priority")
+        assert header.index("Priority") < header.index("Due")
+
+    def test_rows_show_priority_labels(self, capsys):
+        work = TaskliList(name="work")
+        urgent = add_item(
+            work,
+            "urgent",
+            priority=Priority.HIGH,
+            due_date=datetime(2026, 9, 10),
+        )
+        chill = add_item(
+            work,
+            "chill",
+            priority=Priority.LOW,
+            due_date=datetime(2026, 9, 11),
+        )
+
+        render_agenda([("work", urgent), ("work", chill)])
+
+        lines = capsys.readouterr().out.splitlines()
+        assert "high" in next(line for line in lines if "urgent" in line)
+        assert "low" in next(line for line in lines if "chill" in line)
+
+    def test_priority_styled_by_registry_color(self, recording_console):
+        work = TaskliList(name="work")
+        urgent = add_item(
+            work,
+            "urgent",
+            priority=Priority.HIGH,
+            due_date=datetime(2026, 9, 10),
+        )
+        chill = add_item(
+            work,
+            "chill",
+            priority=Priority.LOW,
+            due_date=datetime(2026, 9, 11),
+        )
+
+        render_agenda([("work", urgent), ("work", chill)])
+
+        lines = recording_console.export_text(styles=True).splitlines()
+        urgent_line = next(line for line in lines if "urgent" in line)
+        chill_line = next(line for line in lines if "chill" in line)
+        assert "\x1b[31mhigh\x1b[0m" in urgent_line
+        assert "\x1b[32mlow\x1b[0m" in chill_line
+
 
 class TestRenderItemDetails:
     def test_panel_shows_text_title_and_tags(self, recording_console):

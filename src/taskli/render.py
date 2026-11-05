@@ -242,6 +242,30 @@ def render_list_names(
     return None
 
 
+def _attr_display(name: str, item: TaskliItem) -> tuple[str, str | None]:
+    """Return an item's formatted attribute value and its rich style.
+
+    Parameters
+    ----------
+    name : str
+        The registry attribute name (``"priority"``, ``"due_date"``).
+    item : TaskliItem
+        The item whose cell to build.
+
+    Returns
+    -------
+    tuple[str, str | None]
+        The formatted value and the style name (``None`` when the cell
+        should render plain), both from the attribute's registry entry.
+    """
+
+    attr = registry.ATTRIBUTES[name]
+    assert attr.render_format is not None
+    style = attr.render_style(item) if attr.render_style is not None else None
+
+    return attr.render_format(item), style
+
+
 def _due_display(item: TaskliItem) -> tuple[str, str | None]:
     """Return an item's formatted due date and its rich style.
 
@@ -253,16 +277,11 @@ def _due_display(item: TaskliItem) -> tuple[str, str | None]:
     Returns
     -------
     tuple[str, str | None]
-        The formatted date string and the style name (``None`` when the
-        cell should render plain), both from the ``due_date`` registry
-        entry -- shared by ``render_agenda`` and ``render_item_details``.
+        The formatted date string and the style name, shared by
+        ``render_agenda`` and ``render_item_details``.
     """
 
-    attr = registry.ATTRIBUTES["due_date"]
-    assert attr.render_format is not None
-    style = attr.render_style(item) if attr.render_style is not None else None
-
-    return attr.render_format(item), style
+    return _attr_display("due_date", item)
 
 
 def render_agenda(
@@ -283,9 +302,15 @@ def render_agenda(
 
         return None
 
+    priority_attr = registry.ATTRIBUTES["priority"]
+    assert priority_attr.column_header is not None
+
     table = Table()
     table.add_column("List")
     table.add_column("Task")
+    table.add_column(
+        priority_attr.column_header, justify=priority_attr.column_justify
+    )
     table.add_column("Due")
 
     display_names: dict[str, str] = {}
@@ -293,9 +318,11 @@ def render_agenda(
         if name not in display_names:
             display_names[name] = TaskliList(name=name).display_name(delimiter)
 
+        label, label_style = _attr_display("priority", item)
+        priority = _span(label, label_style) if label_style else label
         formatted, style = _due_display(item)
         due = _span(formatted, style) if style else formatted
-        table.add_row(display_names[name], _task_cell(item, ""), due)
+        table.add_row(display_names[name], _task_cell(item, ""), priority, due)
 
     _console.print(table)
 

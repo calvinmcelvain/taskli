@@ -33,6 +33,7 @@ class Config(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     auto_prune: bool = False
+    silent_prune: bool = False
     show_reminders: bool = True
     inherit_sublist_color: bool = True
     sublist_delimiter: Delimters = "."

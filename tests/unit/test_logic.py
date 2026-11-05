@@ -409,6 +409,30 @@ class TestPrune:
         assert result.messages == ["pruned 1 item(s) from 'work'."]
         assert load_list(taskli_env, "work").items == []
 
+    def test_silent_omits_tree_view(self, taskli_env, config):
+        add("work", ["task"], {}, config)
+        mark_done("work", ["1"], config)
+        config.silent_prune = True
+
+        result = prune("work", False, True, config)
+
+        assert result.tree_view is None
+        assert result.messages == ["pruned 1 item(s) from 'work'."]
+        assert load_list(taskli_env, "work").items == []
+
+    def test_silent_all_omits_tree_view(self, taskli_env, config):
+        add("work", ["task"], {}, config)
+        mark_done("work", ["1"], config)
+        add("work.sub", ["child"], {}, config)
+        mark_done("work.sub", ["1"], config)
+        config.silent_prune = True
+
+        result = prune("work", True, True, config)
+
+        assert result.tree_view is None
+        assert len(result.messages) == 2
+        assert load_list(taskli_env, "work.sub").items == []
+
 
 class TestSetListColor:
     def test_recolor_returns_view(self, taskli_env, config):
