@@ -16,9 +16,9 @@ script, once, from your shell rc.
 
 ```bash
 # installed via uv
-source "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
+source "$(uv tool dir)/taskli-cli/share/taskli/completions/taskli.sh"
 # installed via pipx
-# source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
+# source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli-cli/share/taskli/completions/taskli.sh"
 # from a source checkout
 # source /path/to/taskli/completions/taskli.sh
 ```
@@ -30,14 +30,14 @@ system already initialized.
 
 ```zsh
 autoload -Uz compinit && compinit
-source "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
+source "$(uv tool dir)/taskli-cli/share/taskli/completions/taskli.sh"
 ```
 
 **PowerShell**: dot-source the `.ps1` into `$PROFILE` (PowerShell uses
 `. path`, not `source`):
 
 ```powershell
-. "$(uv tool dir)\taskli\share\taskli\completions\taskli.ps1"
+. "$(uv tool dir)\taskli-cli\share\taskli\completions\taskli.ps1"
 # from a source checkout, use the path to completions\taskli.ps1
 # installed via pipx, use "$(pipx environment --value PIPX_LOCAL_VENVS)" in place of "$(uv tool dir)"
 ```

@@ -6,17 +6,31 @@ on:
       - main
     paths:
       - "src/taskli/__version__.py"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: >-
+          Publish the current build to TestPyPI only (no tag, no GitHub
+          Release).
+        type: choice
+        options:
+          - testpypi
+        default: testpypi
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      exists: ${{ steps.check.outputs.exists }}
 
     steps:
       - name: Checkout repository
@@ -50,7 +64,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-          if [[ "$VERSION" == *beta* ]]; then
+          if [[ "$VERSION" =~ (a|b|rc|alpha|beta|dev)[.-]?[0-9]*$ ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
@@ -61,17 +75,18 @@ jobs:
         run: |
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release v$VERSION already exists. Skipping."
+            echo "Release v$VERSION already exists."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build package
-        if: steps.check.outputs.exists == 'false'
         run: uv build
 
+      - name: Check package metadata
+        run: uvx twine check --strict dist/*
+
       - name: Verify wheel
-        if: steps.check.outputs.exists == 'false'
         run: |
           export UV_TOOL_DIR="$RUNNER_TEMP/uv-tools"
           export UV_TOOL_BIN_DIR="$RUNNER_TEMP/uv-bin"
@@ -81,23 +96,51 @@ jobs:
           "$UV_TOOL_BIN_DIR/taskli" --help
 
       - name: Upload build artifacts
-        if: steps.check.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
 
+  release:
+    needs: build
+    if: >-
+      github.event_name == 'push' && needs.build.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      PRERELEASE: ${{ needs.build.outputs.prerelease }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Create tag
-        if: steps.check.outputs.exists == 'false'
         run: |
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists on the remote."
+          else
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
 
       - name: Create GitHub Release
-        if: steps.check.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists."
+            exit 0
+          fi
+
           ARGS=(
             "v$VERSION"
             dist/*
@@ -105,8 +148,60 @@ jobs:
             --generate-notes
           )
 
-          if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
+          if [[ "$PRERELEASE" == "true" ]]; then
             ARGS+=(--prerelease)
           fi
 
           gh release create "${ARGS[@]}"
+
+  # Publishing lives in this workflow because events created with
+  # GITHUB_TOKEN (the tag and Release above) do not trigger other workflows.
+  # The PyPI trusted publisher must name `release.yml` and environment `prod`.
+  # Recovery after a partial failure is "Re-run failed jobs" on the same run
+  # (job outputs are preserved); skip-existing lets a partially uploaded
+  # release finish.
+  publish:
+    needs: [build, release]
+    if: >-
+      github.event_name == 'push' && needs.build.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  testpypi:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

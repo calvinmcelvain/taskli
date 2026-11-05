@@ -5,9 +5,9 @@
 **Nested task lists for your terminal.**
 One command, one JSON file per list, and output that's actually nice to read.
 
-![Release](https://img.shields.io/github/v/release/calvinmcelvain/taskli?include_prereleases)
+[![PyPI](https://img.shields.io/pypi/v/taskli-cli)](https://pypi.org/project/taskli-cli/)
 [![CI](https://github.com/calvinmcelvain/taskli/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinmcelvain/taskli/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Python](https://img.shields.io/pypi/pyversions/taskli-cli)
 ![Type checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue)
 
 [Install](#install) · [Quickstart](#quickstart) · [Tour](#tour) · [Cheat sheet](#cheat-sheet) · [Reference](https://github.com/calvinmcelvain/taskli/blob/main/docs/reference.md)
@@ -19,20 +19,23 @@ One command, one JSON file per list, and output that's actually nice to read.
 ## Install
 
 ```bash
-uv tool install git+https://github.com/calvinmcelvain/taskli.git
+uv tool install taskli-cli
 ```
 
-That puts `tk` (and its alias `taskli`) on your `PATH`.
-
-> [!NOTE]
-> taskli isn't on PyPI yet, so install straight from GitHub. It needs
-> Python 3.11+. If `tk` isn't found afterwards, run `uv tool update-shell` once.
+That puts `tk` (and its alias `taskli`) on your `PATH`. It needs Python 3.12+.
+If `tk` isn't found afterwards, run `uv tool update-shell` once.
 
 <details>
 <summary>Using pipx, or installing from source</summary>
 
 ```bash
-pipx install git+https://github.com/calvinmcelvain/taskli.git
+pipx install taskli-cli
+```
+
+To install the latest from GitHub instead:
+
+```bash
+uv tool install git+https://github.com/calvinmcelvain/taskli.git
 ```
 
 To hack on it, see [CONTRIBUTING](https://github.com/calvinmcelvain/taskli/blob/main/CONTRIBUTING.md).
@@ -168,6 +171,8 @@ Every flag and rule lives in the [full reference](https://github.com/calvinmcelv
 - [Lists and sublists](https://github.com/calvinmcelvain/taskli/blob/main/docs/lists.md): nesting, colors, moving, cascading delete and rename
 - [Configuration](https://github.com/calvinmcelvain/taskli/blob/main/docs/config.md): every setting
 - [Tab completion](https://github.com/calvinmcelvain/taskli/blob/main/docs/completion.md): bash, zsh, PowerShell
+- [Stability](https://github.com/calvinmcelvain/taskli/blob/main/docs/stability.md): what stays compatible across 1.x
+- [Changelog](https://github.com/calvinmcelvain/taskli/blob/main/CHANGELOG.md)
 - [Contributing](https://github.com/calvinmcelvain/taskli/blob/main/CONTRIBUTING.md)
 
 Your data lives in `~/.taskli` (override with `TASKLI_PATH`). Run `tk --path` to see it.
