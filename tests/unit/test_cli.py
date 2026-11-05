@@ -1526,6 +1526,38 @@ class TestPrune:
         assert load_list(taskli_env, "work.meetings").items == []
         assert len(load_list(taskli_env, "groceries").items) == 1
 
+    def test_silent_prints_only_summary(self, taskli_env, capsys):
+        main(["work", "-a", "done task"])
+        main(["work", "-a", "open task"])
+        main(["work", "-d", "1"])
+        main(["--config", "silent_prune", "true"])
+        capsys.readouterr()
+
+        exit_code = main(["work", "--prune"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "pruned 1 item" in captured.out
+        assert "open task" not in captured.out
+
+    def test_silent_all_prints_only_summaries(self, taskli_env, capsys):
+        main(["work", "-a", "done task"])
+        main(["work", "-a", "open task"])
+        main(["work", "-d", "1"])
+        main(["groceries", "-a", "buy milk"])
+        main(["groceries", "-a", "spare milk"])
+        main(["groceries", "-d", "1"])
+        main(["--config", "silent_prune", "true"])
+        capsys.readouterr()
+
+        exit_code = main(["--prune", "--all"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert captured.out.count("pruned 1 item") == 2
+        assert "open task" not in captured.out
+        assert "spare milk" not in captured.out
+
     def test_all_with_missing_target_raises(self, taskli_env, capsys):
         exit_code = main(["ghost", "--prune", "--all"])
 

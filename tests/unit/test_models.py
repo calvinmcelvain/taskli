@@ -82,6 +82,18 @@ class TestConfig:
 
         assert config.auto_prune is True
 
+    def test_silent_prune_defaults_false(self):
+        config = Config()
+
+        assert config.silent_prune is False
+
+    def test_set_value_silent_prune(self):
+        config = Config()
+
+        config.set_value("silent_prune", "true")
+
+        assert config.silent_prune is True
+
     def test_set_value_rejects_bad_bool(self):
         config = Config()
 

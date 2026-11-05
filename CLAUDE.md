@@ -57,8 +57,8 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `dates.py` for the due-date value parser, `paths.py` for the dotted
   item-path sort key, `config.py` for
   `Config`/`SortBy` (whose `inherit_sublist_color: bool = True` field,
-  alongside `auto_prune` / `show_reminders` / `agenda_window` /
-  `agenda_include_overdue`, is additive with a Python default so it needs
+  alongside `auto_prune` / `silent_prune` / `show_reminders` /
+  `agenda_window` / `agenda_include_overdue`, is additive with a Python default so it needs
   no migration — `storage` reads it when creating a sublist), `tasks.py`
   for `TaskliItem`/`TaskliList`, `query.py`
   for the `Filter`/`Criterion`/`Sort` value objects, `registry.py` for the
@@ -445,14 +445,19 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   only calls it when at least one count is nonzero.
   `render_agenda(rows: list[tuple[str, TaskliItem]], delimiter=".")`
   (#94) is `render_reminder`'s detailed companion — a flat `List` /
-  `Task` / `Due` table across every list, one row per
+  `Task` / `Priority` / `Due` table across every list, one row per
   `(list_name, item)` pair from `logic.agenda`, already sorted
   chronologically. It's a deliberate bespoke table, **not** routed
   through `registry.renderable()`/`_items_table` — those are shaped for
   one list's items, not cross-list `(name, item)` pairs — but it does
   build its `Task` cell via the shared `_task_cell(item, "")` (#116, same
-  helper `_items_table` and `render_item_details`'s subtasks block use)
-  and its `Due` cell via module-local `_due_display(item)` (shared
+  helper `_items_table` and `render_item_details`'s subtasks block use),
+  its `Priority` cell (header / justify off
+  `registry.ATTRIBUTES["priority"]`'s `column_header`/`column_justify`)
+  via module-local `_attr_display("priority", item)` —
+  `(formatted, style)` off that entry's `render_format`/`render_style`,
+  the generic helper `_due_display` wraps — and its
+  `Due` cell via module-local `_due_display(item)` (shared
   with `render_item_details`) — `(formatted, style)` off
   `registry.ATTRIBUTES["due_date"]`'s `render_format`/`render_style`, the
   same red-overdue/yellow-due-today logic `_items_table`'s `Due` column
@@ -734,7 +739,12 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     same as without `--all`; with it and no `LIST` given (falls back to
     `default_list`), prunes every list on disk instead, skipping any
     that fail to load. `logic.prune` returns one summary line per list in
-    `messages` and every pruned list in `tree_view`.
+    `messages` and every pruned list in `tree_view` — except when
+    `config.silent_prune` is true, which leaves `tree_view` unset so
+    only the per-list summary lines print. It gates explicit `--prune`
+    only, not the `auto_prune` path. `--config silent_prune true` works
+    for free through the generic `Config.set_value`/`get_value` path,
+    same as `auto_prune`.
   - The default view builds one opaque `Filter` (from `--tag`,
     `-p/--priority`, and `--due`) in `_dispatch` and threads it unchanged
     through

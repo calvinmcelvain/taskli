@@ -585,13 +585,13 @@ def prune(
     target_given : bool
         Whether an explicit list name was passed on the command line.
     config : Config
-        The active config, for display names.
+        The active config, for display names and ``silent_prune``.
 
     Returns
     -------
     CommandResult
-        One message per pruned list plus every pruned list as the tree
-        view.
+        One message per pruned list, plus every pruned list as the tree
+        view unless ``config.silent_prune`` is set.
     """
 
     storage_dir = resolve_storage_dir()
@@ -605,7 +605,10 @@ def prune(
             names = all_lists
         lists.extend(load_list(storage_dir, name) for name in names)
 
-    result = CommandResult(tree_view=lists)
+    result = CommandResult()
+    if not config.silent_prune:
+        result.tree_view = lists
+
     for task_list in lists:
         removed = task_list.prune()
         save_list(storage_dir, task_list)
