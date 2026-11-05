@@ -4,11 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-Setup (editable install with dev deps):
+Setup (editable install with dev deps; `uv sync` creates `.venv` with the `dev` dependency group):
 ```bash
-python3 -m venv .venv
+uv sync
 source .venv/bin/activate
-pip install -e ".[dev]"
 ```
 
 Run the CLI once installed: `tk ...` or `taskli ...` (both entry points defined in `pyproject.toml`, pointing at `taskli.cli:main`).

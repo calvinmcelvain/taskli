@@ -13,7 +13,8 @@ to be on `PATH`. End users `source` (bash/zsh) or dot-source (PowerShell) one
 file — see the `## Shell completion` section of the top-level `README.md`.
 
 Packaging (`pyproject.toml`) ships this directory in the sdist and maps it into
-the wheel at `<prefix>/share/taskli/completions/`.
+the wheel at `<prefix>/share/taskli/completions/` (for a `uv tool install`, that
+is `$(uv tool dir)/taskli/share/taskli/completions/`).
 
 ## Regenerating
 

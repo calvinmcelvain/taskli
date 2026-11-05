@@ -18,9 +18,12 @@ Setup (all check commands below assume this `.venv` exists — see
 `.claude/project.json`, which prefixes them with `.venv/bin/`):
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync                        # creates .venv with the dev dependency group
+source .venv/bin/activate
 ```
+
+`uv.lock` is committed; dev deps live in `[dependency-groups].dev` in
+`pyproject.toml`, and CI installs with `uv sync --locked`.
 
 | Task | Command |
 |---|---|
@@ -32,7 +35,7 @@ pip install -e ".[dev]"
 
 CI (`.github/workflows/ci.yml`, Python 3.12) runs ruff, `black --check`
 + `isort --check-only`, `mypy src tests`, and `pytest` with a **95% coverage
-gate** (`--cov-fail-under=95`); a `build` job also smoke-tests the wheel. Line
+gate** (`--cov-fail-under=95`); a `build` job also smoke-tests the wheel via `uv tool install`. Line
 length is 79 everywhere.
 
 ## Architecture
