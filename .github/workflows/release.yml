@@ -25,11 +25,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Read version
         id: version
@@ -67,25 +66,19 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install build tools
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
-
       - name: Build package
         if: steps.check.outputs.exists == 'false'
-        run: python -m build
+        run: uv build
 
       - name: Verify wheel
         if: steps.check.outputs.exists == 'false'
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
+          export UV_TOOL_DIR="$RUNNER_TEMP/uv-tools"
+          export UV_TOOL_BIN_DIR="$RUNNER_TEMP/uv-bin"
 
-          pip install dist/*.whl
-          tk --help
-          taskli --help
+          uv tool install dist/*.whl
+          "$UV_TOOL_BIN_DIR/tk" --help
+          "$UV_TOOL_BIN_DIR/taskli" --help
 
       - name: Upload build artifacts
         if: steps.check.outputs.exists == 'false'

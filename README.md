@@ -65,11 +65,20 @@ work
 
 Requires **Python 3.11+**.
 
-### Install with `pipx` (recommended)
+### Install with `uv` (recommended)
 
-For most users, `pipx` provides an isolated installation and makes the `tk`
-command available globally without affecting your other Python
-environments.
+For most users, [`uv`](https://docs.astral.sh/uv/) provides an isolated
+installation and puts the `tk` and `taskli` commands on your `PATH` without
+affecting your other Python environments. If the tool bin directory isn't on
+your `PATH` yet, run `uv tool update-shell` once.
+
+```bash
+uv tool install git+https://github.com/calvinmcelvain/taskli.git
+```
+
+### Alternative: `pipx`
+
+[`pipx`](https://pipx.pypa.io/) works just as well:
 
 ```bash
 pipx install git+https://github.com/calvinmcelvain/taskli.git
@@ -77,24 +86,25 @@ pipx install git+https://github.com/calvinmcelvain/taskli.git
 
 ### Install from source
 
-Clone the repository and install it in editable mode for local development.
+Clone the repository and sync the project environment (this creates `.venv`
+with the dev dependencies) for local development.
 
 ```bash
 git clone https://github.com/calvinmcelvain/taskli.git
 cd taskli
 
-python3 -m venv .venv
+uv sync
 source .venv/bin/activate      # Git Bash on Windows: source .venv/Scripts/activate
-pip install -e ".[dev]"
 ```
 
 ### Global install
 
-For a "global" install (i.e., ability to use `tk` in the terminal across local environments), you will need to use `pipx`:
+For a "global" install (i.e., ability to use `tk` in the terminal across local environments) from a clone, use `uv tool`:
 
 ```bash
 # after doing the above...
-pip install pipx
+uv tool install . --force
+# or, with pipx
 pipx install . --force
 ```
 
@@ -117,8 +127,10 @@ script, once, from your shell rc.
 ```bash
 # from a source checkout
 source /path/to/taskli/completions/taskli.sh
+# installed via uv
+source "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
 # installed via pipx
-source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
+# source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
 ```
 
 **zsh** — add the same line to `~/.zshrc`, but it **must come after
@@ -128,15 +140,16 @@ system already initialized.
 
 ```zsh
 autoload -Uz compinit && compinit
-source "$(pipx environment --value PIPX_LOCAL_VENVS)/taskli/share/taskli/completions/taskli.sh"
+source "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
 ```
 
 **PowerShell** — dot-source the `.ps1` into `$PROFILE` (PowerShell uses
 `. path`, not `source`):
 
 ```powershell
-. "$(pipx environment --value PIPX_LOCAL_VENVS)\taskli\share\taskli\completions\taskli.ps1"
+. "$(uv tool dir)\taskli\share\taskli\completions\taskli.ps1"
 # or, from a source checkout, the path to completions\taskli.ps1
+# installed via pipx, use "$(pipx environment --value PIPX_LOCAL_VENVS)" in place of "$(uv tool dir)"
 ```
 
 Start a new shell, and completion works as you'd expect:

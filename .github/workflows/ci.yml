@@ -18,33 +18,31 @@ jobs:
       matrix:
         include:
           - name: Lint
-            command: ruff check .
+            command: uv run ruff check .
 
           - name: Format
             command: |
-              black --check --line-length 79 .
-              isort --check-only .
+              uv run black --check --line-length 79 .
+              uv run isort --check-only .
 
           - name: Type Check
-            command: mypy src tests
+            command: uv run mypy src tests
 
           - name: Test
-            command: pytest -q --cov=taskli --cov-report=term-missing --cov-fail-under=95
+            command: uv run pytest -q --cov=taskli --cov-report=term-missing --cov-fail-under=95
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
-          cache: pip
+          enable-cache: true
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+        run: uv sync --locked
 
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
@@ -57,30 +55,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
-          cache: pip
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
+          enable-cache: true
 
       - name: Build package
-        run: python -m build
+        run: uv build
 
       - name: Verify built wheel
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
+          export UV_TOOL_DIR="$RUNNER_TEMP/uv-tools"
+          export UV_TOOL_BIN_DIR="$RUNNER_TEMP/uv-bin"
 
-          pip install dist/*.whl
-          tk --help
-          taskli --help
-          test -f .venv/share/taskli/completions/taskli.sh
-          test -f .venv/share/taskli/completions/taskli.ps1
+          uv tool install dist/*.whl
+          "$UV_TOOL_BIN_DIR/tk" --help
+          "$UV_TOOL_BIN_DIR/taskli" --help
+          test -f "$(uv tool dir)/taskli/share/taskli/completions/taskli.sh"
+          test -f "$(uv tool dir)/taskli/share/taskli/completions/taskli.ps1"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
