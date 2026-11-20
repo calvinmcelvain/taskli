@@ -255,5 +255,27 @@ class TestModifiers:
 
         assert parse("high") is Priority.HIGH
 
+    @pytest.mark.parametrize(
+        "raw",
+        ["", "none", "NONE", "  None "],
+        ids=["empty", "none", "none-caps", "none-padded"],
+    )
+    def test_description_parse_clears_token(self, raw):
+        parse = ATTRIBUTES["description"].parse
+        assert parse
+
+        assert parse(raw) is None
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["note", "nonesuch", "none of it"],
+        ids=["plain", "none-prefix", "none-phrase"],
+    )
+    def test_description_parse_passes_text_through(self, raw):
+        parse = ATTRIBUTES["description"].parse
+        assert parse
+
+        assert parse(raw) == raw
+
     def test_tags_has_no_parse(self):
         assert ATTRIBUTES["tags"].parse is None

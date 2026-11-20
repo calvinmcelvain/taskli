@@ -44,11 +44,11 @@ Modifiers layer on top of an action.
 | `-p, --priority {low,medium,high}` | Set on `-a`/`-e`; filter on the default view. |
 | `--tag TAG` (repeatable) | Set on `-a`; **replace** tags on `-e`; filter on the default view. |
 | `--add-tag TAG` (repeatable) | Append tags on `-e`. Cannot be combined with `--tag`. |
-| `--due WHEN` | Set on `-a`/`-e` (one value); filter on the default view (repeatable, OR-combined). See [due dates](tasks.md#due-dates). |
+| `--due WHEN` | Set on `-a`/`-e` (one value); filter on the default view (repeatable, OR-combined). On `-e`, `none`, `""`, or a bare `--due` clears the due date (a no-op on `-a`). A bare `--due` is an error on the default view. See [due dates](tasks.md#due-dates). |
 | `--today` | Default view only: shorthand for `--due today`. |
 | `--undated` | Default view only: shorthand for `--due none`. |
 | `-t, --text TEXT` | New text for `-e`. |
-| `--desc TEXT` | Set a description on `-a`/`-e`; `--desc ""` clears it. |
+| `--desc TEXT` | Set a description on `-a`/`-e`. On `-e`, `none`, `""`, or a bare `--desc` clears it (a no-op on `-a`). |
 | `--under PATH` | With `-a`: nest the new item under `PATH`. With `-e`: re-nest the item; `--under ""` moves it to the top level. |
 | `--all` | Default view or `--prune`: include sublists (or every list when no `LIST`). |
 
