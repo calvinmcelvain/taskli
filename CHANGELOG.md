@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-11-20
+## [1.0.2] - 2026-11-20
+
+Version 1.0.1 was never published: its tag name was reserved by an immutable
+release and could not be created. These changes ship as 1.0.2.
 
 ### Added
 
@@ -99,8 +102,8 @@ the on-disk schema stay compatible across 1.x.
 
 - Initial release.
 
-[Unreleased]: https://github.com/calvinmcelvain/taskli/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/calvinmcelvain/taskli/compare/v1.0.0...v1.0.1
+[Unreleased]: https://github.com/calvinmcelvain/taskli/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/calvinmcelvain/taskli/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/calvinmcelvain/taskli/compare/v0.3.0-beta...v1.0.0
 [0.3.0-beta]: https://github.com/calvinmcelvain/taskli/compare/v0.2.0-beta...v0.3.0-beta
 [0.2.0-beta]: https://github.com/calvinmcelvain/taskli/compare/v0.1.0-beta...v0.2.0-beta
