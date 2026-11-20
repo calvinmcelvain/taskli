@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Clear a task's due date with `-e --due none`, `--due ""`, or a bare `--due`.
+  On `-a` these are accepted and leave the item undated.
+
+### Fixed
+
+- `-e --desc` can now clear a description on Windows shells that drop an empty
+  argument: a bare `--desc` or `--desc none` clears it. As a result, a
+  description of exactly `none` can no longer be set.
+
 ## [1.0.0] - 2026-11-05
 <!-- set the real release date when merging -->
 

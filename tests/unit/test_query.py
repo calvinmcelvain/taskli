@@ -332,6 +332,13 @@ class TestDueToCriteria:
 
         assert [i.text for i in result] == ["undated"]
 
+    @pytest.mark.parametrize("raw", ["", "  "], ids=["empty", "whitespace"])
+    def test_rejects_blank_token(self, monkeypatch, raw):
+        freeze_today(monkeypatch, date(2026, 3, 10))
+
+        with pytest.raises(InvalidModifierValueError):
+            due_to_criteria(raw)
+
     def test_rejects_unparseable_token(self, monkeypatch):
         freeze_today(monkeypatch, date(2026, 3, 10))
 

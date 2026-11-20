@@ -17,7 +17,8 @@ field — `TaskliList`, `Config`), the attribute enums (`Priority`,
 validated against the registry, not an enum), the query value objects
 (`Filter`, `Criterion`, `Sort`), the due-date value parser (`dates.py` —
 `parse_due_date` / `today` / `midnight`, a leaf beside `attributes.py`
-importing only `re`, `datetime`, and `exceptions`), the dotted item-path
+importing only `re`, `datetime`, `exceptions`, and `attributes`'
+`is_clear_token`), the dotted item-path
 sort key (`paths.py` — `path_key`, a leaf that imports nothing), and the
 attribute
 registry (`registry.py`'s `Attribute` / `ATTRIBUTES` table of
@@ -31,7 +32,8 @@ leads with a bespoke non-registry `Task` column (id, state marker, and
 tree-branch text in one cell — the same sanctioned pattern as
 `render_agenda`), with `renderable()` driving only the trailing
 `priority` / `tags` / `due_date` columns.
-`registry.py` sits on top of both `attributes.py` and `dates.py`. The
+`registry.py` sits on top of both `attributes.py` and `dates.py` (and
+`dates.py` itself sits on `attributes.py`). The
 registry carries domain, render, and value-parsing facets; the argparse
 vocabulary (flags, `nargs`, `metavar`, `dest`) for the same attributes
 lives in `cli.py`'s `MODIFIER_FLAGS`. `models/__init__.py` carries no

@@ -4,6 +4,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from ..exceptions import InvalidModifierValueError
+from .attributes import is_clear_token
 
 __all__ = ["parse_agenda_window", "parse_due_date", "today"]
 
@@ -61,20 +62,24 @@ def midnight(value: date) -> datetime:
     return datetime(value.year, value.month, value.day)
 
 
-def parse_due_date(raw: str) -> datetime:
+def parse_due_date(raw: str) -> datetime | None:
     """Parse a due-date modifier value to a midnight datetime.
 
     Parameters
     ----------
     raw : str
         The user-supplied value, e.g. ``"tomorrow"``, ``"3 days"``, or
-        ``"04-15-2026"``.
+        ``"04-15-2026"``; ``""`` or ``"none"`` means clear the date.
 
     Returns
     -------
-    datetime
-        The resolved calendar day at midnight (no time component).
+    datetime | None
+        The resolved calendar day at midnight (no time component), or
+        ``None`` when ``raw`` is a clear token.
     """
+
+    if is_clear_token(raw):
+        return None
 
     text = raw.strip()
     keyword = text.casefold()

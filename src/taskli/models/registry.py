@@ -8,7 +8,7 @@ from datetime import datetime
 from functools import cache
 from typing import TYPE_CHECKING, Literal
 
-from .attributes import Operator, Priority
+from .attributes import Operator, Priority, is_clear_token
 from .dates import parse_due_date, today
 
 if TYPE_CHECKING:
@@ -76,7 +76,7 @@ ATTRIBUTES: dict[str, Attribute] = {
     ),
     "description": Attribute(
         name="description",
-        parse=lambda s: s or None,
+        parse=lambda s: None if is_clear_token(s) else s,
         modifier_ops=frozenset({"add", "edit"}),
     ),
     "priority": Attribute(

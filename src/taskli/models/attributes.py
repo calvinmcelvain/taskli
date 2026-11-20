@@ -5,7 +5,25 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import assert_never
 
-__all__ = ["Color", "Operator", "Priority", "Status"]
+__all__ = ["Color", "Operator", "Priority", "Status", "is_clear_token"]
+
+
+def is_clear_token(raw: str) -> bool:
+    """Report whether a modifier value means "clear this attribute".
+
+    Parameters
+    ----------
+    raw : str
+        The user-supplied modifier value.
+
+    Returns
+    -------
+    bool
+        ``True`` for an empty or whitespace-only string, or ``"none"``
+        in any case.
+    """
+
+    return raw.strip().casefold() in {"", "none"}
 
 
 class Color(StrEnum):

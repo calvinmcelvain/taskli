@@ -59,8 +59,15 @@ class TestParseDueDate:
 
     @pytest.mark.parametrize(
         "raw",
+        ["none", "None", "  NONE ", "", "   "],
+        ids=["none", "none-caps", "none-padded-caps", "empty", "whitespace"],
+    )
+    def test_clear_token_returns_none(self, raw):
+        assert parse_due_date(raw) is None
+
+    @pytest.mark.parametrize(
+        "raw",
         [
-            "",
             "overdue",
             "someday",
             "2026-04-15",
@@ -71,7 +78,6 @@ class TestParseDueDate:
             "mondays",
         ],
         ids=[
-            "empty",
             "overdue",
             "someday",
             "iso",

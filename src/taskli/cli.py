@@ -135,11 +135,11 @@ def _complete_due_keywords(
 
     from .models.dates import DUE_DATE_KEYWORDS, WEEKDAY_INDEX
 
-    keywords = [*DUE_DATE_KEYWORDS, *WEEKDAY_INDEX]
+    keywords = [*DUE_DATE_KEYWORDS, *WEEKDAY_INDEX, "none"]
     if not (
         getattr(parsed_args, "add", None) or getattr(parsed_args, "edit", None)
     ):
-        keywords.extend(["overdue", "none"])
+        keywords.append("overdue")
 
     return keywords
 
@@ -205,15 +205,19 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                 dest="due",
                 kwargs={
                     "action": "append",
+                    "nargs": "?",
+                    "const": "",
                     "default": [],
                     "metavar": "WHEN",
                     "help": (
                         "Set (with -a/-e) or filter (default view) an"
                         " item's due date. Accepts: today, tomorrow,"
-                        " 'N days', 'next-week', 'N weeks', MM-DD-YYYY."
-                        " Filtering also accepts 'overdue' and 'none'"
-                        " (items with no due date), and may repeat"
-                        " (values OR together)."
+                        " 'N days', 'next-week', 'N weeks', weekday"
+                        " names, MM-DD-YYYY. With -e, 'none', \"\" or a"
+                        " bare --due clears the due date (no-op with"
+                        " -a). Filtering also accepts 'overdue' and"
+                        " 'none' (items with no due date), and may"
+                        " repeat (values OR together)."
                     ),
                 },
                 completer=_complete_due_keywords,
@@ -270,11 +274,13 @@ MODIFIER_FLAGS: dict[str, ModifierSpec] = {
                 dest="desc",
                 kwargs={
                     "type": str,
+                    "nargs": "?",
+                    "const": "",
                     "default": None,
                     "metavar": "TEXT",
                     "help": (
-                        "Set (with -a/-e) an item's description; pass an"
-                        " empty string to clear it. -a/-e only."
+                        "Set an item's description. -a/-e only. With -e,"
+                        " a bare --desc, \"\" or 'none' clears it."
                     ),
                 },
             ),
@@ -655,7 +661,8 @@ def _reject_modifiers(
         for arg in spec.args
     }
     for dest in sorted(flags.keys() - allowed):
-        if getattr(namespace, dest):
+        # not a truthiness check: a bare --desc / --under "" is "".
+        if getattr(namespace, dest) not in (None, [], False):
             parser.error(f"{flags[dest]} is not valid with {context}.")
 
     return None
@@ -781,6 +788,8 @@ def _validate(
                 parser.error("--config takes at most KEY and VALUE.")
             _reject_modifiers(namespace, parser, "--config", set())
         case ListCommands.VIEW:
+            if any(not value.strip() for value in namespace.due):
+                parser.error("--due needs a value on the default view.")
             _reject_modifiers(
                 namespace,
                 parser,

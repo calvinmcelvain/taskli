@@ -59,6 +59,20 @@ tk work -a "Submit timesheet" --due friday
 tk work -e 3 --due "3 days"
 ```
 
+To **clear** a due date, edit the item with `--due none`, `--due ""`, or a
+bare `--due`:
+
+```bash
+tk work -e 3 --due none
+tk work -e 3 --due ""
+tk work -e 3 --due
+```
+
+`none` and a blank value are case-insensitive and ignore surrounding
+whitespace. The bare form exists because some Windows shells drop an
+empty-string argument, so `--due ""` can arrive as a bare `--due`. On `-a`
+these forms are accepted and do nothing: the item is added undated.
+
 The `Due` column turns **red** when an item is overdue and **yellow** when
 it's due today (done items are never highlighted).
 
@@ -75,8 +89,10 @@ tk work --undated --due today        # undated, or due today
 tk --today --all                     # across every list
 ```
 
-`--due overdue`, `--due none`, `--today`, and `--undated` are filter-only;
-`-a`/`-e` reject them. There is no way to clear a due date once set.
+`--due overdue`, `--today`, and `--undated` are filter-only; `-a`/`-e` reject
+them. `--due none` filters for undated items on the default view, but on
+`-a`/`-e` it clears the due date (see above). A bare or blank `--due` is
+rejected on the default view, since there is nothing to filter on.
 
 ### Across every list
 
@@ -90,13 +106,26 @@ above other commands. Turn it off with `tk --config show_reminders false`.
 
 ## Descriptions
 
-`--desc` attaches longer notes to an item; `--desc ""` clears it. A dim `¶`
-after the task text marks items that have one, and `-D` shows it in full:
+`--desc` attaches longer notes to an item. A dim `¶` after the task text marks
+items that have one, and `-D` shows it in full:
 
 ```bash
 tk work -a "Ship v2 release" --desc "Cut the branch, then tag the build."
 tk work -D 1
 ```
+
+To clear a description, use `-e` with `--desc none`, `--desc ""`, or a bare
+`--desc` (the bare form is there for Windows shells that drop an empty-string
+argument):
+
+```bash
+tk work -e 1 --desc none
+```
+
+> [!NOTE]
+> Because `none` clears, a description that is literally the word "none"
+> can't be set. On `-a` a clear value is accepted and the item is added
+> without a description.
 
 ![Details](assets/details.svg)
 

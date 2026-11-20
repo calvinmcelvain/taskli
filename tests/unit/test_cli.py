@@ -945,12 +945,49 @@ class TestDue:
         assert "bravo" in captured.out
         assert "charlie" not in captured.out
 
-    def test_rejects_none_on_set_path(self, taskli_env, capsys):
-        exit_code = main(["work", "-a", "x", "--due", "none"])
+    @pytest.mark.parametrize(
+        "due_args",
+        [["--due", "none"], ["--due", ""], ["--due"]],
+        ids=["none", "empty", "bare"],
+    )
+    def test_add_clear_token_adds_undated_item(self, taskli_env, due_args):
+        exit_code = main(["work", "-a", "x", *due_args])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.text == "x"
+        assert item.due_date is None
+
+    @pytest.mark.parametrize(
+        "due_args",
+        [["--due", "none"], ["--due", ""], ["--due"]],
+        ids=["none", "empty", "bare"],
+    )
+    def test_edit_clear_token_clears_due(self, taskli_env, capsys, due_args):
+        main(["work", "-a", "taxes", "--due", "tomorrow"])
+        before = load_list(taskli_env, "work").items[0].modified_at
+        capsys.readouterr()
+
+        exit_code = main(["work", "-e", "1", *due_args])
 
         captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "MM-DD-YYYY" in captured.out + captured.err
+        assert exit_code == 0
+        assert "updated #1 in 'work'" in captured.out
+        item = load_list(taskli_env, "work").items[0]
+        assert item.due_date is None
+        assert item.modified_at != before
+
+    @pytest.mark.parametrize(
+        "due_args",
+        [["--due"], ["--due", ""], ["--due", "  "]],
+        ids=["bare", "empty", "whitespace"],
+    )
+    def test_view_blank_due_errors(self, taskli_env, capsys, due_args):
+        exit_code = main(["work", *due_args])
+
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert "--due needs a value on the default view." in captured.err
 
     def test_config_default_sort_by_due_orders_none_last(
         self, taskli_env, capsys
@@ -1179,6 +1216,42 @@ class TestDesc:
         assert exit_code == 0
         item = load_list(taskli_env, "work").items[0]
         assert item.description is None
+
+    @pytest.mark.parametrize(
+        "desc_args",
+        [["--desc", "none"], ["--desc", "NONE"], ["--desc"]],
+        ids=["none", "none-caps", "bare"],
+    )
+    def test_edit_clear_token_clears_description(self, taskli_env, desc_args):
+        main(["work", "-a", "migrate", "--desc", "old note"])
+
+        exit_code = main(["work", "-e", "1", *desc_args])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.description is None
+
+    @pytest.mark.parametrize(
+        "desc_args",
+        [["--desc", "none"], ["--desc"]],
+        ids=["none", "bare"],
+    )
+    def test_add_clear_token_leaves_description_unset(
+        self, taskli_env, desc_args
+    ):
+        exit_code = main(["work", "-a", "migrate", *desc_args])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.text == "migrate"
+        assert item.description is None
+
+    def test_add_stores_none_prefixed_text_verbatim(self, taskli_env):
+        exit_code = main(["work", "-a", "migrate", "--desc", "nonesuch"])
+
+        assert exit_code == 0
+        item = load_list(taskli_env, "work").items[0]
+        assert item.description == "nonesuch"
 
 
 class TestDetails:
@@ -2424,17 +2497,34 @@ class TestFlagCombinations:
         assert exit_code == 2
         assert "-e/--edit takes one --due value." in captured.err
 
-    def test_empty_desc_on_view_is_ignored_not_rejected(
-        self, taskli_env, capsys
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["work", "--desc", ""],
+            ["work", "--desc"],
+            ["work", "--prune", "--desc"],
+            ["work", "-d", "1", "--desc"],
+            ["work", "-d", "1", "--desc", ""],
+        ],
+        ids=[
+            "view-empty",
+            "view-bare",
+            "prune-bare",
+            "done-bare",
+            "done-empty",
+        ],
+    )
+    def test_empty_desc_rejected_where_not_valid(
+        self, taskli_env, capsys, argv
     ):
         main(["work", "-a", "task"])
         capsys.readouterr()
 
-        exit_code = main(["work", "--desc", ""])
+        exit_code = main(argv)
 
         captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "task" in captured.out
+        assert exit_code == 2
+        assert "--desc is not valid with" in captured.err
 
     def test_config_with_three_args_errors(self, taskli_env, capsys):
         exit_code = main(["--config", "a", "b", "c"])
@@ -2606,5 +2696,5 @@ class TestCompletion:
         assert "today" in keywords
         assert "next-week" in keywords
         assert "monday" in keywords
+        assert "none" in keywords
         assert ("overdue" in keywords) is expects_overdue
-        assert ("none" in keywords) is expects_overdue

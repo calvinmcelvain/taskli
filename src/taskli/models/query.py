@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from ..exceptions import InvalidConfigValueError
+from ..exceptions import InvalidConfigValueError, InvalidModifierValueError
 from . import registry
 from .attributes import Operator
 from .dates import midnight, parse_agenda_window, parse_due_date, today
@@ -197,9 +197,13 @@ def due_to_criteria(raw: str) -> tuple[Criterion, ...]:
             Criterion("done", Operator.EQ, False),
         )
 
+    due = parse_due_date(raw)
+    if due is None:
+        raise InvalidModifierValueError("a --due filter needs a value.")
+
     # parse_due_date midnight-normalizes its result, so this exact-datetime
     # match agrees with _due_render_style's calendar-day comparison.
-    return (Criterion("due_date", Operator.EQ, parse_due_date(raw)),)
+    return (Criterion("due_date", Operator.EQ, due),)
 
 
 def agenda_criteria(

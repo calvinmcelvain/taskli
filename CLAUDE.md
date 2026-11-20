@@ -46,7 +46,8 @@ on raw parsed file dicts before model validation; imported by `storage`).
 filesystem, imported by `storage`, `logic`, and `cli`).
 `models` is itself a small sub-package rather than one file (with
 `attributes.py`, `dates.py`, and `paths.py` the leaves inside it and
-`registry.py` layered on `attributes.py` + `dates.py`) — see below.
+`registry.py` layered on `attributes.py` + `dates.py`, and `dates.py`
+importing `attributes.py` for `is_clear_token`) — see below.
 `models/__init__.py` is empty: every symbol is imported from its owning
 leaf module directly (`from .models.tasks import TaskliItem`), though the
 `registry` module stays `from .models import registry`.
@@ -73,9 +74,14 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `Priority._missing_` / `Status._missing_` accept only a
   case-insensitive label string now — the old container-form (`dict` with
   a `"label"` key) branch is gone, since unwrapping that shape is a
-  `migrations.py` step. `dates.py` is a leaf beside `attributes.py`
-  (imports only `re`, `datetime`, `..exceptions` — nothing from
-  `models/`): `parse_due_date(str) -> datetime` accepts the keywords
+  `migrations.py` step. `attributes.py` also holds `is_clear_token(raw:
+  str) -> bool` — `raw.strip().casefold()` is blank or `"none"` — the
+  one shared "clear this attribute" test behind `--due` / `--desc`
+  clearing. `dates.py` sits beside `attributes.py`
+  (imports only `re`, `datetime`, `..exceptions`, and `.attributes` for
+  `is_clear_token` — nothing else from `models/`):
+  `parse_due_date(str) -> datetime | None` returns `None` for a clear
+  token (blank or `none`, via `is_clear_token`) and otherwise accepts the keywords
   `today`/`tomorrow`/`next-week`/`N days`/`N weeks`, a bare weekday name
   (full or 3-letter, via the module-level `WEEKDAY_INDEX` map — resolves
   to the closest upcoming occurrence, today-is-that-weekday means +7),
@@ -84,7 +90,7 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `InvalidModifierValueError` (listing the accepted forms) on anything
   else; `today() -> date` and `midnight(value) -> datetime` are the
   mockable / normalising seams. `parse_agenda_window(raw: str) -> str`
-  lives in this same leaf (same shape: stdlib + `..exceptions` only) —
+  lives in this same leaf (same shape: stdlib + `..exceptions` + `.attributes`) —
   it validates/normalises a `--agenda`/`agenda_window` token to
   `"today"`/`"week"`/`"overdue"` or a positive-integer digit string,
   raising `InvalidModifierValueError` otherwise; it's the one source of
@@ -113,8 +119,10 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
   `State` / `Text` / `""` columns into one `Task` column, #104;
   `render_style` returns a rich colour *name* string, never imports
   rich), plus `parse` (the `str -> value` callable — `priority`'s
-  `Priority[...]` lookup, moved here from `cli.MODIFIER_FLAGS`, and
-  `due_date`'s `parse_due_date`) and `modifier_ops` (a frozenset of
+  `Priority[...]` lookup, moved here from `cli.MODIFIER_FLAGS`,
+  `due_date`'s `parse_due_date`, and `description`'s `None if
+  is_clear_token(s) else s`, so a blank or `none` description clears
+  rather than stores) and `modifier_ops` (a frozenset of
   op-name strings, `"add"`/`"edit"`, marking which item actions may set
   the attribute). Module helpers `sortable()` / `renderable()` /
   `filterable()` / `modifiable(op)` select the entries carrying the
@@ -613,7 +621,11 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     an optional `filter_dest` (filterable ones), `multi` (a repeatable,
     OR-combined filter), and `to_criteria` (a token →
     `tuple[Criterion, ...]` builder, set by `due_date` to
-    `query.due_to_criteria`); a `ModifierArg` may carry a `filter_word`
+    `query.due_to_criteria`, which raises `InvalidModifierValueError` on
+    a blank token rather than treating it as a clear); the `--due`
+    argcomplete completer `_complete_due_keywords` always offers `none`
+    (a clear on `-a`/`-e`, the undated filter on the view) and adds
+    `overdue` only off `-a`/`-e`; a `ModifierArg` may carry a `filter_word`
     that it contributes as one more token to a `multi` filter (`--today`
     → `"today"`, `--undated` → `"none"`). A `multi` spec must set `filter_dest`, which is where
     its repeated values are read from (never `spec.args[0]`). `due_date`'s `--due` values and `--today` become the
@@ -630,9 +642,15 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     namespace)` builds the raw modifier mapping passed to `logic.add` /
     `logic.edit` by iterating `MODIFIER_FLAGS` ∩ `registry.modifiable(op)`,
     including a key whenever its namespace value `is not None` — so
-    `--desc ""` is included (and `description`'s `parse`, `lambda s: s or
-    None`, then turns it into a clear) while an omitted `--desc`
-    (namespace default `None`) is left untouched.
+    `--desc ""` is included (and `description`'s `parse`, `None if
+    is_clear_token(s) else s`, then turns it into a clear) while an
+    omitted `--desc` (namespace default `None`) is left untouched. Both
+    `--desc` and `--due` are declared `nargs="?"`, `const=""`, so a bare
+    `--desc` / `--due` arrives as `""` and clears too (Windows shells can
+    drop an explicit `""` argument); `--due` stays `action="append"`
+    (`default=[]`), so `_modifier_values` takes the first value, and
+    `parse_due_date` maps `none` / blank to `None` — on `-e` that clears
+    `due_date`, on `-a` it is a no-op (the item is added undated).
     The VIEW filter loop in `_dispatch` iterates `registry.filterable()`
     with no name-based skip, reading `MODIFIER_FLAGS[name].filter_dest`
     off the namespace. For a `multi` spec it collects the `filter_dest`
@@ -686,7 +704,9 @@ leaf module directly (`from .models.tasks import TaskliItem`), though the
     `-p`/`--tag`/`--due`/`--desc`/`--under` and `-e` those plus
     `-t`/`--add-tag`,
     both rejecting `--all`; the default VIEW allows
-    `-p`/`--tag`/`--all`/`--due`/`--today`/`--undated`; `-e`
+    `-p`/`--tag`/`--all`/`--due`/`--today`/`--undated` but rejects a
+    bare or blank `--due` (`"--due needs a value on the default view."`,
+    exit 2 — `--due none` stays the undated filter); `-e`
     additionally rejects giving both `--tag` (replaces) and `--add-tag`
     (appends) in the same call; `-mv`/`--copy` reject every modifier too
     and additionally validate that every id after `TARGET_LIST` parses
